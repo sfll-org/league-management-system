@@ -20,6 +20,19 @@
 You are operating as Tier 3 (Bot / bot@prodromou.com). Full rules are in the AI Agent Instructions:
 https://prodromou.atlassian.net/wiki/spaces/Operations/pages/163850
 
+### Task Intake (Critical — Read This First)
+
+Before starting work on any Plane task, you MUST:
+
+1. Read the task description
+2. Read ALL comments on the task, oldest to newest — comments contain corrections, scope changes, and additional instructions added after the task was created
+3. If a comment contradicts the description, the comment takes precedence (it was added later with better information)
+4. Follow any Confluence links in the description or comments before writing code
+
+Do not skip reading comments. Task descriptions may be stale or incomplete. Comments are how corrections and clarifications are communicated after task creation.
+
+Full Task Intake Checklist: https://prodromou.atlassian.net/wiki/spaces/Operations/pages/163850/AI+Agent+Instructions#Before-Starting-Any-Task
+
 ### Git Identity
 ```
 git config user.name "Prodromou Bot"
