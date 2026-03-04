@@ -1,85 +1,51 @@
 # AGENTS.md — SFLL Player Database
 
 ## Project Overview
-
-**South Florida Little League** — Player database, volunteer tracking, and umpiring operations for SFLL.
-
-**Status:** Active Development
+**SFLL Player Database** — SFLL player database and operations tools.
 **Visibility:** Private
 
 ## Tech Stack
-
-- Stack details: See Confluence
+- Repository is currently bootstrap-level (README + agent context files)
+- Application stack to be finalized as implementation starts
 
 ## Links
-
 - **Plane Project:** SFLL
   https://plane.prodromou.com/prodromou/projects/15deb480-894a-43f2-af55-77621e881566/issues
   Project ID: `15deb480-894a-43f2-af55-77621e881566`
-
-- **Confluence Hub:** Page 17563649
-  https://prodromou.atlassian.net/wiki/spaces/Operations/pages/17563649
+- **Confluence Hub:** None yet
+  Create one if significant work is done on this project
 
 ## Tier 3 Operating Rules
 
-### Git Workflow
+You are operating as Tier 3 (Bot / bot@prodromou.com). Full rules are in the AI Agent Instructions:
+https://prodromou.atlassian.net/wiki/spaces/Operations/pages/163850
 
-\`\`\`bash
+### Git Identity
+```
 git config user.name "Prodromou Bot"
 git config user.email "bot@prodromou.com"
-\`\`\`
+```
+Branch naming: `bot/{TICKET-KEY}-short-description`
+Commit format: `{TICKET-KEY}-{number}: description`
 
-**Branch naming:**
-\`\`\`
-bot/{TICKET-KEY}-short-description
-\`\`\`
-Example: `bot/SFLL-15-player-import`
+### Plane
+- You CAN: update work item status, add comments, link related items
+- You CANNOT: create new tasks, modify task descriptions, reprioritize, reassign, delete
+- If blocked: move task back to Todo, unassign yourself, comment explaining why
+- If work spawns follow-up: label with `needs-followup`, describe in comment
 
-**Commits:**
-\`\`\`
-SFLL-15: Add player import feature
+### Confluence
+- You CAN: update Confluence pages — all edits are attributed to bot@prodromou.com and audited by Tier 2
+- Update "Current State" sections, "Known Issues", documentation that reflects completed work
+- Add decisions you made during work to "Key Decisions"
+- You CANNOT: delete pages or restructure page hierarchy
+- If you find a spec discrepancy: leave a Plane comment, do NOT change the spec
 
-Co-Authored-By: Prodromou Bot <bot@prodromou.com>
-\`\`\`
-
-### Plane Permissions
-
-**You can:**
-- Update work item status
-- Add comments and notes
-- Link related work items
-
-**You cannot:**
-- Create new tasks
-- Modify task descriptions or specs
-- Reprioritize or reassign work
-- Delete work items
-
-If blocked or unsure about a requirement, move the task back to "Todo", unassign yourself, and leave a comment explaining the blocker.
-
-### Confluence Updates
-
-**You can update:**
-- "Current State" sections (progress reports)
-- "Known Issues" sections (bugs found during implementation)
-
-**You cannot:**
-- Rewrite architectural decisions
-- Restructure pages
-- Change specs or requirements
-
-If you find a spec discrepancy, leave a Plane comment — do not "fix" the spec yourself.
-
-### Follow-up Work
-
-If your completed task spawned follow-up work you cannot create tasks for, label it with `needs-followup` in Plane and leave a comment describing the follow-up.
+### After Completing Work
+Update BOTH Plane (status + reference-level comment) and Confluence (relevant project/system page).
+See AI Agent Instructions for the full checklist.
 
 ## Configuration
-
 - **Confluence Space:** Operations
 - **Confluence Cloud ID:** `08465a75-9bd1-4bb7-9cd1-c5998fe88d47`
 - **Plane Workspace:** prodromou (https://plane.prodromou.com)
-
----
-
-Last updated: 2026-03-04
