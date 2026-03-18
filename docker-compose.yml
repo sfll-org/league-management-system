@@ -1,0 +1,98 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sfll-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sfll}
+      POSTGRES_USER: ${DB_USER:-sfll}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sfll}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sfll-redis
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: sfll-web
+    volumes:
+      - .:/app
+      - /app/.venv
+    ports:
+      - "${WEB_PORT:-8001}:8000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sfll}:${DB_PASSWORD:-dev_password}@db:5432/${DB_NAME:-sfll}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    command: python manage.py runserver 0.0.0.0:8000
+
+  celery-worker:
+    build: .
+    container_name: sfll-celery-worker
+    volumes:
+      - .:/app
+      - /app/.venv
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sfll}:${DB_PASSWORD:-dev_password}@db:5432/${DB_NAME:-sfll}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    entrypoint: []
+    command: celery -A sfll worker -l info --concurrency=1
+    depends_on:
+      web:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build: .
+    container_name: sfll-celery-beat
+    volumes:
+      - .:/app
+      - /app/.venv
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-sfll}:${DB_PASSWORD:-dev_password}@db:5432/${DB_NAME:-sfll}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    entrypoint: []
+    command: celery -A sfll beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    depends_on:
+      web:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

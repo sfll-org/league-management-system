@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="South Florida Little League — Player Database & Tryout Management">
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+
+    <!-- HTMX via CDN -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <title>{% block title %}SFLL — Player Database{% endblock %}</title>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    <!-- Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <a href="/" class="text-2xl font-bold text-emerald-400">
+                        SFLL
+                    </a>
+                    <span class="hidden sm:inline text-gray-400 text-sm">Player Database</span>
+                </div>
+
+                <!-- Desktop Nav -->
+                <div class="hidden md:flex items-center space-x-6">
+                    {% if user.is_authenticated %}
+                        <a href="/" class="text-gray-300 hover:text-emerald-400 transition">Dashboard</a>
+                        <a href="{% url 'players:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Players</a>
+                        <a href="{% url 'tryouts:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Tryouts</a>
+                        <a href="{% url 'evaluations:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Evaluations</a>
+                        <a href="{% url 'draft:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Draft</a>
+                        {% if user.is_staff %}
+                            <a href="{% url 'admin:index' %}" class="text-gray-400 hover:text-emerald-400 transition text-sm">Admin</a>
+                        {% endif %}
+                        <div class="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-600">
+                            <span class="text-gray-400 text-sm">{{ user.email }}</span>
+                            <a href="{% url 'account_logout' %}"
+                               class="text-gray-400 hover:text-red-400 transition text-sm">Logout</a>
+                        </div>
+                    {% else %}
+                        <a href="{% url 'account_login' %}"
+                           class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition">
+                            Sign In
+                        </a>
+                    {% endif %}
+                </div>
+
+                <!-- Mobile menu button -->
+                <div class="md:hidden">
+                    <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                            class="text-gray-400 hover:text-white">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile menu -->
+            <div id="mobile-menu" class="hidden md:hidden pb-4">
+                {% if user.is_authenticated %}
+                    <a href="/" class="block py-2 text-gray-300 hover:text-emerald-400">Dashboard</a>
+                    <a href="{% url 'players:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Players</a>
+                    <a href="{% url 'tryouts:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Tryouts</a>
+                    <a href="{% url 'evaluations:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Evaluations</a>
+                    <a href="{% url 'draft:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Draft</a>
+                    <a href="{% url 'account_logout' %}" class="block py-2 text-red-400">Logout</a>
+                {% else %}
+                    <a href="{% url 'account_login' %}" class="block py-2 text-emerald-400">Sign In</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        {% for message in messages %}
+        <div class="rounded-lg p-4 mb-2 {% if message.tags == 'error' %}bg-red-900/50 text-red-300 border border-red-700{% elif message.tags == 'success' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700{% else %}bg-blue-900/50 text-blue-300 border border-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <p class="text-center text-gray-500 text-sm">
+                South Florida Little League &mdash; Player Database
+            </p>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-white">Dashboard</h1>
+        <p class="mt-2 text-gray-400">Welcome back, {{ user.get_full_name|default:user.email }}.</p>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Players</h3>
+            <p class="mt-2 text-3xl font-bold text-emerald-400">--</p>
+            <p class="mt-1 text-sm text-gray-500">Registered this season</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Tryout Sessions</h3>
+            <p class="mt-2 text-3xl font-bold text-blue-400">--</p>
+            <p class="mt-1 text-sm text-gray-500">Scheduled</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Evaluations</h3>
+            <p class="mt-2 text-3xl font-bold text-amber-400">--</p>
+            <p class="mt-1 text-sm text-gray-500">Completed</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Draft Status</h3>
+            <p class="mt-2 text-3xl font-bold text-purple-400">--</p>
+            <p class="mt-1 text-sm text-gray-500">Not started</p>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <a href="{% url 'admin:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <span class="text-2xl mr-3">&#9881;</span>
+                <div>
+                    <p class="font-medium text-white">Admin Panel</p>
+                    <p class="text-sm text-gray-400">Manage all data</p>
+                </div>
+            </a>
+            <a href="{% url 'players:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <span class="text-2xl mr-3">&#9917;</span>
+                <div>
+                    <p class="font-medium text-white">Player Roster</p>
+                    <p class="text-sm text-gray-400">View all players</p>
+                </div>
+            </a>
+            <a href="{% url 'tryouts:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <span class="text-2xl mr-3">&#128203;</span>
+                <div>
+                    <p class="font-medium text-white">Tryout Sessions</p>
+                    <p class="text-sm text-gray-400">Schedule & check-in</p>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
