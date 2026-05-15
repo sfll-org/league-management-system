@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {{ player_season.player.full_name }} Evaluations{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Back link -->
+    <a href="{% url 'evaluations:my_evals' %}"
+       class="inline-flex items-center text-gray-400 hover:text-emerald-400 transition text-sm">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        My Evaluations
+    </a>
+
+    <!-- Player header -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+            {{ player_season.player.full_name }}
+        </h1>
+        <p class="text-gray-400 mt-1">
+            {% if player_season.division %}{{ player_season.division.name }} &middot; {% endif %}
+            {{ season.name }}
+        </p>
+        <p class="text-xs text-gray-500 mt-2">
+            Showing only your evaluations
+        </p>
+    </div>
+
+    <!-- Station groups -->
+    {% for group in station_groups %}
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-white">{{ group.station.name }}</h2>
+            {% if group.evaluations %}
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                {{ group.evaluations|length }} eval{{ group.evaluations|length|pluralize }}
+            </span>
+            {% else %}
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-700 text-gray-500">
+                Not evaluated
+            </span>
+            {% endif %}
+        </div>
+
+        {% if group.evaluations %}
+        <div class="divide-y divide-gray-700">
+            {% for item in group.evaluations %}
+            <div class="px-5 py-4">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-sm text-gray-400">
+                        {{ item.eval.session.name }} &middot; {{ item.eval.session.date|date:"M j, Y" }}
+                    </p>
+                    <a href="{% url 'evaluations:player_eval_edit' player_season_id=player_season.pk station_id=item.eval.station.pk session_id=item.eval.session.pk %}"
+                       class="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-700 text-gray-300
+                              hover:bg-gray-600 hover:text-white transition">
+                        Edit
+                    </a>
+                </div>
+
+                <!-- Scores -->
+                {% if item.score_fields %}
+                <div class="flex flex-wrap gap-3 mb-2">
+                    {% for sf in item.score_fields %}
+                    {% if sf.value != None %}
+                    <div class="bg-gray-700/50 rounded-lg px-3 py-2 text-center min-w-[5rem]">
+                        <p class="text-xs text-gray-500 mb-1">{{ sf.label }}</p>
+                        <p class="text-xl font-bold text-emerald-400">{{ sf.value }}</p>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if item.eval.notes %}
+                <p class="text-sm text-gray-400 mt-2 italic">"{{ item.eval.notes }}"</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-5 py-6 text-center">
+            <p class="text-gray-500 text-sm">You have not evaluated this player at this station yet.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+</div>
+{% endblock %}

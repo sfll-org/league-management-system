@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Send Preview{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'communications:index' %}" class="hover:text-emerald-400 transition">Communications</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'communications:compose' %}" class="hover:text-emerald-400 transition">Send Email</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">Preview</span>
+    </nav>
+
+    <h1 class="text-2xl font-bold text-white">Review Before Sending</h1>
+
+    <!-- Summary Banner -->
+    <div class="bg-amber-900/30 border border-amber-700/50 rounded-lg p-4 flex items-center gap-3">
+        <svg class="w-6 h-6 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/>
+        </svg>
+        <div>
+            <p class="text-amber-300 font-medium">
+                You are about to send {{ recipient_count }} email{{ recipient_count|pluralize }}
+            </p>
+            <p class="text-amber-400/70 text-sm">Using template: {{ email_template.name }}</p>
+        </div>
+    </div>
+
+    <!-- Email Preview (first recipient) -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="bg-gray-800/80 px-5 py-3 border-b border-gray-700">
+            <p class="text-sm text-gray-400">
+                Preview for: <span class="text-white">{{ first_recipient.player.full_name }}</span>
+                ({{ first_recipient.account_email }})
+            </p>
+        </div>
+        <div class="px-5 py-3 border-b border-gray-700">
+            <div class="flex items-baseline gap-2">
+                <span class="text-gray-500 text-sm w-16">Subject:</span>
+                <span class="text-white font-medium">{{ rendered_subject }}</span>
+            </div>
+        </div>
+        <div class="px-5 py-5">
+            <div class="text-gray-200 whitespace-pre-wrap leading-relaxed">{{ rendered_body }}</div>
+        </div>
+    </div>
+
+    <!-- Recipient List -->
+    <details class="bg-gray-800 rounded-xl border border-gray-700" open>
+        <summary class="px-5 py-4 text-white font-medium cursor-pointer hover:text-emerald-400 transition">
+            All Recipients ({{ recipient_count }})
+        </summary>
+        <div class="px-5 pb-4">
+            <div class="max-h-64 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="py-2 text-left text-gray-400">Player</th>
+                            <th class="py-2 text-left text-gray-400 hidden sm:table-cell">Division</th>
+                            <th class="py-2 text-left text-gray-400">Email</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700/50">
+                        {% for ps in recipients %}
+                        <tr>
+                            <td class="py-2 text-white">{{ ps.player.full_name }}</td>
+                            <td class="py-2 text-gray-400 hidden sm:table-cell">
+                                {% if ps.division %}{{ ps.division.name }}{% else %}&mdash;{% endif %}
+                            </td>
+                            <td class="py-2 text-gray-300">
+                                {% if ps.account_email %}
+                                    {{ ps.account_email }}
+                                {% else %}
+                                    <span class="text-red-400 text-xs">No email</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+
+    <!-- Confirm Form -->
+    <form method="post" action="{% url 'communications:send_confirm' %}" class="flex items-center gap-3">
+        {% csrf_token %}
+        <!-- Pass through filter params -->
+        <input type="hidden" name="template" value="{{ email_template.pk }}">
+        {% for key, value in filter_params.items %}
+            {% if key != 'csrfmiddlewaretoken' and key != 'template' %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endif %}
+        {% endfor %}
+
+        <button type="submit"
+                class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
+            Send {{ recipient_count }} Email{{ recipient_count|pluralize }}
+        </button>
+        <a href="{% url 'communications:compose' %}"
+           class="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition">
+            Cancel
+        </a>
+    </form>
+</div>
+{% endblock %}

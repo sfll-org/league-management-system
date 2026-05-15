@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% load core_filters %}
+
+{% block title %}SFLL — Audit Log{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Audit Log</h1>
+            <p class="mt-1 text-gray-400">System activity trail</p>
+        </div>
+        <a href="{% url 'dashboard' %}" class="text-sm text-gray-400 hover:text-emerald-400">&larr; Dashboard</a>
+    </div>
+
+    <!-- Filters -->
+    <form method="get" class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-lg font-semibold text-white mb-4">Filters</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Search</label>
+                <input type="text" name="q" value="{{ search }}" placeholder="Keyword..."
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Action</label>
+                <select name="action"
+                        class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                    <option value="">All actions</option>
+                    {% for a in action_choices %}
+                    <option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Entity Type</label>
+                <select name="entity_type"
+                        class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                    <option value="">All types</option>
+                    {% for et in entity_choices %}
+                    <option value="{{ et }}" {% if entity_filter == et %}selected{% endif %}>{{ et }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">User</label>
+                <select name="user_id"
+                        class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                    <option value="">All users</option>
+                    {% for u in user_choices %}
+                    <option value="{{ u.pk }}" {% if user_filter == u.pk|stringformat:"d" %}selected{% endif %}>
+                        {{ u.get_full_name|default:u.email }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">From Date</label>
+                <input type="date" name="date_from" value="{{ date_from }}"
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">To Date</label>
+                <input type="date" name="date_to" value="{{ date_to }}"
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button type="submit"
+                    class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition">
+                Apply Filters
+            </button>
+            <a href="{% url 'audit_log' %}"
+               class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition">
+                Clear
+            </a>
+        </div>
+    </form>
+
+    <!-- Results -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-gray-400 border-b border-gray-700 bg-gray-800/80">
+                        <th class="text-left py-3 px-4">Timestamp</th>
+                        <th class="text-left py-3 px-4">User</th>
+                        <th class="text-left py-3 px-4">Action</th>
+                        <th class="text-left py-3 px-4">Entity</th>
+                        <th class="text-left py-3 px-4">Details</th>
+                    </tr>
+                </thead>
+                <tbody x-data>
+                    {% for entry in page_obj %}
+                    <tr class="border-b border-gray-700/50 hover:bg-gray-700/30 cursor-pointer"
+                        @click="$refs.detail{{ entry.pk }}.classList.toggle('hidden')">
+                        <td class="py-3 px-4 text-gray-300 whitespace-nowrap">
+                            {{ entry.timestamp|date:"M j, Y g:i A" }}
+                        </td>
+                        <td class="py-3 px-4 text-gray-300">
+                            {{ entry.user.get_full_name|default:entry.user.email|default:"System" }}
+                        </td>
+                        <td class="py-3 px-4">
+                            <span class="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-300">
+                                {{ entry.action }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-white">
+                            {{ entry.entity_type }} #{{ entry.entity_id }}
+                        </td>
+                        <td class="py-3 px-4 text-gray-400 text-xs">
+                            Click to expand
+                        </td>
+                    </tr>
+                    <!-- Expandable detail row -->
+                    <tr x-ref="detail{{ entry.pk }}" class="hidden">
+                        <td colspan="5" class="px-4 py-3 bg-gray-900/50">
+                            <div class="text-sm space-y-1">
+                                {% if entry.ip_address %}
+                                <p class="text-gray-400"><span class="text-gray-500">IP:</span> {{ entry.ip_address }}</p>
+                                {% endif %}
+                                <p class="text-gray-400"><span class="text-gray-500">Details:</span></p>
+                                <pre class="text-xs text-emerald-300 bg-gray-900 rounded p-3 overflow-x-auto font-mono">{{ entry.details|json_pretty }}</pre>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-gray-500">
+                            No audit log entries found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center gap-2">
+        {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if search %}&q={{ search }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if entity_filter %}&entity_type={{ entity_filter }}{% endif %}{% if user_filter %}&user_id={{ user_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition text-sm">Previous</a>
+        {% endif %}
+        <span class="px-4 py-2 text-gray-400 text-sm">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if search %}&q={{ search }}{% endif %}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if entity_filter %}&entity_type={{ entity_filter }}{% endif %}{% if user_filter %}&user_id={{ user_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+           class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition text-sm">Next</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

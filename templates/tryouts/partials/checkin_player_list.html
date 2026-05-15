@@ -1,0 +1,7 @@
+{% for a in assignments %}
+    {% include "tryouts/partials/checkin_player_row.html" %}
+{% empty %}
+    <div class="bg-gray-800 rounded-xl p-8 text-center border border-gray-700">
+        <p class="text-gray-500 text-xl">No players found.</p>
+    </div>
+{% endfor %}

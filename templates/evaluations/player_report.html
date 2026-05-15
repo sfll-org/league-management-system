@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {{ player_season.player.full_name }} Report{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Back link -->
+    {% if player_season.division %}
+    <a href="{% url 'evaluations:division_report' division_id=player_season.division.pk %}"
+       class="inline-flex items-center text-gray-400 hover:text-emerald-400 transition text-sm">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        {{ player_season.division.name }} Division Report
+    </a>
+    {% endif %}
+
+    <!-- Player header -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+            {{ player_season.player.full_name }}
+        </h1>
+        <p class="text-gray-400 mt-1">
+            {% if player_season.division %}{{ player_season.division.name }} &middot; {% endif %}
+            {{ season.name }}
+        </p>
+        <div class="flex flex-wrap gap-4 mt-3">
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-700 text-gray-400">
+                {{ total_evals }} evaluation{{ total_evals|pluralize }}
+            </span>
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-700 text-gray-400">
+                {{ total_coaches }} evaluator{{ total_coaches|pluralize }}
+            </span>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">
+            Aggregated view. Individual evaluator scores are not shown.
+        </p>
+    </div>
+
+    <!-- Station breakdowns -->
+    {% for report in station_reports %}
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-white">{{ report.station.name }}</h2>
+            {% if report.has_data %}
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                {{ report.coach_count }} evaluator{{ report.coach_count|pluralize }}
+            </span>
+            {% else %}
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-700 text-gray-500">
+                No data
+            </span>
+            {% endif %}
+        </div>
+
+        {% if report.has_data %}
+        <div class="p-5">
+            {% if report.field_stats %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for stat in report.field_stats %}
+                <div class="bg-gray-700/30 rounded-xl p-4">
+                    <p class="text-sm text-gray-400 mb-2">{{ stat.label }}</p>
+                    {% if stat.avg != None %}
+                    <div class="flex items-end gap-3">
+                        <p class="text-3xl font-bold text-emerald-400">{{ stat.avg }}</p>
+                        <div class="text-xs text-gray-500 pb-1">
+                            <p>Min: {{ stat.min }} / Max: {{ stat.max }}</p>
+                            <p>{{ stat.count }} score{{ stat.count|pluralize }}</p>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-gray-600">No scores recorded</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="px-5 py-6 text-center">
+            <p class="text-gray-500 text-sm">No evaluations recorded at this station.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <!-- Objective metrics -->
+    {% if objective_metrics %}
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-700">
+            <h2 class="text-lg font-semibold text-white">Objective Metrics</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-700 text-left">
+                        <th class="px-4 py-3 text-gray-400 font-medium">Metric</th>
+                        <th class="px-4 py-3 text-gray-400 font-medium text-center">Value</th>
+                        <th class="px-4 py-3 text-gray-400 font-medium">Unit</th>
+                        <th class="px-4 py-3 text-gray-400 font-medium">Session</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700/50">
+                    {% for metric in objective_metrics %}
+                    <tr>
+                        <td class="px-4 py-3 text-white font-medium">{{ metric.metric_type }}</td>
+                        <td class="px-4 py-3 text-center text-emerald-400 font-semibold">{{ metric.value }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ metric.unit }}</td>
+                        <td class="px-4 py-3 text-gray-500">{{ metric.session.name }} ({{ metric.session.date|date:"M j" }})</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

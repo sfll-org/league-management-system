@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — My Evaluations{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white">My Evaluations</h1>
+            <p class="text-gray-400 mt-1">
+                {% if season %}
+                    {{ season.name }}
+                    {% if total_evals %}
+                        &middot; {{ total_evals }} evaluation{{ total_evals|pluralize }} entered
+                    {% endif %}
+                {% else %}
+                    <span class="text-amber-400">No active season configured.</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{% url 'evaluations:index' %}"
+               class="text-sm font-medium px-4 py-2 rounded-lg bg-gray-800 text-gray-300
+                      hover:bg-gray-700 border border-gray-700 transition">
+                Station Mode
+            </a>
+        </div>
+    </div>
+
+    {% if no_coach_season %}
+    <div class="bg-amber-900/50 text-amber-300 border border-amber-700 rounded-lg p-4">
+        You are not assigned as a coach for the active season.
+    </div>
+    {% elif session_groups %}
+
+    {% for group in session_groups %}
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <!-- Session header -->
+        <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-white">{{ group.session.name }}</h2>
+                <p class="text-sm text-gray-500 mt-0.5">
+                    {{ group.session.date|date:"l, M j, Y" }}
+                    &middot; {{ group.session.division.name }}
+                </p>
+            </div>
+            <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-gray-700 text-gray-400">
+                {{ group.eval_count }} eval{{ group.eval_count|pluralize }}
+            </span>
+        </div>
+
+        <!-- Players in this session -->
+        <div class="divide-y divide-gray-700">
+            {% for player_data in group.players %}
+            <div class="px-5 py-4 flex items-center justify-between hover:bg-gray-750 transition">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="w-10 h-10 rounded-full bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-base sm:text-lg font-semibold text-white truncate">
+                            {{ player_data.player_season.player.full_name }}
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            {% for ev in player_data.evaluations %}
+                                {{ ev.station.name }}{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
+                    </div>
+                </div>
+                <a href="{% url 'evaluations:player_eval' player_season_id=player_data.player_season.pk %}"
+                   class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-700 text-gray-300
+                          hover:bg-gray-600 hover:text-white transition flex-shrink-0 ml-3">
+                    View
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">You have not entered any evaluations yet.</p>
+        <p class="text-gray-500 text-sm mt-2">
+            Use <a href="{% url 'evaluations:index' %}" class="text-emerald-400 hover:underline">Station Mode</a>
+            to start evaluating players.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

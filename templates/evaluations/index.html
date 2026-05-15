@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Evaluations{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-3xl font-bold text-white">Evaluations</h1>
+    <p class="text-gray-400">Player scores and rankings{% if season %} — {{ season.name }}{% endif %}</p>
+
+    {% if evaluations %}
+    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-700/50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Player</th>
+                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Session</th>
+                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden sm:table-cell">Station</th>
+                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden md:table-cell">Coach</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for eval in evaluations %}
+                    <tr class="hover:bg-gray-700/30 transition">
+                        <td class="px-4 py-3 text-white">{{ eval.player_season.player.full_name }}</td>
+                        <td class="px-4 py-3 text-gray-300">{{ eval.session.name }}</td>
+                        <td class="px-4 py-3 text-gray-300 hidden sm:table-cell">{{ eval.station.name }}</td>
+                        <td class="px-4 py-3 text-gray-300 hidden md:table-cell">{{ eval.coach_season }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400">No evaluations recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,325 @@
+"""Tests for the draft app — DraftSession, DraftPick models and views."""
+
+import json
+from datetime import date, time
+
+from django.test import TestCase, Client
+from django.urls import reverse
+from django.utils import timezone
+
+from accounts.models import Coach, CoachSeason, User, UserRole
+from draft.models import DraftPick, DraftSession
+from evaluations.models import CoachRanking
+from players.models import Division, League, Player, PlayerSeason, Season, Team, TeamSeason
+
+
+def _setup_draft_base():
+    """Full object graph for draft tests."""
+    league = League.objects.create(name='SFLL', short_name='SFLL')
+    season = Season.objects.create(
+        league=league, name='Spring 2026', year=2026,
+        season_type='spring', is_active=True,
+    )
+    division = Division.objects.create(league=league, name='Majors', display_order=0)
+
+    # Two teams
+    team1 = Team.objects.create(league=league, name='Marlins')
+    team2 = Team.objects.create(league=league, name='Dolphins')
+    ts1 = TeamSeason.objects.create(team=team1, season=season, division=division)
+    ts2 = TeamSeason.objects.create(team=team2, season=season, division=division)
+
+    # Coach (head_coach, drafter for team1)
+    coach_user = User.objects.create_user(
+        username='hc@sfll.org', email='hc@sfll.org',
+        first_name='Head', last_name='Coach', password='testpass123',
+    )
+    coach = Coach.objects.create(user=coach_user, league=league)
+    coach_season = CoachSeason.objects.create(
+        coach=coach, team_season=ts1, season=season,
+        role='head_coach', is_drafter=True,
+    )
+    ts1.drafter = coach_season
+    ts1.save()
+
+    # Players
+    players = []
+    player_seasons = []
+    for i in range(1, 9):
+        p = Player.objects.create(
+            league=league, sportsconnect_player_id=f'SC-{i:03d}',
+            first_name=f'Player{i}', last_name=f'Last{i}',
+        )
+        ps = PlayerSeason.objects.create(
+            player=p, season=season, division=division,
+        )
+        players.append(p)
+        player_seasons.append(ps)
+
+    return {
+        'league': league, 'season': season, 'division': division,
+        'team1': team1, 'team2': team2, 'ts1': ts1, 'ts2': ts2,
+        'coach_user': coach_user, 'coach': coach, 'coach_season': coach_season,
+        'players': players, 'player_seasons': player_seasons,
+    }
+
+
+class DraftSessionModelTests(TestCase):
+    def setUp(self):
+        self.d = _setup_draft_base()
+
+    def test_create(self):
+        ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+        )
+        self.assertEqual(ds.status, 'pending')
+        self.assertTrue(ds.snake_draft)
+        self.assertEqual(ds.current_round, 1)
+        self.assertEqual(ds.current_pick, 1)
+
+    def test_str(self):
+        ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+        )
+        self.assertIn('Majors', str(ds))
+        self.assertIn('Draft', str(ds))
+
+    def test_str_with_sub_league(self):
+        ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+            sub_league='American',
+        )
+        self.assertIn('American', str(ds))
+
+
+class DraftPickModelTests(TestCase):
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+        )
+
+    def test_create(self):
+        pick = DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1,
+            pick_number=1,
+        )
+        self.assertEqual(pick.round_number, 1)
+        self.assertFalse(pick.is_top_4)
+        self.assertFalse(pick.is_coaches_child)
+
+    def test_str(self):
+        pick = DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1,
+            pick_number=1,
+        )
+        result = str(pick)
+        self.assertIn('R1 P1', result)
+        self.assertIn('Player1', result)
+        self.assertIn('Marlins', result)
+
+    def test_unique_together_draft_session_pick(self):
+        DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1, pick_number=1,
+        )
+        with self.assertRaises(Exception):
+            DraftPick.objects.create(
+                draft_session=self.ds,
+                team_season=self.d['ts2'],
+                player_season=self.d['player_seasons'][1],
+                round_number=1, pick_number=1,
+            )
+
+    def test_ordering_by_pick_number(self):
+        DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts2'],
+            player_season=self.d['player_seasons'][1],
+            round_number=1, pick_number=2,
+        )
+        DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1, pick_number=1,
+        )
+        picks = list(DraftPick.objects.filter(draft_session=self.ds))
+        self.assertEqual(picks[0].pick_number, 1)
+        self.assertEqual(picks[1].pick_number, 2)
+
+
+class DraftViewPermissionTests(TestCase):
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.client = Client()
+
+    def test_draft_home_requires_login(self):
+        resp = self.client.get(reverse('draft:index'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_draft_home_authenticated(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:index'))
+        self.assertEqual(resp.status_code, 200)
+
+
+class CoachRankingsViewTests(TestCase):
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.client = Client()
+
+    def test_rankings_requires_head_coach(self):
+        """Assistant coach should be forbidden."""
+        user2 = User.objects.create_user(
+            username='ac@sfll.org', email='ac@sfll.org',
+            first_name='Asst', last_name='Coach', password='testpass123',
+        )
+        coach2 = Coach.objects.create(user=user2, league=self.d['league'])
+        CoachSeason.objects.create(
+            coach=coach2, team_season=self.d['ts2'],
+            season=self.d['season'], role='assistant_coach',
+        )
+        self.client.login(username='ac@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:rankings'))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_rankings_allowed_for_head_coach(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:rankings'))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_save_rankings_post(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        ps_ids = [ps.pk for ps in self.d['player_seasons'][:4]]
+        resp = self.client.post(
+            reverse('draft:save_rankings'),
+            data=json.dumps({'ranked_ids': ps_ids}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['count'], 4)
+        self.assertEqual(
+            CoachRanking.objects.filter(coach_season=self.d['coach_season']).count(), 4
+        )
+
+    def test_save_rankings_replaces_existing(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        ps_ids = [ps.pk for ps in self.d['player_seasons'][:3]]
+        self.client.post(
+            reverse('draft:save_rankings'),
+            data=json.dumps({'ranked_ids': ps_ids}),
+            content_type='application/json',
+        )
+        # Now save a different set
+        ps_ids2 = [ps.pk for ps in self.d['player_seasons'][3:6]]
+        self.client.post(
+            reverse('draft:save_rankings'),
+            data=json.dumps({'ranked_ids': ps_ids2}),
+            content_type='application/json',
+        )
+        # Should have exactly 3 (replaced, not appended)
+        self.assertEqual(
+            CoachRanking.objects.filter(coach_season=self.d['coach_season']).count(), 3
+        )
+
+
+class SeedingViewTests(TestCase):
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.client = Client()
+        # Create a CTO user
+        self.cto = User.objects.create_user(
+            username='cto@sfll.org', email='cto@sfll.org',
+            first_name='CTO', last_name='Admin', password='testpass123',
+            is_superuser=True,
+        )
+
+    def test_seeding_forbidden_for_regular_user(self):
+        user = User.objects.create_user(
+            username='nobody@sfll.org', email='nobody@sfll.org',
+            first_name='No', last_name='Body', password='testpass123',
+        )
+        self.client.login(username='nobody@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('draft:seeding', args=[self.d['division'].pk])
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_seeding_allowed_for_superuser(self):
+        self.client.login(username='cto@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('draft:seeding', args=[self.d['division'].pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_save_seeding_creates_draft_session_and_picks(self):
+        self.client.login(username='cto@sfll.org', password='testpass123')
+        assignments = {
+            str(self.d['ts1'].pk): [
+                self.d['player_seasons'][0].pk,
+                self.d['player_seasons'][1].pk,
+            ],
+            str(self.d['ts2'].pk): [
+                self.d['player_seasons'][2].pk,
+                self.d['player_seasons'][3].pk,
+            ],
+        }
+        resp = self.client.post(
+            reverse('draft:save_seeding', args=[self.d['division'].pk]),
+            data=json.dumps({'assignments': assignments}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['total_assigned'], 4)
+
+        # Verify DraftPick records
+        ds = DraftSession.objects.get(
+            season=self.d['season'], division=self.d['division'],
+        )
+        self.assertEqual(DraftPick.objects.filter(draft_session=ds, is_top_4=True).count(), 4)
+
+    def test_lock_seeding(self):
+        self.client.login(username='cto@sfll.org', password='testpass123')
+        # First save some seeding
+        ds = DraftSession.objects.create(
+            season=self.d['season'], division=self.d['division'], status='pending',
+        )
+        DraftPick.objects.create(
+            draft_session=ds, team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=0, pick_number=1, is_top_4=True,
+            picked_by=self.cto,
+        )
+        resp = self.client.post(
+            reverse('draft:lock_seeding', args=[self.d['division'].pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        ds.refresh_from_db()
+        self.assertEqual(ds.status, 'seeding')
+
+    def test_lock_seeding_idempotent_rejects(self):
+        """Locking when already locked should return error."""
+        self.client.login(username='cto@sfll.org', password='testpass123')
+        ds = DraftSession.objects.create(
+            season=self.d['season'], division=self.d['division'], status='seeding',
+        )
+        resp = self.client.post(
+            reverse('draft:lock_seeding', args=[self.d['division'].pk]),
+        )
+        self.assertEqual(resp.status_code, 400)

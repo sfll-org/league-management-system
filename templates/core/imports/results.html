@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Import Results — SFLL{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-100">Import Complete</h1>
+        <p class="text-gray-400 mt-1">Import #{{ import_run.pk }} &mdash; {{ import_run.created_at|date:"M d, Y H:i" }}</p>
+    </div>
+
+    <!-- Status banner -->
+    {% if import_run.status == 'completed' %}
+    <div class="bg-emerald-900/50 border border-emerald-700 rounded-lg p-4">
+        <p class="text-emerald-300 font-medium">Import completed successfully.</p>
+    </div>
+    {% elif import_run.status == 'failed' %}
+    <div class="bg-red-900/50 border border-red-700 rounded-lg p-4">
+        <p class="text-red-300 font-medium">Import failed. Check the error details below.</p>
+    </div>
+    {% endif %}
+
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">Total Rows</p>
+            <p class="text-2xl font-bold text-gray-100 mt-1">{{ stats.total_rows }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">New Players</p>
+            <p class="text-2xl font-bold text-emerald-400 mt-1">{{ stats.new_players }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">New Registrations</p>
+            <p class="text-2xl font-bold text-emerald-400 mt-1">{{ stats.new_player_seasons }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">Updated Records</p>
+            <p class="text-2xl font-bold text-blue-400 mt-1">{{ stats.updated_records }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">Flagged for Review</p>
+            <p class="text-2xl font-bold {% if stats.flagged_for_review > 0 %}text-amber-400{% else %}text-gray-100{% endif %} mt-1">
+                {{ stats.flagged_for_review }}
+            </p>
+        </div>
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+            <p class="text-gray-400 text-sm">Errors</p>
+            <p class="text-2xl font-bold {% if stats.errors > 0 %}text-red-400{% else %}text-gray-100{% endif %} mt-1">
+                {{ stats.errors }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Error details -->
+    {% if import_run.error_details %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-4">
+        <h2 class="text-lg font-semibold text-gray-100 mb-3">Error Details</h2>
+        <ul class="space-y-1 text-sm">
+            {% for err in import_run.error_details %}
+            <li class="text-red-400">{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="flex items-center justify-between pt-2">
+        <a href="{% url 'import_history' %}" class="text-gray-400 hover:text-gray-300 transition">
+            Back to import history
+        </a>
+        <div class="flex items-center space-x-4">
+            {% if stats.flagged_for_review > 0 %}
+            <a href="{% url 'import_review' import_run.pk %}"
+               class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-lg transition font-medium">
+                Review Flagged Records
+            </a>
+            {% endif %}
+            <a href="{% url 'import_upload' %}"
+               class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-4 py-2 rounded-lg transition font-medium">
+                Upload Another
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

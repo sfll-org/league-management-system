@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — RSVP Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div>
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'communications:index' %}" class="hover:text-emerald-400 transition">Communications</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-300">RSVP Dashboard</span>
+        </nav>
+        <h1 class="text-3xl font-bold text-white">RSVP Dashboard</h1>
+        <p class="text-gray-400 mt-1">Track RSVP responses by SES session</p>
+    </div>
+
+    {% if no_season %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400">No active season configured.</p>
+    </div>
+    {% else %}
+
+    <!-- Overall Stats -->
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <p class="text-sm text-gray-400">Total Responses</p>
+            <p class="text-3xl font-bold text-white mt-1">{{ total_rsvps }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <p class="text-sm text-gray-400">Attending</p>
+            <p class="text-3xl font-bold text-emerald-400 mt-1">{{ total_attending }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <p class="text-sm text-gray-400">Sessions Tracked</p>
+            <p class="text-3xl font-bold text-white mt-1">{{ session_data|length }}</p>
+        </div>
+    </div>
+
+    <!-- Per-Session Breakdown -->
+    {% if session_data %}
+    <div class="space-y-4">
+        {% for sd in session_data %}
+        <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                    <h3 class="text-lg font-semibold text-white">{{ sd.session.name }}</h3>
+                    <p class="text-sm text-gray-400">
+                        {{ sd.session.division.name }} &mdash;
+                        {{ sd.session.date|date:"D, M j, Y" }}
+                        {{ sd.session.start_time|time:"g:i A" }}
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-gray-400">Response rate:</span>
+                    <span class="text-lg font-bold {% if sd.response_rate >= 75 %}text-emerald-400{% elif sd.response_rate >= 50 %}text-amber-400{% else %}text-red-400{% endif %}">
+                        {{ sd.response_rate }}%
+                    </span>
+                </div>
+            </div>
+
+            <div class="px-5 py-4">
+                <!-- Response bars -->
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-white">{{ sd.total_assigned }}</p>
+                        <p class="text-xs text-gray-500">Assigned</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-emerald-400">{{ sd.attending }}</p>
+                        <p class="text-xs text-gray-500">Attending</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-red-400">{{ sd.not_attending }}</p>
+                        <p class="text-xs text-gray-500">Not Attending</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-amber-400">{{ sd.maybe }}</p>
+                        <p class="text-xs text-gray-500">Maybe</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-gray-500">{{ sd.no_response }}</p>
+                        <p class="text-xs text-gray-500">No Response</p>
+                    </div>
+                </div>
+
+                {% if sd.total_assigned > 0 %}
+                <!-- Progress bar -->
+                <div class="mt-4 h-2 bg-gray-700 rounded-full overflow-hidden flex">
+                    {% if sd.attending > 0 %}
+                    <div class="bg-emerald-500 h-full" style="width: {% widthratio sd.attending sd.total_assigned 100 %}%"></div>
+                    {% endif %}
+                    {% if sd.maybe > 0 %}
+                    <div class="bg-amber-500 h-full" style="width: {% widthratio sd.maybe sd.total_assigned 100 %}%"></div>
+                    {% endif %}
+                    {% if sd.not_attending > 0 %}
+                    <div class="bg-red-500 h-full" style="width: {% widthratio sd.not_attending sd.total_assigned 100 %}%"></div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if sd.no_response > 0 %}
+                <div class="mt-3 text-right">
+                    <a href="{% url 'communications:compose' %}?session={{ sd.session.pk }}"
+                       class="text-sm text-emerald-400 hover:text-emerald-300 transition">
+                        Re-send to {{ sd.no_response }} non-responder{{ sd.no_response|pluralize }}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400">No SES sessions found for the current season.</p>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

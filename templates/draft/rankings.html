@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — My Rankings{% endblock %}
+
+{% block content %}
+<div x-data="rankingsApp()" class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white">My Rankings</h1>
+            <p class="text-gray-400 mt-1">
+                {{ division.name }} &middot; {{ season.name }}
+            </p>
+            <p class="text-xs text-gray-500 mt-1">
+                Rank your top <span class="text-emerald-400 font-semibold" x-text="maxRankings"></span> players
+                (4 per team &times; {{ num_teams }} teams).
+                Only you can see these rankings.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-400"
+                  x-text="rankedPlayers.length + '/' + maxRankings + ' ranked'"></span>
+            <button @click="saveRankings()"
+                    :disabled="saving"
+                    class="px-5 py-2.5 rounded-lg font-medium text-white transition
+                           bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!saving">Save Rankings</span>
+                <span x-show="saving">Saving...</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Status message -->
+    <div x-show="statusMessage" x-transition
+         :class="statusError ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-emerald-900/50 text-emerald-300 border-emerald-700'"
+         class="rounded-lg p-3 border text-sm">
+        <span x-text="statusMessage"></span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Ranked List (left) -->
+        <div>
+            <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Ranked Players
+                <span class="text-sm text-gray-500 font-normal" x-text="'(' + rankedPlayers.length + ')'"></span>
+            </h2>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 min-h-[200px]"
+                 @dragover.prevent="onDragOver($event, 'ranked')"
+                 @drop.prevent="onDrop($event, 'ranked')">
+
+                <template x-if="rankedPlayers.length === 0">
+                    <div class="p-8 text-center text-gray-500">
+                        <p>Drag players here or use the + button to start ranking.</p>
+                    </div>
+                </template>
+
+                <div class="divide-y divide-gray-700/50">
+                    <template x-for="(player, index) in rankedPlayers" :key="player.id">
+                        <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/30 transition cursor-grab active:cursor-grabbing"
+                             draggable="true"
+                             @dragstart="onDragStart($event, player.id, 'ranked')"
+                             @dragend="onDragEnd($event)"
+                             @dragover.prevent="onDragOverItem($event, index, 'ranked')"
+                             :data-player-id="player.id">
+
+                            <!-- Rank number -->
+                            <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center text-sm font-bold"
+                                 :class="index < 4 ? 'bg-emerald-900/50 text-emerald-400' : 'bg-gray-700 text-gray-400'">
+                                <span x-text="index + 1"></span>
+                            </div>
+
+                            <!-- Drag handle -->
+                            <div class="text-gray-600 flex-shrink-0">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 6a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM8 14a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM8 22a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4z"/>
+                                </svg>
+                            </div>
+
+                            <!-- Player info -->
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-white truncate" x-text="player.name"></p>
+                            </div>
+
+                            <!-- Remove button -->
+                            <button @click="removeFromRanked(index)"
+                                    class="flex-shrink-0 text-gray-500 hover:text-red-400 transition p-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Players (right) -->
+        <div>
+            <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                Available Players
+                <span class="text-sm text-gray-500 font-normal" x-text="'(' + filteredUnranked.length + ')'"></span>
+            </h2>
+
+            <!-- Search -->
+            <div class="mb-3">
+                <input type="text"
+                       x-model="searchQuery"
+                       placeholder="Search players..."
+                       class="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white
+                              placeholder-gray-500 focus:border-emerald-600 focus:outline-none focus:ring-1
+                              focus:ring-emerald-600 text-sm">
+            </div>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 max-h-[600px] overflow-y-auto"
+                 @dragover.prevent="onDragOver($event, 'available')"
+                 @drop.prevent="onDrop($event, 'available')">
+
+                <template x-if="filteredUnranked.length === 0">
+                    <div class="p-8 text-center text-gray-500">
+                        <p x-text="searchQuery ? 'No players match your search.' : 'All players have been ranked.'"></p>
+                    </div>
+                </template>
+
+                <div class="divide-y divide-gray-700/50">
+                    <template x-for="player in filteredUnranked" :key="player.id">
+                        <div class="flex items-center gap-3 px-4 py-3 hover:bg-gray-700/30 transition cursor-grab active:cursor-grabbing"
+                             draggable="true"
+                             @dragstart="onDragStart($event, player.id, 'available')"
+                             @dragend="onDragEnd($event)"
+                             :data-player-id="player.id">
+
+                            <!-- Player info -->
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-white truncate" x-text="player.name"></p>
+                            </div>
+
+                            <!-- Add button -->
+                            <button @click="addToRanked(player)"
+                                    :disabled="rankedPlayers.length >= maxRankings"
+                                    class="flex-shrink-0 text-gray-500 hover:text-emerald-400 transition p-1
+                                           disabled:opacity-30 disabled:cursor-not-allowed">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12M6 12h12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function rankingsApp() {
+    // Build initial ranked list from server data
+    const rankedFromServer = [
+        {% for r in ranked_players %}
+        { id: {{ r.player_season.pk }}, name: "{{ r.player_season.player.full_name|escapejs }}" },
+        {% endfor %}
+    ];
+
+    // Build initial unranked list
+    const unrankedFromServer = [
+        {% for ps in unranked_players %}
+        { id: {{ ps.pk }}, name: "{{ ps.player.full_name|escapejs }}" },
+        {% endfor %}
+    ];
+
+    return {
+        rankedPlayers: rankedFromServer,
+        unrankedPlayers: unrankedFromServer,
+        maxRankings: {{ max_rankings }},
+        searchQuery: '',
+        saving: false,
+        statusMessage: '',
+        statusError: false,
+        draggedPlayerId: null,
+        dragSource: null,
+
+        get filteredUnranked() {
+            if (!this.searchQuery.trim()) return this.unrankedPlayers;
+            const q = this.searchQuery.toLowerCase();
+            return this.unrankedPlayers.filter(p => p.name.toLowerCase().includes(q));
+        },
+
+        addToRanked(player) {
+            if (this.rankedPlayers.length >= this.maxRankings) return;
+            this.rankedPlayers.push(player);
+            this.unrankedPlayers = this.unrankedPlayers.filter(p => p.id !== player.id);
+        },
+
+        removeFromRanked(index) {
+            const player = this.rankedPlayers.splice(index, 1)[0];
+            this.unrankedPlayers.push(player);
+            this.unrankedPlayers.sort((a, b) => a.name.localeCompare(b.name));
+        },
+
+        // --- Drag and drop ---
+        onDragStart(event, playerId, source) {
+            this.draggedPlayerId = playerId;
+            this.dragSource = source;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', playerId);
+            event.target.classList.add('opacity-50');
+        },
+
+        onDragEnd(event) {
+            event.target.classList.remove('opacity-50');
+            this.draggedPlayerId = null;
+            this.dragSource = null;
+        },
+
+        onDragOver(event, target) {
+            event.dataTransfer.dropEffect = 'move';
+        },
+
+        onDragOverItem(event, index, list) {
+            event.dataTransfer.dropEffect = 'move';
+        },
+
+        onDrop(event, target) {
+            const playerId = parseInt(event.dataTransfer.getData('text/plain'));
+            if (!playerId) return;
+
+            if (this.dragSource === 'available' && target === 'ranked') {
+                // Move from available to ranked
+                const player = this.unrankedPlayers.find(p => p.id === playerId);
+                if (player && this.rankedPlayers.length < this.maxRankings) {
+                    this.addToRanked(player);
+                }
+            } else if (this.dragSource === 'ranked' && target === 'available') {
+                // Move from ranked to available
+                const index = this.rankedPlayers.findIndex(p => p.id === playerId);
+                if (index !== -1) {
+                    this.removeFromRanked(index);
+                }
+            } else if (this.dragSource === 'ranked' && target === 'ranked') {
+                // Reorder within ranked list
+                const fromIndex = this.rankedPlayers.findIndex(p => p.id === playerId);
+                if (fromIndex === -1) return;
+
+                // Find drop position from the closest element
+                const items = event.currentTarget.querySelectorAll('[data-player-id]');
+                let toIndex = this.rankedPlayers.length - 1;
+
+                for (let i = 0; i < items.length; i++) {
+                    const rect = items[i].getBoundingClientRect();
+                    if (event.clientY < rect.top + rect.height / 2) {
+                        toIndex = i;
+                        break;
+                    }
+                }
+
+                // Move the item
+                const [moved] = this.rankedPlayers.splice(fromIndex, 1);
+                this.rankedPlayers.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, moved);
+            }
+        },
+
+        async saveRankings() {
+            this.saving = true;
+            this.statusMessage = '';
+
+            try {
+                const rankedIds = this.rankedPlayers.map(p => p.id);
+                const response = await fetch('{% url "draft:save_rankings" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ ranked_ids: rankedIds }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.statusMessage = 'Rankings saved successfully (' + data.count + ' players ranked).';
+                    this.statusError = false;
+                } else {
+                    this.statusMessage = data.error || 'Failed to save rankings.';
+                    this.statusError = true;
+                }
+            } catch (err) {
+                this.statusMessage = 'Network error. Please try again.';
+                this.statusError = true;
+            }
+
+            this.saving = false;
+
+            // Auto-hide success message after 4 seconds
+            if (!this.statusError) {
+                setTimeout(() => { this.statusMessage = ''; }, 4000);
+            }
+        },
+    };
+}
+</script>
+{% endblock %}

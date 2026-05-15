@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Delete Session{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'tryouts:session_list' %}" class="hover:text-emerald-400 transition">SES Sessions</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'tryouts:session_detail' session.pk %}" class="hover:text-emerald-400 transition">{{ session.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">Delete</span>
+    </nav>
+
+    <div class="bg-gray-800 rounded-xl p-6 border border-red-700/50 space-y-4">
+        <div class="flex items-start gap-4">
+            <div class="shrink-0 w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white">Delete SES Session</h1>
+                <p class="text-gray-400 mt-1">
+                    Are you sure you want to delete <strong class="text-white">{{ session.name }}</strong>?
+                    This action cannot be undone.
+                </p>
+            </div>
+        </div>
+
+        <!-- Session details -->
+        <div class="bg-gray-900/50 rounded-lg p-4 text-sm space-y-1 border border-gray-700">
+            <p class="text-gray-300"><strong class="text-gray-400">Division:</strong> {{ session.division.name }}</p>
+            <p class="text-gray-300"><strong class="text-gray-400">Date:</strong> {{ session.date|date:"l, F j, Y" }}</p>
+            <p class="text-gray-300">
+                <strong class="text-gray-400">Time:</strong>
+                {{ session.start_time|time:"g:i A" }}{% if session.end_time %} &ndash; {{ session.end_time|time:"g:i A" }}{% endif %}
+            </p>
+            {% if session.location %}
+            <p class="text-gray-300"><strong class="text-gray-400">Location:</strong> {{ session.location }}</p>
+            {% endif %}
+            <p class="text-gray-300">
+                <strong class="text-gray-400">Assignments:</strong> {{ session.assignments.count }} player{{ session.assignments.count|pluralize }}
+            </p>
+        </div>
+
+        <form method="post" class="flex items-center gap-3 pt-2">
+            {% csrf_token %}
+            <button type="submit"
+                    class="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition">
+                Delete Session
+            </button>
+            <a href="{% url 'tryouts:session_detail' session.pk %}"
+               class="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition">
+                Cancel
+            </a>
+        </form>
+    </div>
+</div>
+{% endblock %}

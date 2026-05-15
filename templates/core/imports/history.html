@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Import History — SFLL{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-100">Import History</h1>
+            <p class="text-gray-400 mt-1">SportsConnect CSV import runs</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <form method="post" action="{% url 'import_trigger' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg transition font-medium"
+                        onclick="return confirm('Trigger a SportsConnect sync now?')">
+                    Sync Now
+                </button>
+            </form>
+            <a href="{% url 'import_upload' %}"
+               class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition font-medium">
+                New Import
+            </a>
+        </div>
+    </div>
+
+    <!-- Schedule note -->
+    <div class="bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-400">
+        <strong class="text-gray-300">Scheduled sync:</strong>
+        Configure automatic SportsConnect sync in
+        <a href="/admin/django_celery_beat/periodictask/" class="text-emerald-400 hover:text-emerald-300 underline">Admin &rarr; Periodic Tasks</a>.
+        Use task name <code class="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300">core.tasks.sync_sportsconnect</code>.
+    </div>
+
+    <!-- Table -->
+    {% if runs %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-750 border-b border-gray-700">
+                <tr>
+                    <th class="text-left px-4 py-3 text-gray-400 font-medium">ID</th>
+                    <th class="text-left px-4 py-3 text-gray-400 font-medium">Date</th>
+                    <th class="text-left px-4 py-3 text-gray-400 font-medium">Status</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">Total</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">New Players</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">New Reg.</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">Updated</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">Flagged</th>
+                    <th class="text-right px-4 py-3 text-gray-400 font-medium">Errors</th>
+                    <th class="text-left px-4 py-3 text-gray-400 font-medium">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700">
+                {% for run in runs %}
+                <tr class="hover:bg-gray-700/50 transition">
+                    <td class="px-4 py-3 text-gray-300">#{{ run.pk }}</td>
+                    <td class="px-4 py-3 text-gray-300">{{ run.created_at|date:"M d, Y H:i" }}</td>
+                    <td class="px-4 py-3">
+                        {% if run.status == 'completed' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                                Completed
+                            </span>
+                        {% elif run.status == 'running' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/50 text-blue-300 border border-blue-700">
+                                Running
+                            </span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-900/50 text-red-300 border border-red-700">
+                                Failed
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right text-gray-300">{{ run.total_rows }}</td>
+                    <td class="px-4 py-3 text-right text-gray-300">{{ run.new_players }}</td>
+                    <td class="px-4 py-3 text-right text-gray-300">{{ run.new_player_seasons }}</td>
+                    <td class="px-4 py-3 text-right text-gray-300">{{ run.updated_records }}</td>
+                    <td class="px-4 py-3 text-right {% if run.flagged_for_review > 0 %}text-amber-400{% else %}text-gray-300{% endif %}">
+                        {{ run.flagged_for_review }}
+                    </td>
+                    <td class="px-4 py-3 text-right {% if run.errors > 0 %}text-red-400{% else %}text-gray-300{% endif %}">
+                        {{ run.errors }}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if run.flagged_for_review > 0 %}
+                        <a href="{% url 'import_review' run.pk %}"
+                           class="text-emerald-400 hover:text-emerald-300 transition text-sm font-medium">
+                            Review Flags
+                        </a>
+                        {% else %}
+                        <span class="text-gray-500 text-sm">No flags</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 p-12 text-center">
+        <p class="text-gray-400 text-lg">No imports yet.</p>
+        <p class="text-gray-500 mt-2">Upload a SportsConnect CSV to get started.</p>
+        <a href="{% url 'import_upload' %}"
+           class="inline-block mt-4 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition">
+            Upload CSV
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

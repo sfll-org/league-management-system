@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {% if is_edit %}Edit{% else %}New{% endif %} SES Session{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'tryouts:session_list' %}" class="hover:text-emerald-400 transition">SES Sessions</a>
+        <span class="mx-2">/</span>
+        {% if is_edit %}
+        <a href="{% url 'tryouts:session_detail' session.pk %}" class="hover:text-emerald-400 transition">{{ session.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">Edit</span>
+        {% else %}
+        <span class="text-gray-300">New Session</span>
+        {% endif %}
+    </nav>
+
+    <h1 class="text-2xl font-bold text-white">
+        {% if is_edit %}Edit SES Session{% else %}New SES Session{% endif %}
+    </h1>
+
+    <form method="post" class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-5">
+        {% csrf_token %}
+
+        <!-- Name -->
+        <div>
+            <label for="id_name" class="block text-sm font-medium text-gray-300 mb-1">Session Name</label>
+            <input type="text" name="name" id="id_name"
+                   value="{% if form_data %}{{ form_data.name }}{% elif is_edit %}{{ session.name }}{% endif %}"
+                   required
+                   class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500
+                          focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                   placeholder="e.g., Majors Session 1">
+        </div>
+
+        <!-- Date + Times Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <label for="id_date" class="block text-sm font-medium text-gray-300 mb-1">Date</label>
+                <input type="date" name="date" id="id_date"
+                       value="{% if form_data %}{{ form_data.date }}{% elif is_edit %}{{ session.date|date:'Y-m-d' }}{% endif %}"
+                       required
+                       class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                              focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+            </div>
+            <div>
+                <label for="id_start_time" class="block text-sm font-medium text-gray-300 mb-1">Start Time</label>
+                <input type="time" name="start_time" id="id_start_time"
+                       value="{% if form_data %}{{ form_data.start_time }}{% elif is_edit %}{{ session.start_time|time:'H:i' }}{% endif %}"
+                       required
+                       class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                              focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+            </div>
+            <div>
+                <label for="id_end_time" class="block text-sm font-medium text-gray-300 mb-1">End Time</label>
+                <input type="time" name="end_time" id="id_end_time"
+                       value="{% if form_data %}{{ form_data.end_time }}{% elif is_edit and session.end_time %}{{ session.end_time|time:'H:i' }}{% endif %}"
+                       class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                              focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+            </div>
+        </div>
+
+        <!-- Location -->
+        <div>
+            <label for="id_location" class="block text-sm font-medium text-gray-300 mb-1">Location</label>
+            <input type="text" name="location" id="id_location"
+                   value="{% if form_data %}{{ form_data.location }}{% elif is_edit %}{{ session.location }}{% endif %}"
+                   class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-500
+                          focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                   placeholder="e.g., Field 3">
+        </div>
+
+        <!-- Division -->
+        <div>
+            <label for="id_division" class="block text-sm font-medium text-gray-300 mb-1">Division</label>
+            <select name="division" id="id_division" required
+                    class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                <option value="">Select division...</option>
+                {% for div in divisions %}
+                <option value="{{ div.pk }}"
+                    {% if form_data and form_data.division == div.pk|stringformat:"d" %}selected
+                    {% elif is_edit and session.division_id == div.pk %}selected{% endif %}>
+                    {{ div.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Makeup -->
+        <div class="space-y-3" x-data="{ isMakeup: {% if form_data and form_data.is_makeup %}true{% elif is_edit and session.is_makeup %}true{% else %}false{% endif %} }">
+            <div class="flex items-center gap-3">
+                <input type="checkbox" name="is_makeup" id="id_is_makeup"
+                       x-model="isMakeup"
+                       {% if form_data and form_data.is_makeup %}checked{% elif is_edit and session.is_makeup %}checked{% endif %}
+                       class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-gray-800">
+                <label for="id_is_makeup" class="text-sm font-medium text-gray-300">This is a makeup session</label>
+            </div>
+            <div x-show="isMakeup" x-transition class="ml-7">
+                <label for="id_makeup_for" class="block text-sm font-medium text-gray-400 mb-1">Makeup for</label>
+                <select name="makeup_for" id="id_makeup_for"
+                        class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                    <option value="">None (standalone makeup)</option>
+                    {% for s in existing_sessions %}
+                    <option value="{{ s.pk }}"
+                        {% if form_data and form_data.makeup_for == s.pk|stringformat:"d" %}selected
+                        {% elif is_edit and session.makeup_for_id == s.pk %}selected{% endif %}>
+                        {{ s.name }} &mdash; {{ s.date|date:"M j" }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3 pt-2">
+            <button type="submit"
+                    class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
+                {% if is_edit %}Save Changes{% else %}Create Session{% endif %}
+            </button>
+            <a href="{% if is_edit %}{% url 'tryouts:session_detail' session.pk %}{% else %}{% url 'tryouts:session_list' %}{% endif %}"
+               class="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

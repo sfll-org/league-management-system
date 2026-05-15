@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
+    <title>RSVP — SFLL</title>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col items-center justify-center p-6">
+
+    <div class="max-w-lg w-full text-center space-y-8">
+
+        {# -- SFLL Branding -- #}
+        <div>
+            <h1 class="text-4xl font-bold text-emerald-400">SFLL</h1>
+            <p class="text-gray-500 text-sm mt-1">South Florida Little League</p>
+        </div>
+
+        {% if error %}
+            {# -- Error State -- #}
+            <div class="bg-red-900/40 border border-red-700 rounded-2xl p-8 space-y-4">
+                <svg class="mx-auto h-16 w-16 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <h2 class="text-2xl font-bold text-white">{{ player.full_name }}</h2>
+                <p class="text-red-300 text-lg">{{ error }}</p>
+            </div>
+
+        {% elif confirmed %}
+            {# -- Confirmation State -- #}
+            <div class="bg-emerald-900/40 border border-emerald-700 rounded-2xl p-8 space-y-4">
+                <svg class="mx-auto h-20 w-20 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                <h2 class="text-3xl font-bold text-white">{{ player.full_name }}</h2>
+                <p class="text-emerald-300 text-xl">RSVP Recorded</p>
+                <div class="text-gray-400 space-y-1">
+                    <p class="text-lg">
+                        {% if rsvp.status == 'attending' %}
+                            <span class="text-emerald-400 font-semibold">Attending</span>
+                        {% elif rsvp.status == 'not_attending' %}
+                            <span class="text-red-400 font-semibold">Not Attending</span>
+                        {% elif rsvp.status == 'maybe' %}
+                            <span class="text-amber-400 font-semibold">Maybe</span>
+                        {% endif %}
+                    </p>
+                    <p class="text-lg">{{ session.name }}</p>
+                    <p>{{ session.date|date:"l, F j, Y" }}</p>
+                    <p>{{ session.start_time|time:"g:i A" }}{% if session.end_time %} &ndash; {{ session.end_time|time:"g:i A" }}{% endif %}</p>
+                    {% if session.location %}
+                        <p>{{ session.location }}</p>
+                    {% endif %}
+                </div>
+                <p class="text-gray-600 text-sm pt-2">You can change your response by revisiting this page.</p>
+            </div>
+
+        {% else %}
+            {# -- RSVP Form -- #}
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-8 space-y-6">
+                <div>
+                    <p class="text-gray-400 text-lg">Hello,</p>
+                    <h2 class="text-3xl font-bold text-white mt-1">{{ player.full_name }}</h2>
+                </div>
+
+                <div class="text-gray-300 space-y-1">
+                    <p class="text-lg font-semibold text-emerald-400">{{ session.name }}</p>
+                    <p>{{ session.date|date:"l, F j, Y" }}</p>
+                    <p>{{ session.start_time|time:"g:i A" }}{% if session.end_time %} &ndash; {{ session.end_time|time:"g:i A" }}{% endif %}</p>
+                    {% if session.location %}
+                        <p class="text-gray-400">{{ session.location }}</p>
+                    {% endif %}
+                </div>
+
+                {% if existing_rsvp %}
+                <div class="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-400">
+                    You previously responded:
+                    <span class="font-medium
+                        {% if existing_rsvp.status == 'attending' %}text-emerald-400
+                        {% elif existing_rsvp.status == 'not_attending' %}text-red-400
+                        {% else %}text-amber-400{% endif %}">
+                        {{ existing_rsvp.get_status_display }}
+                    </span>
+                </div>
+                {% endif %}
+
+                <p class="text-gray-400">Will you be attending?</p>
+
+                <form method="post" class="space-y-3">
+                    {% csrf_token %}
+                    <button type="submit" name="status" value="attending"
+                            class="w-full py-4 px-6 bg-emerald-600 hover:bg-emerald-500 text-white text-xl font-bold rounded-xl transition
+                                   {% if existing_rsvp.status == 'attending' %}ring-2 ring-emerald-400{% endif %}">
+                        Attending
+                    </button>
+                    <button type="submit" name="status" value="not_attending"
+                            class="w-full py-4 px-6 bg-red-600/80 hover:bg-red-500 text-white text-xl font-bold rounded-xl transition
+                                   {% if existing_rsvp.status == 'not_attending' %}ring-2 ring-red-400{% endif %}">
+                        Not Attending
+                    </button>
+                    <button type="submit" name="status" value="maybe"
+                            class="w-full py-4 px-6 bg-amber-600/80 hover:bg-amber-500 text-white text-xl font-bold rounded-xl transition
+                                   {% if existing_rsvp.status == 'maybe' %}ring-2 ring-amber-400{% endif %}">
+                        Maybe
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+
+    </div>
+
+    {# -- Footer -- #}
+    <footer class="mt-12 text-center">
+        <p class="text-gray-600 text-sm">South Florida Little League &mdash; Player Database</p>
+    </footer>
+
+</body>
+</html>

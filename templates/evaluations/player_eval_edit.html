@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Edit {{ player_season.player.full_name }} @ {{ station.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    <!-- Back link -->
+    <a href="{% url 'evaluations:player_eval' player_season_id=player_season.pk %}"
+       class="inline-flex items-center text-gray-400 hover:text-emerald-400 transition text-sm">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+        Back to {{ player_season.player.full_name }}
+    </a>
+
+    <!-- Player header -->
+    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h1 class="text-2xl sm:text-3xl font-bold text-white">
+            {{ player_season.player.full_name }}
+        </h1>
+        <p class="text-gray-400 mt-1">
+            {{ station.name }} &middot; {{ session.name }}
+        </p>
+        {% if is_edit %}
+        <span class="inline-block mt-2 text-xs font-medium px-2 py-1 rounded bg-amber-900/50 text-amber-300 border border-amber-700">
+            Editing existing evaluation
+        </span>
+        {% endif %}
+    </div>
+
+    <!-- Eval form -->
+    <form method="post" x-data="evalForm()" class="space-y-6">
+        {% csrf_token %}
+
+        <!-- Dynamic eval fields -->
+        {% for field in eval_fields %}
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-5">
+            <label class="block text-gray-300 text-sm font-medium mb-3">{{ field.label }}</label>
+
+            {% if field.type == "rating" %}
+            <div class="flex gap-2 sm:gap-3 flex-wrap">
+                {% with field_key=field.key field_min=field.min field_max=field.max %}
+                <template x-for="n in ratingRange('{{ field_min }}', '{{ field_max }}')" :key="'{{ field_key }}_' + n">
+                    <button type="button"
+                            @click="setScore('{{ field_key }}', n)"
+                            :class="scores['{{ field_key }}'] === n
+                                ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'"
+                            class="w-14 h-14 rounded-xl text-xl font-bold transition-all duration-150
+                                   active:scale-95 select-none">
+                        <span x-text="n"></span>
+                    </button>
+                </template>
+                <input type="hidden" name="score_{{ field_key }}" :value="scores['{{ field_key }}'] || ''">
+                {% endwith %}
+            </div>
+            <button type="button"
+                    @click="clearScore('{{ field.key }}')"
+                    x-show="scores['{{ field.key }}']"
+                    class="mt-2 text-xs text-gray-500 hover:text-gray-300 transition">
+                Clear
+            </button>
+            {% else %}
+            <input type="text"
+                   name="score_{{ field.key }}"
+                   value="{{ field.value|default:'' }}"
+                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white
+                          text-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
+                   placeholder="Enter value">
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% if not eval_fields %}
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 text-center">
+            <p class="text-gray-400">No evaluation fields configured for this station.</p>
+        </div>
+        {% endif %}
+
+        <!-- Notes -->
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-5">
+            <label for="notes" class="block text-gray-300 text-sm font-medium mb-3">Notes (optional)</label>
+            <textarea id="notes" name="notes" rows="3"
+                      class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white
+                             text-base focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition
+                             placeholder-gray-500"
+                      placeholder="Any additional observations...">{{ existing_notes }}</textarea>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex flex-col sm:flex-row gap-3">
+            <button type="submit"
+                    class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold
+                           text-lg py-4 rounded-xl transition active:scale-[0.98]">
+                Save
+            </button>
+            <a href="{% url 'evaluations:player_eval' player_season_id=player_season.pk %}"
+               class="flex-1 bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold
+                      text-lg py-4 rounded-xl transition text-center">
+                Cancel
+            </a>
+        </div>
+    </form>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function evalForm() {
+        const evalFields = {{ eval_fields_json|safe }};
+        const initialScores = {};
+        evalFields.forEach(f => {
+            if (f.value !== null && f.value !== undefined) {
+                initialScores[f.key] = f.value;
+            }
+        });
+
+        return {
+            scores: initialScores,
+
+            ratingRange(min, max) {
+                const lo = parseInt(min) || 1;
+                const hi = parseInt(max) || 5;
+                const result = [];
+                for (let i = lo; i <= hi; i++) result.push(i);
+                return result;
+            },
+
+            setScore(key, value) {
+                this.scores[key] = value;
+            },
+
+            clearScore(key) {
+                delete this.scores[key];
+                this.scores = { ...this.scores };
+            },
+        };
+    }
+</script>
+{% endblock %}

@@ -1,28 +1,29 @@
 from django.contrib import admin
-from .models import EmailTemplate, EmailSend, EmailRecipient, RSVPToken
+
+from .models import EmailLog, EmailTemplate, RSVP
 
 
 @admin.register(EmailTemplate)
 class EmailTemplateAdmin(admin.ModelAdmin):
-    list_display = ('name', 'template_type', 'subject_template')
-    list_filter = ('template_type',)
+    list_display = ('name', 'league', 'subject_template', 'is_active')
+    list_filter = ('league', 'is_active')
+    search_fields = ('name', 'subject_template')
 
 
-class EmailRecipientInline(admin.TabularInline):
-    model = EmailRecipient
-    extra = 0
-    readonly_fields = ('email', 'player', 'delivered', 'opened', 'clicked')
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    list_display = ('to_address', 'subject', 'sent_at', 'sent_by', 'bounced')
+    list_filter = ('bounced', 'sent_at')
+    search_fields = ('to_address', 'subject')
+    readonly_fields = ('sent_at',)
+    date_hierarchy = 'sent_at'
 
 
-@admin.register(EmailSend)
-class EmailSendAdmin(admin.ModelAdmin):
-    list_display = ('template', 'sent_by', 'recipient_count', 'status', 'sent_at')
-    list_filter = ('status',)
-    inlines = [EmailRecipientInline]
-
-
-@admin.register(RSVPToken)
-class RSVPTokenAdmin(admin.ModelAdmin):
-    list_display = ('player', 'event_description', 'response', 'responded_at')
-    list_filter = ('response',)
-    search_fields = ('player__first_name', 'player__last_name')
+@admin.register(RSVP)
+class RSVPAdmin(admin.ModelAdmin):
+    list_display = ('player_season', 'session', 'status', 'response_method', 'created_at')
+    list_filter = ('status', 'response_method')
+    search_fields = (
+        'player_season__player__first_name',
+        'player_season__player__last_name',
+    )

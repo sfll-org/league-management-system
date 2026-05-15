@@ -16,5 +16,11 @@ echo "Redis is ready."
 echo "Running migrations..."
 python manage.py migrate --no-input
 
+# Optional: seed demo data on first run
+if [ "${SETUP_SEED}" = "true" ]; then
+    echo "Seeding demo data..."
+    python manage.py seed_demo
+fi
+
 echo "Starting: $@"
 exec "$@"

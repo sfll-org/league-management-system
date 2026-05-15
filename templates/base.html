@@ -1,12 +1,12 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="South Florida Little League — Player Database & Tryout Management">
+    <meta name="description" content="South Florida Little League — Player Database & SES Management">
 
-    <!-- Tailwind CSS via CDN -->
+    <!-- Tailwind CSS via CDN (dev) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -14,23 +14,26 @@
         }
     </script>
 
-    <!-- HTMX via CDN -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
     <title>{% block title %}SFLL — Player Database{% endblock %}</title>
-
     {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      x-data="{ mobileMenuOpen: false }">
 
     <!-- Navigation -->
-    <nav class="bg-gray-800 border-b border-gray-700 shadow-lg">
+    <nav class="bg-gray-800 border-b border-gray-700 shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo -->
                 <div class="flex items-center space-x-3">
-                    <a href="/" class="text-2xl font-bold text-emerald-400">
+                    <a href="{% url 'dashboard' %}" class="text-2xl font-bold text-emerald-400">
                         SFLL
                     </a>
                     <span class="hidden sm:inline text-gray-400 text-sm">Player Database</span>
@@ -39,21 +42,27 @@
                 <!-- Desktop Nav -->
                 <div class="hidden md:flex items-center space-x-6">
                     {% if user.is_authenticated %}
-                        <a href="/" class="text-gray-300 hover:text-emerald-400 transition">Dashboard</a>
+                        <a href="{% url 'dashboard' %}" class="text-gray-300 hover:text-emerald-400 transition">Dashboard</a>
                         <a href="{% url 'players:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Players</a>
-                        <a href="{% url 'tryouts:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Tryouts</a>
-                        <a href="{% url 'evaluations:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Evaluations</a>
+                        <a href="{% url 'tryouts:index' %}" class="text-gray-300 hover:text-emerald-400 transition">SES</a>
+                        <a href="{% url 'evaluations:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Evals</a>
                         <a href="{% url 'draft:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Draft</a>
+                        <a href="{% url 'communications:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Comms</a>
+                        {% if user_is_admin %}
+                            <a href="{% url 'import_history' %}" class="text-gray-300 hover:text-emerald-400 transition">Imports</a>
+                            <a href="{% url 'config_home' %}" class="text-gray-300 hover:text-emerald-400 transition">Config</a>
+                            <a href="{% url 'audit_log' %}" class="text-gray-300 hover:text-emerald-400 transition">Audit</a>
+                        {% endif %}
                         {% if user.is_staff %}
                             <a href="{% url 'admin:index' %}" class="text-gray-400 hover:text-emerald-400 transition text-sm">Admin</a>
                         {% endif %}
                         <div class="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-600">
                             <span class="text-gray-400 text-sm">{{ user.email }}</span>
-                            <a href="{% url 'account_logout' %}"
+                            <a href="{% url 'accounts:logout' %}"
                                class="text-gray-400 hover:text-red-400 transition text-sm">Logout</a>
                         </div>
                     {% else %}
-                        <a href="{% url 'account_login' %}"
+                        <a href="{% url 'accounts:login' %}"
                            class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition">
                             Sign In
                         </a>
@@ -62,27 +71,34 @@
 
                 <!-- Mobile menu button -->
                 <div class="md:hidden">
-                    <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
-                            class="text-gray-400 hover:text-white">
+                    <button @click="mobileMenuOpen = !mobileMenuOpen"
+                            class="text-gray-400 hover:text-white p-2">
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                   d="M4 6h16M4 12h16M4 18h16" />
+                            <path x-show="mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
             </div>
 
             <!-- Mobile menu -->
-            <div id="mobile-menu" class="hidden md:hidden pb-4">
+            <div x-show="mobileMenuOpen" x-transition class="md:hidden pb-4 space-y-1">
                 {% if user.is_authenticated %}
-                    <a href="/" class="block py-2 text-gray-300 hover:text-emerald-400">Dashboard</a>
-                    <a href="{% url 'players:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Players</a>
-                    <a href="{% url 'tryouts:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Tryouts</a>
-                    <a href="{% url 'evaluations:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Evaluations</a>
-                    <a href="{% url 'draft:index' %}" class="block py-2 text-gray-300 hover:text-emerald-400">Draft</a>
-                    <a href="{% url 'account_logout' %}" class="block py-2 text-red-400">Logout</a>
+                    <a href="{% url 'dashboard' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Dashboard</a>
+                    <a href="{% url 'players:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Players</a>
+                    <a href="{% url 'tryouts:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">SES Sessions</a>
+                    <a href="{% url 'evaluations:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Evaluations</a>
+                    <a href="{% url 'draft:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Draft</a>
+                    <a href="{% url 'communications:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Communications</a>
+                    <div class="border-t border-gray-700 mt-2 pt-2">
+                        <span class="block py-2 px-3 text-gray-500 text-sm">{{ user.email }}</span>
+                        <a href="{% url 'accounts:logout' %}" class="block py-2 px-3 rounded text-red-400 hover:bg-gray-700">Logout</a>
+                    </div>
                 {% else %}
-                    <a href="{% url 'account_login' %}" class="block py-2 text-emerald-400">Sign In</a>
+                    <a href="{% url 'accounts:login' %}" class="block py-2 px-3 rounded text-emerald-400 hover:bg-gray-700">Sign In</a>
+                    <a href="{% url 'accounts:register' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700">Register</a>
                 {% endif %}
             </div>
         </div>
@@ -92,7 +108,11 @@
     {% if messages %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
         {% for message in messages %}
-        <div class="rounded-lg p-4 mb-2 {% if message.tags == 'error' %}bg-red-900/50 text-red-300 border border-red-700{% elif message.tags == 'success' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700{% else %}bg-blue-900/50 text-blue-300 border border-blue-700{% endif %}">
+        <div class="rounded-lg p-4 mb-2
+            {% if message.tags == 'error' %}bg-red-900/50 text-red-300 border border-red-700
+            {% elif message.tags == 'success' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700
+            {% elif message.tags == 'warning' %}bg-amber-900/50 text-amber-300 border border-amber-700
+            {% else %}bg-blue-900/50 text-blue-300 border border-blue-700{% endif %}">
             {{ message }}
         </div>
         {% endfor %}
@@ -100,15 +120,15 @@
     {% endif %}
 
     <!-- Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
         {% block content %}{% endblock %}
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-800 border-t border-gray-700 mt-auto">
+    <footer class="bg-gray-800 border-t border-gray-700">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <p class="text-center text-gray-500 text-sm">
-                South Florida Little League &mdash; Player Database
+                South Florida Little League &mdash; Player Database v2
             </p>
         </div>
     </footer>

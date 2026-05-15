@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Sign In{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[60vh]">
+    <div class="w-full max-w-md">
+        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-emerald-400">SFLL</h1>
+                <p class="mt-2 text-gray-400">Sign in to the Player Database</p>
+            </div>
+
+            {% if form.non_field_errors %}
+                {% for error in form.non_field_errors %}
+                <div class="mb-4 rounded-lg p-3 bg-red-900/50 text-red-300 border border-red-700 text-sm">
+                    {{ error }}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="post" class="space-y-5">
+                {% csrf_token %}
+
+                <div>
+                    <label for="id_email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                        <p class="mt-1 text-sm text-red-400">{{ form.email.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="id_password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+                    {{ form.password }}
+                    {% if form.password.errors %}
+                        <p class="mt-1 text-sm text-red-400">{{ form.password.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <button type="submit"
+                        class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
+                    Sign In
+                </button>
+            </form>
+
+            <p class="mt-6 text-center text-sm text-gray-500">
+                Don't have an account?
+                <a href="{% url 'accounts:register' %}" class="text-emerald-400 hover:text-emerald-300">Register</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

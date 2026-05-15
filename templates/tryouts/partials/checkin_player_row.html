@@ -1,0 +1,73 @@
+<div id="assignment-{{ a.assignment.pk }}"
+     class="checkin-card rounded-xl border p-4 sm:p-5 flex items-center justify-between gap-4 transition-colors duration-300
+            {% if a.checked_in %}bg-emerald-900/30 border-emerald-700{% else %}bg-gray-800 border-gray-700{% endif %}">
+
+    {# ── Player Info ── #}
+    <div class="flex-1 min-w-0">
+        <p class="text-xl sm:text-2xl font-bold truncate
+                  {% if a.checked_in %}text-emerald-300{% else %}text-white{% endif %}">
+            {{ a.player.last_name }}, {{ a.player.first_name }}
+        </p>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+            {% if a.division %}
+                <span class="text-sm text-gray-400">{{ a.division.name }}</span>
+            {% endif %}
+            {% if a.account_name %}
+                <span class="text-sm text-gray-500">Parent: {{ a.account_name }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Check-in Action / Status ── #}
+    {% if a.checked_in %}
+        <div class="flex items-center gap-2 shrink-0">
+            <svg class="h-8 w-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span class="text-emerald-400 text-sm hidden sm:inline">{{ a.checkin.checked_in_at|time:"g:i A" }}</span>
+        </div>
+    {% else %}
+        <div class="flex items-center gap-2 shrink-0">
+            <a href="{% url 'tryouts:reassign_player' pk=session.pk assignment_id=a.assignment.pk %}"
+               class="text-gray-400 hover:text-amber-400 text-sm font-medium transition px-3 py-2 rounded-lg
+                      border border-gray-600 hover:border-amber-600">
+                Reassign
+            </a>
+            <button class="checkin-btn bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700
+                           text-white font-semibold text-lg rounded-xl px-6 py-3
+                           transition"
+                    hx-post="{% url 'tryouts:checkin_player' pk=session.pk assignment_id=a.assignment.pk %}"
+                    hx-target="#assignment-{{ a.assignment.pk }}"
+                    hx-swap="outerHTML"
+                    hx-indicator="#spinner-{{ a.assignment.pk }}">
+                Check In
+            </button>
+        </div>
+        <div id="spinner-{{ a.assignment.pk }}" class="htmx-indicator shrink-0">
+            <svg class="animate-spin h-6 w-6 text-emerald-400" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+        </div>
+    {% endif %}
+</div>
+
+{% if include_stats_oob %}
+{# Out-of-band swap to update the stats bar #}
+<div id="checkin-stats" hx-swap-oob="true"
+     class="bg-gray-800 rounded-xl border border-gray-700 p-5 flex items-center gap-6">
+    <div class="flex items-baseline gap-2">
+        <span class="text-4xl font-bold text-emerald-400">{{ total_checked_in }}</span>
+        <span class="text-gray-400 text-lg">of</span>
+        <span class="text-4xl font-bold text-white">{{ total_assigned }}</span>
+        <span class="text-gray-400 text-lg">checked in</span>
+    </div>
+    <div class="flex-1">
+        <div class="w-full bg-gray-700 rounded-full h-3">
+            {% widthratio total_checked_in total_assigned 100 as pct %}
+            <div class="bg-emerald-500 h-3 rounded-full transition-all duration-500"
+                 style="width: {% widthratio total_checked_in total_assigned 100 %}%"></div>
+        </div>
+    </div>
+</div>
+{% endif %}

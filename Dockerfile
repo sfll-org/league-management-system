@@ -17,13 +17,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput 2>/dev/null || true
+# Create static directory and collect static files
+RUN mkdir -p /app/static && python manage.py collectstatic --noinput 2>/dev/null || true
 
 EXPOSE 8000
 
-# Entrypoint: wait for DB, migrate, run server
+# Entrypoint: wait for DB + Redis, migrate, run command
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "sfll.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2"]

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — No-Shows — {{ session.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'tryouts:session_list' %}" class="hover:text-emerald-400 transition">SES Sessions</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'tryouts:session_detail' session.pk %}" class="hover:text-emerald-400 transition">{{ session.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">No-Shows</span>
+    </nav>
+
+    <div class="bg-gray-800 rounded-xl border border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-700">
+            <h1 class="text-2xl font-bold text-white">No-Shows &mdash; {{ session.name }}</h1>
+            <p class="text-sm text-gray-400 mt-1">
+                {{ session.division.name }} &mdash; {{ session.date|date:"l, F j, Y" }}
+            </p>
+        </div>
+
+        <!-- Stats -->
+        <div class="px-6 py-4 border-b border-gray-700 bg-gray-800/50">
+            <div class="flex items-center gap-6">
+                <div>
+                    <span class="text-3xl font-bold text-red-400">{{ noshow_count }}</span>
+                    <span class="text-gray-400 ml-1">of</span>
+                    <span class="text-3xl font-bold text-white ml-1">{{ total_count }}</span>
+                    <span class="text-gray-400 ml-1">players did not check in</span>
+                </div>
+            </div>
+        </div>
+
+        {% if noshow_assignments %}
+        <form method="post">
+            {% csrf_token %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-gray-400 border-b border-gray-700">
+                            <th class="px-6 py-3 font-medium w-10">
+                                <input type="checkbox" id="select-all"
+                                       class="rounded bg-gray-700 border-gray-600 text-emerald-500 focus:ring-emerald-500"
+                                       onchange="document.querySelectorAll('input[name=flag_player_season]').forEach(cb => cb.checked = this.checked)">
+                            </th>
+                            <th class="px-6 py-3 font-medium">Player</th>
+                            <th class="px-6 py-3 font-medium hidden sm:table-cell">Division</th>
+                            <th class="px-6 py-3 font-medium hidden md:table-cell">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700/50">
+                        {% for row in noshow_assignments %}
+                        <tr class="hover:bg-gray-700/30 transition">
+                            <td class="px-6 py-3">
+                                <input type="checkbox" name="flag_player_season" value="{{ row.player_season.pk }}"
+                                       class="rounded bg-gray-700 border-gray-600 text-emerald-500 focus:ring-emerald-500"
+                                       {% if row.player_season.status == 'needs_makeup' %}checked disabled{% endif %}>
+                            </td>
+                            <td class="px-6 py-3 text-white font-medium">
+                                {{ row.player.last_name }}, {{ row.player.first_name }}
+                            </td>
+                            <td class="px-6 py-3 text-gray-400 hidden sm:table-cell">
+                                {{ row.player_season.division.name }}
+                            </td>
+                            <td class="px-6 py-3 hidden md:table-cell">
+                                {% if row.player_season.status == 'needs_makeup' %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">
+                                    Already flagged
+                                </span>
+                                {% else %}
+                                <span class="text-gray-500">{{ row.player_season.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-700 flex flex-wrap items-center gap-3">
+                <button type="submit"
+                        class="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg transition">
+                    Flag for Makeup Session
+                </button>
+                <a href="{% url 'tryouts:session_detail' session.pk %}"
+                   class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition">
+                    Back to Session
+                </a>
+            </div>
+        </form>
+        {% else %}
+        <div class="px-6 py-12 text-center">
+            <svg class="mx-auto h-12 w-12 text-emerald-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <p class="text-gray-400 text-lg">All assigned players checked in.</p>
+            <a href="{% url 'tryouts:session_detail' session.pk %}"
+               class="inline-block mt-4 text-emerald-400 hover:text-emerald-300 transition">
+                Back to Session
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

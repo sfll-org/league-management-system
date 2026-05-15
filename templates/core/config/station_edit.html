@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Edit Station: {{ station.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Edit Station</h1>
+            <p class="mt-1 text-gray-400">{{ station.name }}</p>
+        </div>
+        <a href="{% url 'station_list' %}" class="text-sm text-gray-400 hover:text-emerald-400">&larr; Stations</a>
+    </div>
+
+    <form method="post" class="space-y-6" x-data="stationEditor()">
+        {% csrf_token %}
+
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-4">
+            <h2 class="text-lg font-semibold text-white">Station Details</h2>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="name" class="block text-sm text-gray-400 mb-1">Name</label>
+                    <input type="text" name="name" id="name" value="{{ station.name }}" required
+                           class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label for="display_order" class="block text-sm text-gray-400 mb-1">Display Order</label>
+                    <input type="number" name="display_order" id="display_order" value="{{ station.display_order }}" min="0"
+                           class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label for="description" class="block text-sm text-gray-400 mb-1">Description</label>
+                <textarea name="description" id="description" rows="2"
+                          class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">{{ station.description }}</textarea>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="is_active" {% if station.is_active %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500">
+                <span class="text-sm text-gray-300">Active</span>
+            </label>
+        </div>
+
+        <!-- Eval Fields JSON Editor -->
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">Evaluation Fields</h2>
+                <div class="flex gap-2">
+                    <button type="button" @click="addField()"
+                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition">
+                        + Add Field
+                    </button>
+                    <button type="button" @click="toggleRawMode()"
+                            class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg text-sm transition">
+                        <span x-text="rawMode ? 'Visual' : 'JSON'"></span> Mode
+                    </button>
+                </div>
+            </div>
+
+            <!-- Visual Editor -->
+            <div x-show="!rawMode">
+                <template x-for="(field, index) in fields" :key="index">
+                    <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600 mb-3">
+                        <div class="flex items-start justify-between mb-3">
+                            <span class="text-sm text-gray-400" x-text="'Field ' + (index + 1)"></span>
+                            <button type="button" @click="removeField(index)"
+                                    class="text-red-400 hover:text-red-300 text-sm">&times; Remove</button>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Key</label>
+                                <input type="text" x-model="field.key"
+                                       class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                       placeholder="e.g. arm_strength">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Label</label>
+                                <input type="text" x-model="field.label"
+                                       class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                                       placeholder="e.g. Arm Strength">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Type</label>
+                                <select x-model="field.type"
+                                        class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                                    <option value="integer">Integer</option>
+                                    <option value="decimal">Decimal</option>
+                                    <option value="boolean">Boolean</option>
+                                    <option value="text">Text</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Min</label>
+                                    <input type="number" x-model.number="field.min"
+                                           class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Max</label>
+                                    <input type="number" x-model.number="field.max"
+                                           class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text-sm text-white focus:border-emerald-500 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <p x-show="fields.length === 0" class="text-gray-500 text-sm py-4 text-center">
+                    No fields configured. Click "Add Field" to start.
+                </p>
+            </div>
+
+            <!-- Raw JSON Editor -->
+            <div x-show="rawMode">
+                <textarea x-model="rawJson" rows="12"
+                          class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-sm text-emerald-300 font-mono focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                          @blur="parseRawJson()"></textarea>
+                <p x-show="jsonError" class="text-red-400 text-sm mt-1" x-text="jsonError"></p>
+            </div>
+
+            <!-- Hidden input for form submission -->
+            <input type="hidden" name="eval_fields" :value="JSON.stringify(fields)">
+        </div>
+
+        <div class="flex gap-3">
+            <button type="submit"
+                    class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+                Save Changes
+            </button>
+            <a href="{% url 'station_list' %}"
+               class="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function stationEditor() {
+    const initialFields = {{ eval_fields_json|safe }};
+    return {
+        fields: initialFields || [],
+        rawMode: false,
+        rawJson: JSON.stringify(initialFields || [], null, 2),
+        jsonError: '',
+
+        addField() {
+            this.fields.push({ key: '', label: '', type: 'integer', min: 1, max: 5 });
+        },
+
+        removeField(index) {
+            this.fields.splice(index, 1);
+        },
+
+        toggleRawMode() {
+            if (this.rawMode) {
+                // Switching from raw to visual — parse JSON
+                this.parseRawJson();
+            } else {
+                // Switching from visual to raw — serialize
+                this.rawJson = JSON.stringify(this.fields, null, 2);
+            }
+            this.rawMode = !this.rawMode;
+        },
+
+        parseRawJson() {
+            try {
+                const parsed = JSON.parse(this.rawJson);
+                if (Array.isArray(parsed)) {
+                    this.fields = parsed;
+                    this.jsonError = '';
+                } else {
+                    this.jsonError = 'Must be a JSON array.';
+                }
+            } catch (e) {
+                this.jsonError = 'Invalid JSON: ' + e.message;
+            }
+        }
+    };
+}
+</script>
+{% endblock %}

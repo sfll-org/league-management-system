@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {{ station.name }} Evaluations{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-white">{{ station.name }}</h1>
+            <p class="text-gray-400 mt-1">
+                {{ session.name }} &middot; {{ session.date|date:"M j, Y" }}
+                &middot; {{ session.division.name }}
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-sm font-medium px-3 py-1.5 rounded-lg
+                {% if eval_count == total_count and total_count > 0 %}
+                    bg-emerald-900/50 text-emerald-300 border border-emerald-700
+                {% else %}
+                    bg-gray-800 text-gray-300 border border-gray-700
+                {% endif %}">
+                {{ eval_count }} / {{ total_count }} evaluated
+            </span>
+            <a href="{% url 'evaluations:index' %}"
+               class="text-sm text-gray-400 hover:text-emerald-400 transition">
+                Change Station
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick switchers -->
+    <div class="flex flex-wrap gap-3" x-data="{ showSwitcher: false }">
+        <!-- Station pills -->
+        <div class="flex gap-2 overflow-x-auto pb-1">
+            {% for s in all_stations %}
+            <a href="{% url 'evaluations:station_session_eval' station_id=s.pk session_id=session.pk %}"
+               class="whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition
+                   {% if s.pk == station.pk %}
+                       bg-emerald-600 text-white
+                   {% else %}
+                       bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200 border border-gray-700
+                   {% endif %}">
+                {{ s.name }}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Session switcher dropdown -->
+        <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open"
+                    class="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-400
+                           hover:bg-gray-700 border border-gray-700 transition">
+                Session: {{ session.name }}
+                <svg class="inline w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div x-show="open" @click.away="open = false" x-transition
+                 class="absolute right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-xl
+                        shadow-xl z-30 overflow-hidden">
+                {% for sess in all_sessions %}
+                <a href="{% url 'evaluations:station_session_eval' station_id=station.pk session_id=sess.pk %}"
+                   class="block px-4 py-3 text-sm hover:bg-gray-700 transition
+                       {% if sess.pk == session.pk %}text-emerald-400 font-medium{% else %}text-gray-300{% endif %}">
+                    {{ sess.name }}
+                    <span class="block text-xs text-gray-500 mt-0.5">
+                        {{ sess.date|date:"M j" }} &middot; {{ sess.division.name }}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% if not has_coach_season %}
+    <div class="bg-amber-900/50 text-amber-300 border border-amber-700 rounded-lg p-4">
+        You are not assigned as a coach for this season. You can view the player list but cannot submit evaluations.
+    </div>
+    {% endif %}
+
+    <!-- Player list -->
+    {% if player_cards %}
+    <div class="space-y-3" id="player-list">
+        {% for card in player_cards %}
+            {% include "evaluations/partials/player_eval_card.html" with card=card station=station session=session %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">No checked-in players for this session.</p>
+        <p class="text-gray-500 text-sm mt-2">Players must be checked in before they appear here.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

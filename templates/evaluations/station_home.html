@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Station Evaluations{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-white">Station Evaluations</h1>
+        <p class="mt-2 text-gray-400">
+            {% if season %}
+                Select a station and session to begin scoring players.
+                <span class="text-emerald-400">{{ season.name }}</span>
+            {% else %}
+                <span class="text-amber-400">No active season configured.</span>
+            {% endif %}
+        </p>
+    </div>
+
+    {% if season %}
+    <div x-data="{ selectedStation: null, selectedSession: null }" class="space-y-8">
+
+        <!-- Station Picker -->
+        <div>
+            <h2 class="text-lg font-semibold text-gray-300 mb-4">1. Pick Your Station</h2>
+            {% if stations %}
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {% for station in stations %}
+                <button @click="selectedStation = {{ station.pk }}"
+                        :class="selectedStation === {{ station.pk }}
+                            ? 'bg-emerald-600 border-emerald-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'"
+                        class="p-6 rounded-xl border text-center transition font-semibold text-lg">
+                    {{ station.name }}
+                </button>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500">No stations configured for this league.</p>
+            {% endif %}
+        </div>
+
+        <!-- Session Picker -->
+        <div x-show="selectedStation" x-transition>
+            <h2 class="text-lg font-semibold text-gray-300 mb-4">2. Pick the Session</h2>
+            {% if sessions %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for sess in sessions %}
+                <button @click="selectedSession = {{ sess.pk }}"
+                        :class="selectedSession === {{ sess.pk }}
+                            ? 'bg-emerald-600 border-emerald-500 text-white'
+                            : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'"
+                        class="p-5 rounded-xl border text-left transition">
+                    <p class="font-semibold text-lg">{{ sess.name }}</p>
+                    <p class="text-sm mt-1 opacity-75">
+                        {{ sess.date|date:"l, M j" }}
+                        &middot; {{ sess.start_time|time:"g:i A" }}
+                        &middot; {{ sess.division.name }}
+                    </p>
+                    {% if sess.location %}
+                    <p class="text-xs mt-1 opacity-60">{{ sess.location }}</p>
+                    {% endif %}
+                </button>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500">No sessions scheduled for this season.</p>
+            {% endif %}
+        </div>
+
+        <!-- Go Button -->
+        <div x-show="selectedStation && selectedSession" x-transition>
+            <a :href="'/evaluations/station/' + selectedStation + '/session/' + selectedSession + '/'"
+               class="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xl
+                      px-8 py-4 rounded-xl transition shadow-lg">
+                Start Evaluating
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

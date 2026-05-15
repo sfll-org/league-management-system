@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {{ division.name }} Division Report{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-white">{{ division.name }} Division Report</h1>
+        <p class="text-gray-400 mt-1">
+            {% if season %}
+                {{ season.name }} &middot; Aggregated scores across all evaluators
+            {% else %}
+                <span class="text-amber-400">No active season configured.</span>
+            {% endif %}
+        </p>
+        <p class="text-xs text-gray-500 mt-2">
+            Individual evaluator scores are not shown. All values are averages.
+        </p>
+    </div>
+
+    {% if season and player_rows %}
+
+    <!-- Sort controls -->
+    <div class="flex flex-wrap gap-2">
+        <span class="text-sm text-gray-500 py-1.5">Sort by:</span>
+        <a href="?sort=avg_desc"
+           class="px-3 py-1.5 rounded-lg text-sm font-medium transition
+               {% if sort_by == 'avg_desc' %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700{% endif %}">
+            Avg (High-Low)
+        </a>
+        <a href="?sort=avg_asc"
+           class="px-3 py-1.5 rounded-lg text-sm font-medium transition
+               {% if sort_by == 'avg_asc' %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700{% endif %}">
+            Avg (Low-High)
+        </a>
+        <a href="?sort=name"
+           class="px-3 py-1.5 rounded-lg text-sm font-medium transition
+               {% if sort_by == 'name' %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700{% endif %}">
+            Name
+        </a>
+        <a href="?sort=evals"
+           class="px-3 py-1.5 rounded-lg text-sm font-medium transition
+               {% if sort_by == 'evals' %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700{% endif %}">
+            Most Evaluated
+        </a>
+    </div>
+
+    <!-- Table (desktop) -->
+    <div class="hidden md:block bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-700 text-left">
+                        <th class="px-4 py-3 text-gray-400 font-medium">Player</th>
+                        {% for station in stations %}
+                        <th class="px-4 py-3 text-gray-400 font-medium text-center">{{ station.name }}</th>
+                        {% endfor %}
+                        <th class="px-4 py-3 text-gray-400 font-medium text-center">Avg</th>
+                        <th class="px-4 py-3 text-gray-400 font-medium text-center">Evals</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700/50">
+                    {% for row in player_rows %}
+                    <tr class="hover:bg-gray-700/30 transition">
+                        <td class="px-4 py-3 font-medium text-white whitespace-nowrap">
+                            {{ row.player_season.player.full_name }}
+                        </td>
+                        {% for sa in row.station_avgs %}
+                        <td class="px-4 py-3 text-center">
+                            {% if sa.avg != None %}
+                            <span class="text-emerald-400 font-semibold">{{ sa.avg }}</span>
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                        <td class="px-4 py-3 text-center">
+                            {% if row.overall_avg != None %}
+                            <span class="text-lg font-bold text-white">{{ row.overall_avg }}</span>
+                            {% else %}
+                            <span class="text-gray-600">--</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-center text-gray-400">{{ row.eval_count }}</td>
+                        <td class="px-4 py-3 text-right">
+                            <a href="{% url 'evaluations:player_report' player_season_id=row.player_season.pk %}"
+                               class="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-700 text-gray-300
+                                      hover:bg-gray-600 hover:text-white transition">
+                                Detail
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Cards (mobile) -->
+    <div class="md:hidden space-y-3">
+        {% for row in player_rows %}
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-4">
+            <div class="flex items-center justify-between mb-3">
+                <div>
+                    <p class="font-semibold text-white text-lg">{{ row.player_season.player.full_name }}</p>
+                    <p class="text-xs text-gray-500">{{ row.eval_count }} evaluation{{ row.eval_count|pluralize }}</p>
+                </div>
+                {% if row.overall_avg != None %}
+                <div class="text-right">
+                    <p class="text-2xl font-bold text-emerald-400">{{ row.overall_avg }}</p>
+                    <p class="text-xs text-gray-500">avg</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex flex-wrap gap-2 mb-3">
+                {% for sa in row.station_avgs %}
+                <div class="bg-gray-700/50 rounded-lg px-2.5 py-1.5 text-center min-w-[4rem]">
+                    <p class="text-[10px] text-gray-500">{{ sa.station.name }}</p>
+                    <p class="text-sm font-semibold {% if sa.avg != None %}text-emerald-400{% else %}text-gray-600{% endif %}">
+                        {% if sa.avg != None %}{{ sa.avg }}{% else %}--{% endif %}
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{% url 'evaluations:player_report' player_season_id=row.player_season.pk %}"
+               class="block text-center text-xs font-medium px-3 py-2 rounded-lg bg-gray-700 text-gray-300
+                      hover:bg-gray-600 hover:text-white transition">
+                View Detail
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% elif season %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">No players registered in this division yet.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

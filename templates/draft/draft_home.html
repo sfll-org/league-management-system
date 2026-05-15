@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Draft{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div>
+        <h1 class="text-3xl font-bold text-white">Draft Board</h1>
+        <p class="text-gray-400 mt-1">
+            {% if season %}{{ season.name }}{% else %}No active season configured.{% endif %}
+        </p>
+    </div>
+
+    {% if season %}
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+        {% if is_head_coach %}
+        <!-- Coach Rankings -->
+        <a href="{% url 'draft:rankings' %}"
+           class="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-emerald-600 transition group">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-emerald-900/50 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white group-hover:text-emerald-400 transition">
+                    My Rankings
+                </h3>
+            </div>
+            <p class="text-sm text-gray-400">
+                Build your personal ranked wishlist of players for the draft.
+            </p>
+        </a>
+        {% endif %}
+
+        {% if seeding_divisions %}
+        <!-- Seeding Links -->
+        {% for div in seeding_divisions %}
+        <a href="{% url 'draft:seeding' division_id=div.pk %}"
+           class="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-blue-600 transition group">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="w-10 h-10 rounded-lg bg-blue-900/50 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-white group-hover:text-blue-400 transition">
+                    {{ div.name }} Seeding
+                </h3>
+            </div>
+            <p class="text-sm text-gray-400">
+                Allocate top-4 players per team before the live draft.
+            </p>
+        </a>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Draft Sessions -->
+    <div>
+        <h2 class="text-xl font-semibold text-white mb-4">Draft Sessions</h2>
+
+        {% if draft_sessions %}
+        <div class="space-y-3">
+            {% for ds in draft_sessions %}
+            <a href="{% if ds.status == 'completed' %}{% url 'draft:post_draft_rosters' session_id=ds.pk %}{% elif ds.status == 'drafting' or ds.status == 'seeding' %}{% url 'draft:draft_board' session_id=ds.pk %}{% else %}#{% endif %}"
+               class="block bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-emerald-600 transition">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">
+                            {{ ds.division.name }}{% if ds.sub_league %} — {{ ds.sub_league }}{% endif %}
+                        </h3>
+                        <p class="text-sm text-gray-400">Round {{ ds.current_round }}, Pick {{ ds.current_pick }}</p>
+                    </div>
+                    <span class="inline-block px-3 py-1 rounded-full text-xs font-medium self-start
+                        {% if ds.status == 'completed' %}bg-emerald-900/50 text-emerald-300
+                        {% elif ds.status == 'drafting' %}bg-blue-900/50 text-blue-300
+                        {% elif ds.status == 'seeding' %}bg-amber-900/50 text-amber-300
+                        {% else %}bg-gray-700 text-gray-300{% endif %}">
+                        {{ ds.get_status_display }}
+                    </span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+            <p class="text-gray-400">No draft sessions created for the current season.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}

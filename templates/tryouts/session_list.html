@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — SES Sessions{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white">SES Sessions</h1>
+            <p class="text-gray-400 mt-1">
+                Skills Evaluation Sessions{% if season %} &mdash; {{ season.name }}{% endif %}
+            </p>
+        </div>
+        {% if can_manage %}
+        <a href="{% url 'tryouts:session_create' %}"
+           class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition self-start sm:self-auto">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Session
+        </a>
+        {% endif %}
+    </div>
+
+    {% if not season %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400">No active season configured.</p>
+    </div>
+    {% else %}
+
+    <!-- Division Filter -->
+    {% if divisions %}
+    <div class="flex flex-wrap gap-2">
+        <a href="{% url 'tryouts:session_list' %}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition
+                  {% if not selected_division %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700{% endif %}">
+            All Divisions
+        </a>
+        {% for div in divisions %}
+        <a href="{% url 'tryouts:session_list' %}?division={{ div.pk }}"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition
+                  {% if selected_division.pk == div.pk %}bg-emerald-600 text-white{% else %}bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700{% endif %}">
+            {{ div.name }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Upcoming Sessions -->
+    <div>
+        <h2 class="text-xl font-semibold text-white mb-4">
+            Upcoming
+            <span class="text-gray-500 text-base font-normal">({{ upcoming_sessions|length }})</span>
+        </h2>
+        {% if upcoming_sessions %}
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {% for session in upcoming_sessions %}
+            <a href="{% url 'tryouts:session_detail' session.pk %}"
+               class="bg-gray-800 rounded-xl p-5 border border-gray-700 hover:border-emerald-600/50 transition block">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <h3 class="text-lg font-semibold text-white leading-tight">{{ session.name }}</h3>
+                    {% if session.is_makeup %}
+                    <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">
+                        Makeup
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="space-y-1 text-sm">
+                    <p class="text-emerald-400 font-medium">{{ session.division.name }}</p>
+                    <p class="text-gray-300">
+                        {{ session.date|date:"D, M j, Y" }}
+                        &mdash;
+                        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} to {{ session.end_time|time:"g:i A" }}{% endif %}
+                    </p>
+                    {% if session.location %}
+                    <p class="text-gray-500">{{ session.location }}</p>
+                    {% endif %}
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-700 flex items-center gap-4 text-xs text-gray-400">
+                    <span>{{ session.assignments.count }} assigned</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
+            <p class="text-gray-500">No upcoming sessions.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Past Sessions -->
+    {% if past_sessions %}
+    <div>
+        <h2 class="text-xl font-semibold text-white mb-4">
+            Past
+            <span class="text-gray-500 text-base font-normal">({{ past_sessions|length }})</span>
+        </h2>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {% for session in past_sessions %}
+            <a href="{% url 'tryouts:session_detail' session.pk %}"
+               class="bg-gray-800/60 rounded-xl p-5 border border-gray-700/50 hover:border-gray-600 transition block opacity-75 hover:opacity-100">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <h3 class="text-lg font-semibold text-gray-300 leading-tight">{{ session.name }}</h3>
+                    {% if session.is_makeup %}
+                    <span class="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">
+                        Makeup
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="space-y-1 text-sm">
+                    <p class="text-emerald-400/70 font-medium">{{ session.division.name }}</p>
+                    <p class="text-gray-400">
+                        {{ session.date|date:"D, M j, Y" }}
+                        &mdash;
+                        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} to {{ session.end_time|time:"g:i A" }}{% endif %}
+                    </p>
+                    {% if session.location %}
+                    <p class="text-gray-500">{{ session.location }}</p>
+                    {% endif %}
+                </div>
+                <div class="mt-3 pt-3 border-t border-gray-700/50 flex items-center gap-4 text-xs text-gray-500">
+                    <span>{{ session.assignments.count }} assigned</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

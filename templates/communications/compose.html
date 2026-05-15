@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Compose Email{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'communications:index' %}" class="hover:text-emerald-400 transition">Communications</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">Send Email</span>
+    </nav>
+
+    <h1 class="text-2xl font-bold text-white">Compose Bulk Email</h1>
+
+    <form method="post" action="{% url 'communications:send_preview' %}"
+          class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-5">
+        {% csrf_token %}
+
+        <!-- Template Selection -->
+        <div>
+            <label for="id_template" class="block text-sm font-medium text-gray-300 mb-1">Email Template</label>
+            <select name="template" id="id_template" required
+                    class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                           focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                <option value="">Select a template...</option>
+                {% for tpl in templates %}
+                <option value="{{ tpl.pk }}">{{ tpl.name }} &mdash; {{ tpl.subject_template|truncatechars:50 }}</option>
+                {% endfor %}
+            </select>
+            {% if not templates %}
+            <p class="text-amber-400 text-xs mt-1">
+                No active templates.
+                <a href="{% url 'communications:template_create' %}" class="underline">Create one first.</a>
+            </p>
+            {% endif %}
+        </div>
+
+        <hr class="border-gray-700">
+
+        <p class="text-sm font-medium text-gray-300">Filter Recipients</p>
+
+        <!-- Filters -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Division -->
+            <div>
+                <label for="id_division" class="block text-sm text-gray-400 mb-1">Division</label>
+                <select name="division" id="id_division"
+                        class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                    <option value="">All Divisions</option>
+                    {% for div in divisions %}
+                    <option value="{{ div.pk }}"
+                        {% if filter_params.division == div.pk|stringformat:"d" %}selected{% endif %}>
+                        {{ div.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Session -->
+            <div>
+                <label for="id_session" class="block text-sm text-gray-400 mb-1">SES Session</label>
+                <select name="session" id="id_session"
+                        class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                    <option value="">All Sessions</option>
+                    {% for s in sessions %}
+                    <option value="{{ s.pk }}"
+                        {% if filter_params.session == s.pk|stringformat:"d" %}selected{% endif %}>
+                        {{ s.name }} &mdash; {{ s.date|date:"M j" }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status -->
+            <div>
+                <label for="id_status" class="block text-sm text-gray-400 mb-1">Player Status</label>
+                <select name="status" id="id_status"
+                        class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                    <option value="">All Statuses</option>
+                    <option value="registered" {% if filter_params.status == "registered" %}selected{% endif %}>Registered</option>
+                    <option value="needs_makeup" {% if filter_params.status == "needs_makeup" %}selected{% endif %}>Needs Makeup</option>
+                    <option value="evaluated" {% if filter_params.status == "evaluated" %}selected{% endif %}>Evaluated</option>
+                    <option value="drafted" {% if filter_params.status == "drafted" %}selected{% endif %}>Drafted</option>
+                </select>
+            </div>
+
+            <!-- Team -->
+            <div>
+                <label for="id_team" class="block text-sm text-gray-400 mb-1">Team</label>
+                <select name="team" id="id_team"
+                        class="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white
+                               focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
+                    <option value="">All Teams</option>
+                    {% for ts in teams %}
+                    <option value="{{ ts.pk }}"
+                        {% if filter_params.team == ts.pk|stringformat:"d" %}selected{% endif %}>
+                        {{ ts.team.name }} ({{ ts.division.name }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <!-- Recipient Count Preview -->
+        {% if recipient_count is not None %}
+        <div class="bg-gray-700/50 rounded-lg p-4 flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-900/50 flex items-center justify-center">
+                <span class="text-emerald-400 font-bold text-lg">{{ recipient_count }}</span>
+            </div>
+            <div>
+                <p class="text-white font-medium">{{ recipient_count }} recipient{{ recipient_count|pluralize }}</p>
+                <p class="text-gray-400 text-xs">matching your filters</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Count + Send Buttons -->
+        <div class="flex items-center gap-3 pt-2">
+            <button type="submit" formmethod="get" formaction="{% url 'communications:compose' %}"
+                    class="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition">
+                Count Recipients
+            </button>
+            <button type="submit"
+                    class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition"
+                    {% if not templates %}disabled{% endif %}>
+                Preview &amp; Send
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

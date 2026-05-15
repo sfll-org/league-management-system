@@ -6,61 +6,401 @@
 <div class="space-y-8">
     <div>
         <h1 class="text-3xl font-bold text-white">Dashboard</h1>
-        <p class="mt-2 text-gray-400">Welcome back, {{ user.get_full_name|default:user.email }}.</p>
+        <p class="mt-2 text-gray-400">
+            Welcome back, {{ user.get_full_name|default:user.email }}.
+            {% if season %}
+                <span class="text-emerald-400">{{ season.name }}</span> is active.
+            {% else %}
+                <span class="text-amber-400">No active season.</span>
+            {% endif %}
+        </p>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Players</h3>
-            <p class="mt-2 text-3xl font-bold text-emerald-400">--</p>
-            <p class="mt-1 text-sm text-gray-500">Registered this season</p>
+    <!-- Quick Stats (shown to all) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
+            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Players</h3>
+            <p class="mt-2 text-2xl sm:text-3xl font-bold text-emerald-400">{{ player_count }}</p>
+            <p class="mt-1 text-xs sm:text-sm text-gray-500">Registered this season</p>
         </div>
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Tryout Sessions</h3>
-            <p class="mt-2 text-3xl font-bold text-blue-400">--</p>
-            <p class="mt-1 text-sm text-gray-500">Scheduled</p>
+        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
+            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">SES Sessions</h3>
+            <p class="mt-2 text-2xl sm:text-3xl font-bold text-blue-400">{{ session_count }}</p>
+            <p class="mt-1 text-xs sm:text-sm text-gray-500">Scheduled</p>
         </div>
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Evaluations</h3>
-            <p class="mt-2 text-3xl font-bold text-amber-400">--</p>
-            <p class="mt-1 text-sm text-gray-500">Completed</p>
+        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
+            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Evaluations</h3>
+            <p class="mt-2 text-2xl sm:text-3xl font-bold text-amber-400">{{ eval_count }}</p>
+            <p class="mt-1 text-xs sm:text-sm text-gray-500">Completed</p>
         </div>
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Draft Status</h3>
-            <p class="mt-2 text-3xl font-bold text-purple-400">--</p>
-            <p class="mt-1 text-sm text-gray-500">Not started</p>
+        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
+            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Draft Status</h3>
+            <p class="mt-2 text-2xl sm:text-3xl font-bold text-purple-400">{{ draft_status }}</p>
+            <p class="mt-1 text-xs sm:text-sm text-gray-500">Current state</p>
         </div>
     </div>
 
-    <!-- Quick Actions -->
+    {% if is_admin and season %}
+    <!-- ============================================================ -->
+    <!-- ADMIN WIDGETS: Season Overview, Division Counts, SES, etc.  -->
+    <!-- ============================================================ -->
+
+    <!-- Season Overview -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Season Overview</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <p class="text-sm text-gray-400">Current Season</p>
+                <p class="text-lg font-medium text-white">{{ season.name }} ({{ season.year }})</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-400">Registration</p>
+                <p class="text-lg font-medium {% if registration_open %}text-emerald-400{% else %}text-red-400{% endif %}">
+                    {% if registration_open %}Open{% else %}Closed{% endif %}
+                </p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-400">Total Players</p>
+                <p class="text-lg font-medium text-white">{{ player_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Counts by Division -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Players by Division</h2>
+        {% if division_counts %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {% for dc in division_counts %}
+            <div class="bg-gray-700/50 rounded-lg p-4 text-center border border-gray-600">
+                <p class="text-sm text-gray-400">{{ dc.division__name|default:"Unassigned" }}</p>
+                <p class="text-2xl font-bold text-white mt-1">{{ dc.count }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No players registered yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- SES Sessions & Rates -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Upcoming Sessions</h3>
+            <p class="mt-2 text-3xl font-bold text-blue-400">{{ upcoming_session_count }}</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">RSVP Rate</h3>
+            <p class="mt-2 text-3xl font-bold text-emerald-400">{{ rsvp_rate }}%</p>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Check-in Rate</h3>
+            <p class="mt-2 text-3xl font-bold text-amber-400">{{ checkin_rate }}%</p>
+        </div>
+    </div>
+
+    <!-- Evaluation Completion -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Evaluation Completion</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                <p class="text-sm text-gray-400">Players Evaluated</p>
+                <p class="text-2xl font-bold text-emerald-400">{{ players_evaluated }}</p>
+                <p class="text-xs text-gray-500 mt-1">of {{ player_count }} registered</p>
+            </div>
+            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                <p class="text-sm text-gray-400">Coaches Participated</p>
+                <p class="text-2xl font-bold text-blue-400">{{ coaches_evaluated }}</p>
+                <p class="text-xs text-gray-500 mt-1">have submitted evaluations</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Draft Status per Division -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Draft Status by Division</h2>
+        {% if draft_sessions %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-gray-400 border-b border-gray-700">
+                        <th class="text-left py-2 px-3">Division</th>
+                        <th class="text-left py-2 px-3">Sub-League</th>
+                        <th class="text-left py-2 px-3">Status</th>
+                        <th class="text-left py-2 px-3">Round</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ds in draft_sessions %}
+                    <tr class="border-b border-gray-700/50">
+                        <td class="py-2 px-3 text-white">{{ ds.division.name }}</td>
+                        <td class="py-2 px-3 text-gray-400">{{ ds.sub_league|default:"—" }}</td>
+                        <td class="py-2 px-3">
+                            <span class="px-2 py-1 rounded-full text-xs font-medium
+                                {% if ds.status == 'completed' %}bg-emerald-900/50 text-emerald-300
+                                {% elif ds.status == 'drafting' %}bg-blue-900/50 text-blue-300
+                                {% elif ds.status == 'seeding' %}bg-amber-900/50 text-amber-300
+                                {% else %}bg-gray-700 text-gray-400{% endif %}">
+                                {{ ds.get_status_display }}
+                            </span>
+                        </td>
+                        <td class="py-2 px-3 text-gray-300">{{ ds.current_round }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-gray-500">No draft sessions configured yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- SportsConnect Sync -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">SportsConnect</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <p class="text-sm text-gray-400">Last Sync</p>
+                {% if last_import %}
+                <p class="text-lg text-white">{{ last_import.started_at|timesince }} ago</p>
+                <p class="text-xs text-gray-500">{{ last_import.total_rows }} rows &middot; {{ last_import.get_status_display }}</p>
+                {% else %}
+                <p class="text-lg text-gray-500">Never</p>
+                {% endif %}
+            </div>
+            <div>
+                <p class="text-sm text-gray-400">Flagged Records</p>
+                <p class="text-lg {% if flagged_count %}text-amber-400{% else %}text-emerald-400{% endif %}">
+                    {{ flagged_count|default:"0" }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Audit Log -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-white">Recent Activity</h2>
+            <a href="{% url 'audit_log' %}" class="text-sm text-emerald-400 hover:text-emerald-300">View all</a>
+        </div>
+        {% if recent_audit %}
+        <div class="space-y-2">
+            {% for entry in recent_audit %}
+            <div class="flex items-start gap-3 py-2 border-b border-gray-700/50 last:border-0">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-white">
+                        <span class="text-gray-400">{{ entry.user.get_full_name|default:entry.user.email|default:"System" }}</span>
+                        &middot; {{ entry.action }}
+                        <span class="text-gray-500">{{ entry.entity_type }} #{{ entry.entity_id }}</span>
+                    </p>
+                    <p class="text-xs text-gray-500">{{ entry.timestamp|timesince }} ago</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500 text-sm">No recent activity.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if is_coach and season %}
+    <!-- ============================================================ -->
+    <!-- COACH WIDGETS                                                -->
+    <!-- ============================================================ -->
+
+    {% if coach_season %}
+    <!-- Team Info -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Your Team</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+            <div>
+                <p class="text-sm text-gray-400">Team</p>
+                <p class="text-lg font-medium text-white">{{ coach_season.team_season.team.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-400">Division</p>
+                <p class="text-lg font-medium text-white">{{ coach_season.team_season.division.name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-400">Role</p>
+                <p class="text-lg font-medium text-white">{{ coach_season.get_role_display }}</p>
+            </div>
+        </div>
+
+        {% if team_players %}
+        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Roster ({{ team_players.count }})</h3>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+            {% for ps in team_players %}
+            <div class="bg-gray-700/50 rounded-lg px-3 py-2 text-sm text-white border border-gray-600">
+                {{ ps.player.full_name }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Upcoming Sessions -->
+    {% if coach_upcoming_sessions %}
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Upcoming Sessions</h2>
+        <div class="space-y-2">
+            {% for session in coach_upcoming_sessions %}
+            <div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-600">
+                <div>
+                    <p class="text-white font-medium">{{ session.name }}</p>
+                    <p class="text-sm text-gray-400">{{ session.date|date:"M j, Y" }} &middot; {{ session.start_time|time:"g:i A" }}</p>
+                </div>
+                <span class="text-xs text-gray-500">{{ session.location }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Evaluation Progress -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Your Evaluation Progress</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                <p class="text-sm text-gray-400">Evaluations Submitted</p>
+                <p class="text-2xl font-bold text-emerald-400">{{ coach_eval_count }}</p>
+            </div>
+            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+                <p class="text-sm text-gray-400">Players in Division</p>
+                <p class="text-2xl font-bold text-blue-400">{{ division_player_count }}</p>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <p class="text-gray-400">You have a coach role but are not assigned to a team this season.</p>
+    </div>
+    {% endif %}
+
+    <!-- Coach Quick Links -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Coach Links</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <a href="{% url 'evaluations:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Evaluations</p>
+                    <p class="text-sm text-gray-400">Score players at stations</p>
+                </div>
+            </a>
+            <a href="{% url 'draft:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Rankings</p>
+                    <p class="text-sm text-gray-400">Pre-draft player rankings</p>
+                </div>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if is_front_desk and season %}
+    <!-- ============================================================ -->
+    <!-- FRONT DESK WIDGETS                                           -->
+    <!-- ============================================================ -->
+
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Today's Sessions</h2>
+        {% if todays_sessions %}
+        <div class="space-y-3">
+            {% for session in todays_sessions %}
+            <div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-600">
+                <div>
+                    <p class="text-white font-medium">{{ session.name }}</p>
+                    <p class="text-sm text-gray-400">
+                        {{ session.division.name }} &middot;
+                        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} – {{ session.end_time|time:"g:i A" }}{% endif %}
+                    </p>
+                </div>
+                <a href="{% url 'tryouts:session_detail' session.pk %}"
+                   class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition">
+                    Check-in
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No sessions scheduled for today.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Quick Actions (shown to all authenticated users) -->
     <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
         <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <a href="{% url 'admin:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <span class="text-2xl mr-3">&#9881;</span>
-                <div>
-                    <p class="font-medium text-white">Admin Panel</p>
-                    <p class="text-sm text-gray-400">Manage all data</p>
-                </div>
-            </a>
             <a href="{% url 'players:index' %}"
                class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <span class="text-2xl mr-3">&#9917;</span>
                 <div>
                     <p class="font-medium text-white">Player Roster</p>
-                    <p class="text-sm text-gray-400">View all players</p>
+                    <p class="text-sm text-gray-400">View all registered players</p>
                 </div>
             </a>
             <a href="{% url 'tryouts:index' %}"
                class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <span class="text-2xl mr-3">&#128203;</span>
                 <div>
-                    <p class="font-medium text-white">Tryout Sessions</p>
+                    <p class="font-medium text-white">SES Sessions</p>
                     <p class="text-sm text-gray-400">Schedule & check-in</p>
                 </div>
             </a>
+            <a href="{% url 'draft:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Draft Board</p>
+                    <p class="text-sm text-gray-400">Run or view draft</p>
+                </div>
+            </a>
+            <a href="{% url 'evaluations:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Evaluations</p>
+                    <p class="text-sm text-gray-400">View scores & rankings</p>
+                </div>
+            </a>
+            <a href="{% url 'communications:index' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Communications</p>
+                    <p class="text-sm text-gray-400">Email templates & logs</p>
+                </div>
+            </a>
+            {% if is_admin %}
+            <a href="{% url 'user_list' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">User Management</p>
+                    <p class="text-sm text-gray-400">Manage users & roles</p>
+                </div>
+            </a>
+            <a href="{% url 'config_home' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Configuration</p>
+                    <p class="text-sm text-gray-400">Divisions, teams, stations</p>
+                </div>
+            </a>
+            <a href="{% url 'audit_log' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Audit Log</p>
+                    <p class="text-sm text-gray-400">View system activity</p>
+                </div>
+            </a>
+            <a href="{% url 'import_history' %}"
+               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
+                <div>
+                    <p class="font-medium text-white">Imports</p>
+                    <p class="text-sm text-gray-400">SportsConnect sync</p>
+                </div>
+            </a>
+            {% endif %}
         </div>
     </div>
 </div>

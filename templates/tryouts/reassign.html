@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Reassign Player{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-2xl mx-auto">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'tryouts:session_list' %}" class="hover:text-emerald-400 transition">SES Sessions</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'tryouts:session_detail' source_session.pk %}" class="hover:text-emerald-400 transition">{{ source_session.name }}</a>
+        <span class="mx-2">/</span>
+        <span class="text-gray-300">Reassign Player</span>
+    </nav>
+
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h1 class="text-2xl font-bold text-white mb-6">Reassign Player</h1>
+
+        <!-- Player Info -->
+        <div class="bg-gray-900/50 rounded-lg p-4 mb-6 border border-gray-700/50">
+            <p class="text-lg font-semibold text-white">{{ player.last_name }}, {{ player.first_name }}</p>
+            <p class="text-sm text-gray-400 mt-1">
+                Currently assigned to: <span class="text-emerald-400">{{ source_session.name }}</span>
+                &mdash; {{ source_session.date|date:"l, F j, Y" }} at {{ source_session.start_time|time:"g:i A" }}
+            </p>
+        </div>
+
+        {% if target_sessions %}
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="space-y-4">
+                <div>
+                    <label for="target_session" class="block text-sm font-medium text-gray-300 mb-2">
+                        Move to Session
+                    </label>
+                    <select name="target_session" id="target_session"
+                            class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white
+                                   focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option value="">Select a session...</option>
+                        {% for s in target_sessions %}
+                        <option value="{{ s.pk }}"
+                                {% if form_data.target_session == s.pk|stringformat:"d" %}selected{% endif %}>
+                            {{ s.name }} &mdash; {{ s.date|date:"M j, Y" }} at {{ s.start_time|time:"g:i A" }}
+                            {% if s.location %}({{ s.location }}){% endif %}
+                            {% if s.is_makeup %}[Makeup]{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="reason" class="block text-sm font-medium text-gray-300 mb-2">
+                        Reason <span class="text-gray-500">(optional)</span>
+                    </label>
+                    <textarea name="reason" id="reason" rows="3"
+                              class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-white
+                                     placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                              placeholder="Scheduling conflict, makeup needed, etc.">{{ form_data.reason }}</textarea>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="submit"
+                        class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg transition">
+                    Reassign Player
+                </button>
+                <a href="{% url 'tryouts:session_detail' source_session.pk %}"
+                   class="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition">
+                    Cancel
+                </a>
+            </div>
+        </form>
+        {% else %}
+        <div class="text-center py-8">
+            <p class="text-gray-400">No other sessions available in {{ source_session.division.name }} for this season.</p>
+            <a href="{% url 'tryouts:session_detail' source_session.pk %}"
+               class="inline-block mt-4 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition">
+                Back to Session
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

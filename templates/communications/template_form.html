@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {% if is_edit %}Edit{% else %}New{% endif %} Email Template{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-500">
+        <a href="{% url 'communications:index' %}" class="hover:text-emerald-400 transition">Communications</a>
+        <span class="mx-2">/</span>
+        <a href="{% url 'communications:template_list' %}" class="hover:text-emerald-400 transition">Templates</a>
+        <span class="mx-2">/</span>
+        {% if is_edit %}
+        <span class="text-gray-300">Edit: {{ template.name }}</span>
+        {% else %}
+        <span class="text-gray-300">New Template</span>
+        {% endif %}
+    </nav>
+
+    <h1 class="text-2xl font-bold text-white">
+        {% if is_edit %}Edit Email Template{% else %}New Email Template{% endif %}
+    </h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Form -->
+        <div class="lg:col-span-2">
+            <form method="post" class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-5">
+                {% csrf_token %}
+
+                <!-- Name -->
+                <div>
+                    <label for="id_name" class="block text-sm font-medium text-gray-300 mb-1">Template Name</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Subject Template -->
+                <div>
+                    <label for="id_subject_template" class="block text-sm font-medium text-gray-300 mb-1">Subject Line</label>
+                    {{ form.subject_template }}
+                    {% if form.subject_template.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.subject_template.errors.0 }}</p>
+                    {% endif %}
+                    <p class="text-gray-500 text-xs mt-1">Supports merge fields (see reference panel)</p>
+                </div>
+
+                <!-- Body Template -->
+                <div>
+                    <label for="id_body_template" class="block text-sm font-medium text-gray-300 mb-1">Email Body</label>
+                    {{ form.body_template }}
+                    {% if form.body_template.errors %}
+                    <p class="text-red-400 text-xs mt-1">{{ form.body_template.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Reply-To + From Name Row -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="id_reply_to" class="block text-sm font-medium text-gray-300 mb-1">Reply-To Email</label>
+                        {{ form.reply_to }}
+                    </div>
+                    <div>
+                        <label for="id_from_name" class="block text-sm font-medium text-gray-300 mb-1">From Name</label>
+                        {{ form.from_name }}
+                    </div>
+                </div>
+
+                <!-- Active -->
+                <div class="flex items-center gap-3">
+                    {{ form.is_active }}
+                    <label for="id_is_active" class="text-sm font-medium text-gray-300">Active</label>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="submit"
+                            class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
+                        {% if is_edit %}Save Changes{% else %}Create Template{% endif %}
+                    </button>
+                    <a href="{% url 'communications:template_list' %}"
+                       class="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition">
+                        Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Merge Field Reference -->
+        <div class="lg:col-span-1">
+            <div class="bg-gray-800 rounded-xl p-5 border border-gray-700 sticky top-24">
+                <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-3">Merge Fields</h3>
+                <p class="text-gray-500 text-xs mb-4">Use Django template syntax in subject and body fields.</p>
+
+                {% verbatim %}
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <p class="text-emerald-400 font-medium mb-1">Player</p>
+                        <div class="space-y-1 text-gray-400 font-mono text-xs">
+                            <p>{{player.first_name}}</p>
+                            <p>{{player.last_name}}</p>
+                            <p>{{player.full_name}}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-emerald-400 font-medium mb-1">Session</p>
+                        <div class="space-y-1 text-gray-400 font-mono text-xs">
+                            <p>{{session.name}}</p>
+                            <p>{{session.date}}</p>
+                            <p>{{session.start_time}}</p>
+                            <p>{{session.end_time}}</p>
+                            <p>{{session.location}}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-emerald-400 font-medium mb-1">Season / Division</p>
+                        <div class="space-y-1 text-gray-400 font-mono text-xs">
+                            <p>{{season.name}}</p>
+                            <p>{{division.name}}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-emerald-400 font-medium mb-1">Account / Links</p>
+                        <div class="space-y-1 text-gray-400 font-mono text-xs">
+                            <p>{{account_name}}</p>
+                            <p>{{league_name}}</p>
+                            <p>{{rsvp_url}}</p>
+                        </div>
+                    </div>
+                </div>
+                {% endverbatim %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

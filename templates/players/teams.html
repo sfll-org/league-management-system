@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Teams{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-3xl font-bold text-white">Teams</h1>
+    <p class="text-gray-400">{% if season %}{{ season.name }}{% endif %}</p>
+
+    {% if team_seasons %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for ts in team_seasons %}
+        <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
+            <h3 class="text-lg font-semibold text-white">{{ ts.team.name }}</h3>
+            <p class="text-sm text-gray-400">{{ ts.division.name }}{% if ts.sub_league %} — {{ ts.sub_league }}{% endif %}</p>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
+        <p class="text-gray-400">No teams set up for the current season.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

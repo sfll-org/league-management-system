@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Manage Roles: {{ target_user.get_full_name|default:target_user.email }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Manage Roles</h1>
+            <p class="mt-1 text-gray-400">{{ target_user.get_full_name|default:target_user.email }}</p>
+        </div>
+        <a href="{% url 'user_detail' target_user.pk %}" class="text-sm text-gray-400 hover:text-emerald-400">&larr; User Details</a>
+    </div>
+
+    <!-- Current Roles -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Current Roles</h2>
+        {% if roles %}
+        <div class="space-y-2">
+            {% for role in roles %}
+            <div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-600">
+                <div>
+                    <span class="text-white font-medium">{{ role.get_role_display }}</span>
+                    <span class="text-gray-400 text-sm ml-2">
+                        {% if role.division %}{{ role.division.name }}{% else %}Global{% endif %}
+                        &middot; {{ role.league.short_name }}
+                    </span>
+                </div>
+                <form method="post" action="{% url 'remove_role' target_user.pk role.pk %}"
+                      onsubmit="return confirm('Remove {{ role.get_role_display }} role?')">
+                    {% csrf_token %}
+                    <button type="submit"
+                            class="px-3 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-300 rounded-lg text-sm transition">
+                        Remove
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-500">No roles assigned yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Add Role Form -->
+    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+        <h2 class="text-xl font-semibold text-white mb-4">Add Role</h2>
+        <form method="post" action="{% url 'add_role' target_user.pk %}" x-data="{ selectedRole: '' }">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Role</label>
+                    <select name="role" x-model="selectedRole" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+                        <option value="">Select role...</option>
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">League</label>
+                    <select name="league" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+                        {% for league in leagues %}
+                        <option value="{{ league.pk }}">{{ league.short_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div x-show="selectedRole && !['cto','ses_manager','vp_player_agents','president'].includes(selectedRole)">
+                    <label class="block text-sm text-gray-400 mb-1">Division (optional for division-scoped roles)</label>
+                    <select name="division"
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+                        <option value="">Global (no division)</option>
+                        {% for division in divisions %}
+                        <option value="{{ division.pk }}">{{ division.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="flex items-end">
+                    <button type="submit"
+                            class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+                        Add Role
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

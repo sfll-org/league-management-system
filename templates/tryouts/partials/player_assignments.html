@@ -1,0 +1,74 @@
+<!-- HTMX partial — no base.html extension -->
+<div class="bg-gray-800 rounded-xl border border-gray-700">
+    <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-white">
+            Assign Players
+            <span class="text-sm font-normal text-gray-400">
+                ({{ assigned_count }} / {{ total_count }} in {{ session.division.name }})
+            </span>
+        </h2>
+    </div>
+
+    {% if players %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 border-b border-gray-700">
+                    <th class="px-6 py-3 font-medium w-12">
+                        {% if can_manage %}Assign{% endif %}
+                    </th>
+                    <th class="px-6 py-3 font-medium">Player</th>
+                    <th class="px-6 py-3 font-medium hidden sm:table-cell">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700/50">
+                {% for row in players %}
+                <tr class="hover:bg-gray-700/30 transition {% if row.is_assigned %}bg-emerald-900/10{% endif %}"
+                    id="player-row-{{ row.player_season.pk }}">
+                    <td class="px-6 py-3">
+                        {% if can_manage %}
+                        <button hx-post="{% url 'tryouts:session_assign' session.pk %}"
+                                hx-target="#assignment-panel"
+                                hx-swap="innerHTML"
+                                hx-vals='{"player_season_id": "{{ row.player_season.pk }}"}'
+                                class="w-8 h-8 rounded-lg flex items-center justify-center transition
+                                       {% if row.is_assigned %}bg-emerald-600 hover:bg-red-600{% else %}bg-gray-700 hover:bg-emerald-600 border border-gray-600{% endif %}">
+                            {% if row.is_assigned %}
+                            <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            {% else %}
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            {% endif %}
+                        </button>
+                        {% else %}
+                            {% if row.is_assigned %}
+                            <svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                            </svg>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-3 font-medium {% if row.is_assigned %}text-white{% else %}text-gray-300{% endif %}">
+                        {{ row.player.last_name }}, {{ row.player.first_name }}
+                    </td>
+                    <td class="px-6 py-3 hidden sm:table-cell">
+                        {% if row.is_assigned %}
+                        <span class="text-emerald-400 text-xs font-medium">Assigned</span>
+                        {% else %}
+                        <span class="text-gray-500 text-xs">Not assigned</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="px-6 py-12 text-center">
+        <p class="text-gray-500">No players registered in {{ session.division.name }} for this season.</p>
+    </div>
+    {% endif %}
+</div>

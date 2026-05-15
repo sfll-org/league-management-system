@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Edit Division: {{ division.name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Edit Division</h1>
+            <p class="mt-1 text-gray-400">{{ division.name }}</p>
+        </div>
+        <a href="{% url 'division_list' %}" class="text-sm text-gray-400 hover:text-emerald-400">&larr; Divisions</a>
+    </div>
+
+    <form method="post" class="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-4">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label for="name" class="block text-sm text-gray-400 mb-1">Name</label>
+                <input type="text" name="name" id="name" value="{{ division.name }}" required
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label for="display_order" class="block text-sm text-gray-400 mb-1">Display Order</label>
+                <input type="number" name="display_order" id="display_order" value="{{ division.display_order }}" min="0"
+                       class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none">
+            </div>
+        </div>
+
+        <div class="flex items-center gap-6">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="has_leagues" {% if division.has_leagues %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500">
+                <span class="text-sm text-gray-300">Has sub-leagues</span>
+            </label>
+
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="is_active" {% if division.is_active %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500">
+                <span class="text-sm text-gray-300">Active</span>
+            </label>
+        </div>
+
+        <div>
+            <label for="league_names" class="block text-sm text-gray-400 mb-1">
+                Sub-League Names (comma-separated, e.g. "American, National")
+            </label>
+            <input type="text" name="league_names" id="league_names"
+                   value="{{ division.league_names|join:', ' }}"
+                   class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                   placeholder="American, National">
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit"
+                    class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition">
+                Save Changes
+            </button>
+            <a href="{% url 'division_list' %}"
+               class="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

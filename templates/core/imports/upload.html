@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Upload CSV — SFLL Imports{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-2xl font-bold text-gray-100">Import SportsConnect CSV</h1>
+        <p class="text-gray-400 mt-1">Upload a registration export to sync players and divisions.</p>
+    </div>
+
+    <!-- Upload form -->
+    <form method="post" enctype="multipart/form-data" class="bg-gray-800 rounded-lg border border-gray-700 p-6 space-y-6">
+        {% csrf_token %}
+
+        <!-- Season select -->
+        <div>
+            <label for="season_id" class="block text-sm font-medium text-gray-300 mb-2">Season</label>
+            <select name="season_id" id="season_id" required
+                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-gray-100 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                <option value="">Select a season...</option>
+                {% for season in seasons %}
+                <option value="{{ season.pk }}" {% if season.is_active %}selected{% endif %}>
+                    {{ season.name }}{% if season.is_active %} (active){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- File upload -->
+        <div>
+            <label for="csv_file" class="block text-sm font-medium text-gray-300 mb-2">CSV File</label>
+            <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-emerald-500 transition"
+                 x-data="{ fileName: '' }"
+                 @dragover.prevent="$el.classList.add('border-emerald-500')"
+                 @dragleave.prevent="$el.classList.remove('border-emerald-500')"
+                 @drop.prevent="
+                     $el.classList.remove('border-emerald-500');
+                     $refs.fileInput.files = $event.dataTransfer.files;
+                     fileName = $event.dataTransfer.files[0]?.name || '';
+                 ">
+                <input type="file" name="csv_file" id="csv_file" accept=".csv" required
+                       x-ref="fileInput"
+                       @change="fileName = $event.target.files[0]?.name || ''"
+                       class="hidden">
+
+                <div x-show="!fileName" class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="text-gray-400">
+                        <label for="csv_file" class="text-emerald-400 hover:text-emerald-300 cursor-pointer font-medium">
+                            Choose a file
+                        </label>
+                        or drag and drop
+                    </p>
+                    <p class="text-gray-500 text-sm">CSV files only</p>
+                </div>
+
+                <div x-show="fileName" class="space-y-2">
+                    <svg class="mx-auto h-12 w-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-gray-300 font-medium" x-text="fileName"></p>
+                    <label for="csv_file" class="text-emerald-400 hover:text-emerald-300 cursor-pointer text-sm">
+                        Change file
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info box -->
+        <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+            <h3 class="text-sm font-medium text-gray-300 mb-2">Expected format</h3>
+            <p class="text-gray-400 text-sm">
+                SportsConnect registration CSV export with columns including:
+                Player First Name, Player Last Name, Player Id, Division Name,
+                Order Detail Id, User Email, Account First Name, Account Last Name.
+            </p>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center justify-between pt-2">
+            <a href="{% url 'import_history' %}" class="text-gray-400 hover:text-gray-300 transition text-sm">
+                Back to history
+            </a>
+            <button type="submit"
+                    class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg transition font-medium">
+                Upload and Process
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

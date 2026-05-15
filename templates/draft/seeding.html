@@ -1,0 +1,564 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — {{ division.name }} Seeding{% endblock %}
+
+{% block extra_head %}
+<style>
+    .drag-over { outline: 2px dashed #34d399; outline-offset: -2px; }
+    .team-bucket { min-height: 60px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="seedingApp()" class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <div class="flex items-center gap-3">
+                <a href="{% url 'draft:index' %}" class="text-gray-500 hover:text-gray-300 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                </a>
+                <h1 class="text-2xl sm:text-3xl font-bold text-white">{{ division.name }} Seeding</h1>
+            </div>
+            <p class="text-gray-400 mt-1">
+                {{ season.name }} &middot; Assign top-4 players per team
+            </p>
+            <p class="text-xs text-gray-500 mt-1">
+                Eval scores and rankings shown are aggregated averages. Individual coach data is not displayed.
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            {% if is_locked %}
+            <span class="px-4 py-2 rounded-lg bg-amber-900/50 text-amber-300 border border-amber-700 text-sm font-medium">
+                Seeding Locked
+            </span>
+            {% else %}
+            <button @click="saveSeeding()"
+                    :disabled="saving"
+                    class="px-5 py-2.5 rounded-lg font-medium text-white transition
+                           bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span x-show="!saving">Save</span>
+                <span x-show="saving">Saving...</span>
+            </button>
+            <button @click="confirmLock()"
+                    :disabled="saving || totalAssigned === 0"
+                    class="px-5 py-2.5 rounded-lg font-medium text-white transition
+                           bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                Lock Seeding
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Status message -->
+    <div x-show="statusMessage" x-transition
+         :class="statusError ? 'bg-red-900/50 text-red-300 border-red-700' : 'bg-emerald-900/50 text-emerald-300 border-emerald-700'"
+         class="rounded-lg p-3 border text-sm">
+        <span x-text="statusMessage"></span>
+    </div>
+
+    <!-- Lock confirmation modal -->
+    <div x-show="showLockModal" x-transition
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 max-w-md w-full" @click.outside="showLockModal = false">
+            <h3 class="text-lg font-semibold text-white mb-3">Lock Seeding?</h3>
+            <p class="text-gray-400 text-sm mb-4">
+                This will lock the pre-draft seeding for {{ division.name }}. No further changes will be allowed.
+                Make sure all top-4 assignments are correct before proceeding.
+            </p>
+            <p class="text-amber-400 text-sm mb-4" x-text="totalAssigned + ' players assigned across ' + teamsWithAssignments + ' teams.'"></p>
+            <div class="flex justify-end gap-3">
+                <button @click="showLockModal = false"
+                        class="px-4 py-2 rounded-lg text-sm font-medium text-gray-400 bg-gray-700 hover:bg-gray-600 transition">
+                    Cancel
+                </button>
+                <button @click="lockSeeding()"
+                        :disabled="locking"
+                        class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-500 transition disabled:opacity-50">
+                    <span x-show="!locking">Confirm Lock</span>
+                    <span x-show="locking">Locking...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sort controls -->
+    <div class="flex flex-wrap items-center gap-2">
+        <span class="text-sm text-gray-500">Sort available:</span>
+        <button @click="sortMode = 'eval'" :class="sortMode === 'eval' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium transition">
+            Eval Score
+        </button>
+        <button @click="sortMode = 'rank'" :class="sortMode === 'rank' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium transition">
+            Coach Ranking
+        </button>
+        <button @click="sortMode = 'name'" :class="sortMode === 'name' ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium transition">
+            Name
+        </button>
+
+        <div class="ml-auto">
+            <input type="text"
+                   x-model="searchQuery"
+                   placeholder="Search players..."
+                   class="px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-white
+                          placeholder-gray-500 focus:border-emerald-600 focus:outline-none text-sm w-48">
+        </div>
+    </div>
+
+    <!-- Two-panel layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Available Players (left panel) -->
+        <div class="lg:col-span-5">
+            <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                Available Players
+                <span class="text-sm text-gray-500 font-normal" x-text="'(' + availablePlayers.length + ')'"></span>
+            </h2>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 max-h-[700px] overflow-y-auto">
+                <template x-if="sortedAvailable.length === 0">
+                    <div class="p-8 text-center text-gray-500">
+                        <p x-text="searchQuery ? 'No players match your search.' : 'All players have been assigned.'"></p>
+                    </div>
+                </template>
+
+                <div class="divide-y divide-gray-700/50">
+                    <template x-for="player in sortedAvailable" :key="player.id">
+                        <div class="px-4 py-3 hover:bg-gray-700/30 transition cursor-grab active:cursor-grabbing"
+                             draggable="true"
+                             @dragstart="onDragStart($event, player.id)"
+                             @dragend="onDragEnd($event)"
+                             :data-player-id="player.id"
+                             :class="player.is_coaches_kid ? 'border-l-4 border-l-amber-500' : ''">
+
+                            <div class="flex items-center gap-3">
+                                <!-- Drag handle -->
+                                <div class="text-gray-600 flex-shrink-0">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 6a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM8 14a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4zM8 22a2 2 0 100-4 2 2 0 000 4zm8 0a2 2 0 100-4 2 2 0 000 4z"/>
+                                    </svg>
+                                </div>
+
+                                <!-- Player info -->
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <p class="font-medium text-white truncate" x-text="player.name"></p>
+                                        <template x-if="player.is_coaches_kid">
+                                            <span class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400 font-medium">
+                                                Coach's Kid
+                                            </span>
+                                        </template>
+                                    </div>
+                                    <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                        <template x-if="player.overall_avg !== null">
+                                            <span>
+                                                Avg: <span class="text-emerald-400 font-semibold" x-text="player.overall_avg"></span>
+                                                <span class="text-gray-600" x-text="'(' + player.eval_count + ' evals)'"></span>
+                                            </span>
+                                        </template>
+                                        <template x-if="player.overall_avg === null">
+                                            <span class="text-gray-600">No evals</span>
+                                        </template>
+                                        <template x-if="player.times_ranked > 0">
+                                            <span>
+                                                Ranked by <span class="text-blue-400" x-text="player.times_ranked"></span>
+                                                coach<span x-show="player.times_ranked > 1">es</span>
+                                                <template x-if="player.avg_rank !== null">
+                                                    <span class="text-gray-600" x-text="'(avg #' + player.avg_rank + ')'"></span>
+                                                </template>
+                                            </span>
+                                        </template>
+                                    </div>
+                                    <template x-if="player.is_coaches_kid && player.coaches_kid_coach_name">
+                                        <p class="text-[10px] text-amber-500/70 mt-0.5" x-text="'Parent: ' + player.coaches_kid_coach_name"></p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Buckets (right panel) -->
+        <div class="lg:col-span-7">
+            <h2 class="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                Team Assignments
+                <span class="text-sm text-gray-500 font-normal" x-text="'(' + totalAssigned + ' assigned)'"></span>
+            </h2>
+
+            <div class="space-y-4">
+                <template x-for="team in teams" :key="team.id">
+                    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                        <!-- Team header -->
+                        <div class="px-4 py-3 bg-gray-750 border-b border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-white" x-text="team.name"></h3>
+                                <template x-if="team.drafter_name">
+                                    <p class="text-xs text-gray-500" x-text="'Coach: ' + team.drafter_name"></p>
+                                </template>
+                            </div>
+                            <span class="text-sm font-medium"
+                                  :class="(teamAssignments[team.id] || []).length >= 4 ? 'text-emerald-400' : 'text-gray-500'"
+                                  x-text="(teamAssignments[team.id] || []).length + '/4'"></span>
+                        </div>
+
+                        <!-- Drop zone -->
+                        <div class="team-bucket p-2"
+                             @dragover.prevent="onDragOverBucket($event, team.id)"
+                             @dragleave="onDragLeaveBucket($event)"
+                             @drop.prevent="onDropToBucket($event, team.id)"
+                             :id="'bucket-' + team.id">
+
+                            <template x-if="!teamAssignments[team.id] || teamAssignments[team.id].length === 0">
+                                <div class="p-4 text-center text-gray-600 text-sm">
+                                    Drag players here (top 4)
+                                </div>
+                            </template>
+
+                            <div class="space-y-1">
+                                <template x-for="(playerId, slotIndex) in (teamAssignments[team.id] || [])" :key="playerId">
+                                    <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-700/40"
+                                         :class="getPlayerById(playerId)?.is_coaches_kid ? 'border-l-4 border-l-amber-500' : ''">
+
+                                        <!-- Slot number -->
+                                        <span class="w-6 h-6 rounded flex-shrink-0 flex items-center justify-center text-xs font-bold bg-emerald-900/50 text-emerald-400"
+                                              x-text="slotIndex + 1"></span>
+
+                                        <!-- Player name -->
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-2">
+                                                <p class="text-sm font-medium text-white truncate" x-text="getPlayerById(playerId)?.name || 'Unknown'"></p>
+                                                <template x-if="getPlayerById(playerId)?.is_coaches_kid">
+                                                    <span class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-900/50 text-amber-400 font-medium">CK</span>
+                                                </template>
+                                            </div>
+                                            <template x-if="getPlayerById(playerId)?.overall_avg !== null">
+                                                <p class="text-[10px] text-gray-500">
+                                                    Avg: <span class="text-emerald-400" x-text="getPlayerById(playerId)?.overall_avg"></span>
+                                                </p>
+                                            </template>
+                                        </div>
+
+                                        <!-- Remove button -->
+                                        {% if not is_locked %}
+                                        <button @click="removeFromTeam(team.id, slotIndex)"
+                                                class="flex-shrink-0 text-gray-500 hover:text-red-400 transition p-1">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function seedingApp() {
+    const allPlayers = {{ players_json|safe }};
+    const teams = {{ teams_json|safe }};
+    const existingAssignments = {{ assignments_json|safe }};
+
+    // Build a lookup map
+    const playerMap = {};
+    allPlayers.forEach(p => { playerMap[p.id] = p; });
+
+    // Initialize team assignments from existing data
+    // existingAssignments is {player_season_id: team_season_id}
+    const teamAssignments = {};
+    teams.forEach(t => { teamAssignments[t.id] = []; });
+
+    const assignedPlayerIds = new Set();
+    for (const [psId, tsId] of Object.entries(existingAssignments)) {
+        const playerId = parseInt(psId);
+        const teamId = parseInt(tsId);
+        if (teamAssignments[teamId]) {
+            teamAssignments[teamId].push(playerId);
+            assignedPlayerIds.add(playerId);
+        }
+    }
+
+    // Auto-place coaches' kids if not already assigned
+    {% if not is_locked %}
+    allPlayers.forEach(p => {
+        if (p.is_coaches_kid && p.coaches_kid_team_id && !assignedPlayerIds.has(p.id)) {
+            const teamId = p.coaches_kid_team_id;
+            if (teamAssignments[teamId] && teamAssignments[teamId].length < 4) {
+                teamAssignments[teamId].push(p.id);
+                assignedPlayerIds.add(p.id);
+            }
+        }
+    });
+    {% endif %}
+
+    return {
+        allPlayers: allPlayers,
+        teams: teams,
+        teamAssignments: teamAssignments,
+        searchQuery: '',
+        sortMode: 'eval',
+        saving: false,
+        locking: false,
+        statusMessage: '',
+        statusError: false,
+        showLockModal: false,
+        draggedPlayerId: null,
+        isLocked: {{ is_locked|yesno:"true,false" }},
+
+        getPlayerById(id) {
+            return playerMap[id] || null;
+        },
+
+        get assignedIds() {
+            const ids = new Set();
+            for (const arr of Object.values(this.teamAssignments)) {
+                arr.forEach(id => ids.add(id));
+            }
+            return ids;
+        },
+
+        get availablePlayers() {
+            const assigned = this.assignedIds;
+            return this.allPlayers.filter(p => !assigned.has(p.id));
+        },
+
+        get sortedAvailable() {
+            let players = this.availablePlayers;
+
+            // Filter by search
+            if (this.searchQuery.trim()) {
+                const q = this.searchQuery.toLowerCase();
+                players = players.filter(p => p.name.toLowerCase().includes(q));
+            }
+
+            // Sort
+            const sorted = [...players];
+            if (this.sortMode === 'eval') {
+                sorted.sort((a, b) => {
+                    if (a.overall_avg === null && b.overall_avg === null) return a.name.localeCompare(b.name);
+                    if (a.overall_avg === null) return 1;
+                    if (b.overall_avg === null) return -1;
+                    return b.overall_avg - a.overall_avg;
+                });
+            } else if (this.sortMode === 'rank') {
+                sorted.sort((a, b) => {
+                    if (a.times_ranked === 0 && b.times_ranked === 0) return a.name.localeCompare(b.name);
+                    if (a.times_ranked === 0) return 1;
+                    if (b.times_ranked === 0) return -1;
+                    // Lower avg_rank is better
+                    return (a.avg_rank || 999) - (b.avg_rank || 999);
+                });
+            } else {
+                sorted.sort((a, b) => a.name.localeCompare(b.name));
+            }
+
+            return sorted;
+        },
+
+        get totalAssigned() {
+            let count = 0;
+            for (const arr of Object.values(this.teamAssignments)) {
+                count += arr.length;
+            }
+            return count;
+        },
+
+        get teamsWithAssignments() {
+            let count = 0;
+            for (const arr of Object.values(this.teamAssignments)) {
+                if (arr.length > 0) count++;
+            }
+            return count;
+        },
+
+        removeFromTeam(teamId, slotIndex) {
+            if (this.isLocked) return;
+            const playerId = this.teamAssignments[teamId][slotIndex];
+            const player = this.getPlayerById(playerId);
+            // Prevent removing coaches' kids from their parent's team
+            if (player && player.is_coaches_kid && player.coaches_kid_team_id === teamId) {
+                this.statusMessage = player.name + " is a coach's child and must stay on this team.";
+                this.statusError = true;
+                setTimeout(() => { this.statusMessage = ''; }, 3000);
+                return;
+            }
+            this.teamAssignments[teamId].splice(slotIndex, 1);
+        },
+
+        // --- Drag and drop ---
+        onDragStart(event, playerId) {
+            if (this.isLocked) return;
+            this.draggedPlayerId = playerId;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', playerId);
+            event.target.classList.add('opacity-50');
+        },
+
+        onDragEnd(event) {
+            event.target.classList.remove('opacity-50');
+            this.draggedPlayerId = null;
+            // Remove all drag-over highlights
+            document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        },
+
+        onDragOverBucket(event, teamId) {
+            if (this.isLocked) return;
+            event.dataTransfer.dropEffect = 'move';
+            const bucket = document.getElementById('bucket-' + teamId);
+            if (bucket) bucket.classList.add('drag-over');
+        },
+
+        onDragLeaveBucket(event) {
+            event.currentTarget.classList.remove('drag-over');
+        },
+
+        onDropToBucket(event, teamId) {
+            if (this.isLocked) return;
+            event.currentTarget.classList.remove('drag-over');
+
+            const playerId = parseInt(event.dataTransfer.getData('text/plain'));
+            if (!playerId) return;
+
+            const player = this.getPlayerById(playerId);
+            if (!player) return;
+
+            // Coaches' kids can only go on parent's team
+            if (player.is_coaches_kid && player.coaches_kid_team_id && player.coaches_kid_team_id !== teamId) {
+                this.statusMessage = player.name + " is a coach's child and must be assigned to their parent's team.";
+                this.statusError = true;
+                setTimeout(() => { this.statusMessage = ''; }, 3000);
+                return;
+            }
+
+            // Check bucket capacity
+            if ((this.teamAssignments[teamId] || []).length >= 4) {
+                this.statusMessage = "This team already has 4 players assigned.";
+                this.statusError = true;
+                setTimeout(() => { this.statusMessage = ''; }, 3000);
+                return;
+            }
+
+            // Remove from any existing team first
+            for (const [tid, arr] of Object.entries(this.teamAssignments)) {
+                const idx = arr.indexOf(playerId);
+                if (idx !== -1) {
+                    arr.splice(idx, 1);
+                    break;
+                }
+            }
+
+            // Add to target team
+            if (!this.teamAssignments[teamId]) {
+                this.teamAssignments[teamId] = [];
+            }
+            this.teamAssignments[teamId].push(playerId);
+        },
+
+        confirmLock() {
+            if (this.totalAssigned === 0) return;
+            this.showLockModal = true;
+        },
+
+        async saveSeeding() {
+            if (this.isLocked) return;
+            this.saving = true;
+            this.statusMessage = '';
+
+            // Build assignments payload: {team_id: [player_ids]}
+            const assignments = {};
+            for (const [teamId, playerIds] of Object.entries(this.teamAssignments)) {
+                if (playerIds.length > 0) {
+                    assignments[teamId] = playerIds;
+                }
+            }
+
+            try {
+                const response = await fetch('{% url "draft:save_seeding" division_id=division.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({ assignments }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.statusMessage = 'Seeding saved (' + data.total_assigned + ' players assigned).';
+                    this.statusError = false;
+                } else {
+                    this.statusMessage = data.error || 'Failed to save seeding.';
+                    this.statusError = true;
+                }
+            } catch (err) {
+                this.statusMessage = 'Network error. Please try again.';
+                this.statusError = true;
+            }
+
+            this.saving = false;
+            if (!this.statusError) {
+                setTimeout(() => { this.statusMessage = ''; }, 4000);
+            }
+        },
+
+        async lockSeeding() {
+            this.locking = true;
+
+            // Save first, then lock
+            await this.saveSeeding();
+            if (this.statusError) {
+                this.locking = false;
+                return;
+            }
+
+            try {
+                const response = await fetch('{% url "draft:lock_seeding" division_id=division.pk %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    },
+                    body: JSON.stringify({}),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.statusMessage = 'Seeding locked. ' + data.top_4_count + ' players assigned.';
+                    this.statusError = false;
+                    this.isLocked = true;
+                    this.showLockModal = false;
+                    // Reload to get locked state from server
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                } else {
+                    this.statusMessage = data.error || 'Failed to lock seeding.';
+                    this.statusError = true;
+                }
+            } catch (err) {
+                this.statusMessage = 'Network error. Please try again.';
+                this.statusError = true;
+            }
+
+            this.locking = false;
+        },
+    };
+}
+</script>
+{% endblock %}

@@ -1,20 +1,29 @@
 from django.contrib import admin
-from .models import DraftConfiguration, DraftPick, PlayerAgent
+
+from .models import DraftPick, DraftSession
 
 
-@admin.register(DraftConfiguration)
-class DraftConfigurationAdmin(admin.ModelAdmin):
-    list_display = ('division', 'season', 'year', 'num_rounds', 'snake_order', 'status')
-    list_filter = ('status', 'division', 'year')
+class DraftPickInline(admin.TabularInline):
+    model = DraftPick
+    extra = 0
+    readonly_fields = ('picked_at',)
+
+
+@admin.register(DraftSession)
+class DraftSessionAdmin(admin.ModelAdmin):
+    list_display = ('division', 'sub_league', 'season', 'status', 'current_round', 'current_pick')
+    list_filter = ('status', 'season', 'division')
+    inlines = [DraftPickInline]
 
 
 @admin.register(DraftPick)
 class DraftPickAdmin(admin.ModelAdmin):
-    list_display = ('config', 'round', 'pick_number', 'team', 'player', 'picked_at')
-    list_filter = ('config', 'round')
-
-
-@admin.register(PlayerAgent)
-class PlayerAgentAdmin(admin.ModelAdmin):
-    list_display = ('player', 'config', 'is_seeded', 'seeded_to_team')
-    list_filter = ('config', 'is_seeded')
+    list_display = (
+        'draft_session', 'round_number', 'pick_number',
+        'team_season', 'player_season', 'is_top_4', 'is_coaches_child', 'picked_at',
+    )
+    list_filter = ('draft_session', 'round_number', 'is_top_4', 'is_coaches_child')
+    search_fields = (
+        'player_season__player__first_name',
+        'player_season__player__last_name',
+    )
