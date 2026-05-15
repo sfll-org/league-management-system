@@ -12,9 +12,13 @@
 <aside
   class="lms-sidebar"
   :class="navOpen ? 'is-open' : ''"
-  @click.outside="navOpen = false"
   aria-label="Primary navigation"
->
+><!-- Outside-click is handled by the scrim below (which only renders when
+     navOpen is true) — putting @click.outside on the sidebar itself races
+     with the topbar's toggle button on mobile, where the button lives
+     outside the sidebar element and would close the drawer immediately
+     after opening it. -->
+
   <div class="lms-sidebar__brand">
     <a href="{% url 'dashboard' %}" class="lms-sidebar__brand-link" aria-label="SFLL home">
       <span class="lms-sidebar__brand-mark" aria-hidden="true">

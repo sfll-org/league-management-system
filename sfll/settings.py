@@ -140,8 +140,18 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STORAGES = {
+    # Production uses whitenoise's hashed-manifest backend. Dev + tests need
+    # the unhashed backend because every {% static %} reference (the new
+    # SFLL-92 lms-tokens.css and lms-shell.css are the first ones that
+    # land in templates/base.html) would otherwise raise
+    # `Missing staticfiles manifest entry` until `manage.py collectstatic`
+    # runs — which dev/test workflows don't expect.
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+            if DEBUG
+            else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
     },
 }
 
