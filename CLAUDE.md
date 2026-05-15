@@ -1,4 +1,4 @@
-# SFLL Player Database
+# SFLL — League Management System
 
 Read AGENTS.md in this repo root for project context, Plane/Confluence links, and coding standards.
 

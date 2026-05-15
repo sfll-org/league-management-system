@@ -1,7 +1,7 @@
-# AGENTS.md — SFLL Player Database
+# AGENTS.md — SFLL — League Management System
 
 ## Project Overview
-**SFLL Player Database** — SFLL player database and operations tools.
+**SFLL — League Management System** — SFLL player database, SES evaluations, draft, communications, and operations tools.
 **Visibility:** Private
 
 ## Tech Stack

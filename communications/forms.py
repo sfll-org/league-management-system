@@ -38,7 +38,7 @@ class EmailTemplateForm(forms.ModelForm):
                 'class': 'w-full px-4 py-2.5 bg-gray-700 border border-gray-600 rounded-lg text-white '
                          'placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 '
                          'focus:border-transparent',
-                'placeholder': 'South Florida Little League',
+                'placeholder': 'San Francisco Little League',
             }),
             'is_active': forms.CheckboxInput(attrs={
                 'class': 'w-4 h-4 rounded bg-gray-700 border-gray-600 text-emerald-500 '

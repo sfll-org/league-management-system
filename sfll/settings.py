@@ -1,8 +1,9 @@
 """
-Django settings for SFLL Player Database v2.
+Django settings for SFLL — League Management System (v2).
 
-South Florida Little League — player database, SES evaluations, and draft system.
-Django 5.x + DRF + HTMX + Channels. Custom User model, no allauth.
+San Francisco Little League — player records, SES evaluations, draft system,
+and operations tools. Django 5.x + DRF + HTMX + Channels. Custom User model,
+no allauth.
 """
 
 from pathlib import Path

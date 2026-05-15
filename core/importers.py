@@ -1,5 +1,5 @@
 """
-SportsConnect CSV importer for the SFLL Player Database.
+SportsConnect CSV importer for the SFLL — League Management System.
 
 Parses SportsConnect registration CSVs and syncs players, divisions,
 and season registrations into the database with delta detection and

@@ -1,5 +1,5 @@
 """
-Management command to seed demo data for the SFLL Player Database.
+Management command to seed demo data for the SFLL — League Management System.
 
 Usage:
     python manage.py seed_demo          # Create demo data
@@ -102,7 +102,7 @@ class Command(BaseCommand):
         league, _ = League.objects.get_or_create(
             short_name='SFLL',
             defaults={
-                'name': 'South Florida Little League',
+                'name': 'San Francisco Little League',
                 'domain': 'sfll.org',
                 'timezone': 'America/New_York',
             },
@@ -305,7 +305,7 @@ class Command(BaseCommand):
             ('Makeup Invite', 'Makeup Session: {{ session_name }}',
              'Hi {{ parent_name }},\n\n{{ player_name }} missed the original session and is invited to the makeup: {{ session_name }} on {{ date }}.\n\n{{ rsvp_link }}'),
             ('General Update', '{{ subject }}',
-             'Hi {{ parent_name }},\n\n{{ body }}\n\nSouth Florida Little League'),
+             'Hi {{ parent_name }},\n\n{{ body }}\n\nSan Francisco Little League'),
         ]
         for name, subject, body in templates_data:
             EmailTemplate.objects.get_or_create(
@@ -314,7 +314,7 @@ class Command(BaseCommand):
                     'subject_template': subject,
                     'body_template': body,
                     'reply_to': 'info@sfll.org',
-                    'from_name': 'South Florida Little League',
+                    'from_name': 'San Francisco Little League',
                 },
             )
         self.stdout.write(f'  Email Templates: {len(templates_data)}')

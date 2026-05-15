@@ -13,7 +13,7 @@ class UserModelFactory:
     @staticmethod
     def create_league():
         return League.objects.create(
-            name='South Florida Little League',
+            name='San Francisco Little League',
             short_name='SFLL',
         )
 
