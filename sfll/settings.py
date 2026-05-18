@@ -24,6 +24,22 @@ ALLOWED_HOSTS = [host.strip() for host in env('ALLOWED_HOSTS').split(',')]
 if DEBUG:
     ALLOWED_HOSTS.append('*')
 
+# Production-shape security headers. All env-tunable so the same settings
+# module covers dev (defaults off), production deploys (operator turns them
+# on), and the CI deploy-checks job (env block sets them on to validate the
+# production-shape config catches misconfig regressions). See ci.yml.
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=False)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=False)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=False)
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False)
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=False)
+SECURE_PROXY_SSL_HEADER = (
+    ('HTTP_X_FORWARDED_PROTO', 'https')
+    if env.bool('SECURE_PROXY_SSL_HEADER', default=False)
+    else None
+)
+
 # Application definition
 INSTALLED_APPS = [
     # Daphne must be before staticfiles

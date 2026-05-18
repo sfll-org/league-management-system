@@ -1,3 +1,30 @@
+# CI for SFLL — League Management System.
+#
+# Two jobs, deliberately separate (SFLL-106):
+#
+#   - dev-checks: dev-shape env (DEBUG=True, short test secret). Runs
+#     Django system checks, migrations, collectstatic, and tests. This is
+#     what catches the kind of bug that breaks a PR's diff — URL config
+#     drift, model field changes, template syntax errors, missing
+#     migrations, broken tests.
+#
+#   - deploy-checks: production-shape env (DEBUG=False, high-entropy
+#     SECRET_KEY, SECURE_* set true). Runs `manage.py check --deploy
+#     --fail-level WARNING` against THAT env shape. This catches production
+#     misconfig BEFORE it ships — HSTS not set, CSRF/session cookies not
+#     secure, SSL redirect off, SECRET_KEY too short, etc.
+#
+# Why split: running `--deploy` against the dev env (DEBUG=True + short
+# secret) fires the production-shape warnings against a dev-shape config —
+# every PR shows red on warnings that have nothing to do with the diff.
+# Codex flagged this on PR #1. Two jobs preserves the deploy signal
+# without making dev PRs look red for irrelevant reasons.
+#
+# Do NOT collapse these back into a single job without addressing why the
+# split exists. If the production-shape env vars need to change (new
+# security setting becomes default-on, etc.), update the deploy-checks
+# env block; dev-checks should be left alone.
+
 name: CI
 
 on:
@@ -7,7 +34,8 @@ on:
     branches: [main]
 
 jobs:
-  checks:
+  dev-checks:
+    name: Dev checks (DEBUG=True)
     runs-on: ubuntu-latest
 
     services:
@@ -57,8 +85,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Django system checks
-        run: python manage.py check --deploy --fail-level WARNING
+      - name: Run Django system checks (dev shape)
+        # Plain `check` — catches URL config / model / template / admin errors.
+        # Deploy-shape checks happen in the deploy-checks job below.
+        run: python manage.py check
 
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
@@ -71,3 +101,50 @@ jobs:
 
       - name: Run tests
         run: python manage.py test --verbosity=2
+
+  deploy-checks:
+    name: Deploy checks (DEBUG=False, production-shape)
+    runs-on: ubuntu-latest
+
+    # Production-shape env. DEBUG=False; all SECURE_* on; ALLOWED_HOSTS is
+    # a real host. SECRET_KEY is generated at job-time to a high-entropy
+    # value to satisfy security.W009 without committing a static long
+    # secret to the repo.
+    env:
+      DEBUG: "False"
+      ALLOWED_HOSTS: sfll.example.com
+      SECURE_SSL_REDIRECT: "True"
+      SESSION_COOKIE_SECURE: "True"
+      CSRF_COOKIE_SECURE: "True"
+      SECURE_HSTS_SECONDS: "31536000"  # 1 year
+      SECURE_HSTS_INCLUDE_SUBDOMAINS: "True"
+      SECURE_HSTS_PRELOAD: "True"
+      SECURE_PROXY_SSL_HEADER: "True"
+      # Stub values for env reads that happen at import time. Deploy-check
+      # doesn't connect to anything — it's static config validation.
+      DATABASE_URL: postgresql://stub:stub@localhost:5432/stub
+      REDIS_URL: redis://localhost:6379/1
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      CELERY_RESULT_BACKEND: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate high-entropy SECRET_KEY for this job
+        # Avoids committing a static long secret while satisfying
+        # security.W009 (SECRET_KEY length/entropy).
+        run: |
+          echo "SECRET_KEY=$(python -c 'import secrets; print(secrets.token_urlsafe(64))')" >> "$GITHUB_ENV"
+
+      - name: Run Django deploy checks (production shape)
+        run: python manage.py check --deploy --fail-level WARNING
