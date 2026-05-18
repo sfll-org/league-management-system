@@ -1,4 +1,4 @@
-# SFLL Player Database — Deployment Guide
+# SFLL — League Management System — Deployment Guide
 
 ## Docker Quickstart
 
@@ -194,7 +194,7 @@ Follow the prompts to set email, first name, last name, and password.
 ### Configuring the League
 
 1. Log in to the Django admin at `/admin/`
-2. Create a **League** record (e.g., name: "South Florida Little League", short_name: "SFLL")
+2. Create a **League** record (e.g., name: "San Francisco Little League", short_name: "SFLL")
 3. Create **Divisions** (e.g., Majors, AAA, AA, A, Rookie) with appropriate display orders
 4. Create **Stations** for evaluations (e.g., Hitting, Infield, Outfield, Pitching) with eval_fields JSON
 5. Create a **Season** and mark it as active

@@ -17,7 +17,7 @@ FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fixture
 
 
 def _create_league():
-    return League.objects.create(name='South Florida Little League', short_name='SFLL')
+    return League.objects.create(name='San Francisco Little League', short_name='SFLL')
 
 
 def _create_user(email='admin@sfll.org', password='testpass123', is_superuser=False):

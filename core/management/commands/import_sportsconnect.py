@@ -15,7 +15,7 @@ from players.models import League, Season
 
 
 class Command(BaseCommand):
-    help = 'Import a SportsConnect CSV file into the player database.'
+    help = 'Import a SportsConnect CSV file into the League Management System.'
 
     def add_arguments(self, parser):
         parser.add_argument('csv_file', type=str, help='Path to the SportsConnect CSV file.')

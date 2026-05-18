@@ -58,7 +58,7 @@ def _get_sample_context():
         })(),
         'rsvp_url': 'https://sfll.example.com/rsvp/sample-token/',
         'account_name': 'John Smith',
-        'league_name': 'South Florida Little League',
+        'league_name': 'San Francisco Little League',
     }
 
 
