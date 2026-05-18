@@ -1,0 +1,86 @@
+{% load static %}
+{# SFLL-92 — Pacific sidebar nav.
+   Persistent 232px rail on >=md; off-canvas drawer on mobile (Alpine-driven
+   via the `lmsNav` x-data on <body> in base.html).
+
+   Sections follow the Claude Design handoff:
+     Operations  · Dashboard, Roster, Family, Comms
+     Season      · SES, Evals, Draft
+     Phone/iPad  · field-side surfaces (placeholder routes until Phase 7/8)
+     Admin       · imports, audit, config — visible to admins only
+#}
+<aside
+  class="lms-sidebar"
+  :class="navOpen ? 'is-open' : ''"
+  aria-label="Primary navigation"
+><!-- Outside-click is handled by the scrim below (which only renders when
+     navOpen is true) — putting @click.outside on the sidebar itself races
+     with the topbar's toggle button on mobile, where the button lives
+     outside the sidebar element and would close the drawer immediately
+     after opening it. -->
+
+  <div class="lms-sidebar__brand">
+    <a href="{% url 'dashboard' %}" class="lms-sidebar__brand-link" aria-label="SFLL home">
+      <span class="lms-sidebar__brand-mark" aria-hidden="true">
+        {# Diamond placeholder — primer says the real logo lands later. #}
+        <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
+          <path d="M12 2 L22 12 L12 22 L2 12 Z" fill="currentColor" />
+        </svg>
+      </span>
+      <span class="lms-sidebar__brand-text">
+        <span class="lms-sidebar__brand-name">SFLL</span>
+        <span class="lms-sidebar__brand-sub">League Management</span>
+      </span>
+    </a>
+  </div>
+
+  {% if user.is_authenticated %}
+  <nav class="lms-sidebar__nav">
+    <div class="lms-sidebar__section">
+      <p class="lms-sidebar__section-label">Operations</p>
+      <a href="{% url 'dashboard' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}">Dashboard</a>
+      <a href="{% url 'players:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'players' %} is-active{% endif %}">Roster</a>
+      <a href="{% url 'communications:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'communications' %} is-active{% endif %}">Communications</a>
+    </div>
+
+    <div class="lms-sidebar__section">
+      <p class="lms-sidebar__section-label">Season</p>
+      <a href="{% url 'tryouts:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'tryouts' %} is-active{% endif %}">SES Sessions</a>
+      <a href="{% url 'evaluations:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'evaluations' %} is-active{% endif %}">Evaluations</a>
+      <a href="{% url 'draft:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'draft' %} is-active{% endif %}">Draft</a>
+    </div>
+
+    {% if user_is_admin %}
+    <div class="lms-sidebar__section">
+      <p class="lms-sidebar__section-label">Admin</p>
+      <a href="{% url 'import_history' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'import_history' %} is-active{% endif %}">Imports</a>
+      <a href="{% url 'config_home' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'config_home' %} is-active{% endif %}">Config</a>
+      <a href="{% url 'audit_log' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'audit_log' %} is-active{% endif %}">Audit log</a>
+      {% if user.is_staff %}
+      <a href="{% url 'admin:index' %}" class="lms-sidebar__link">Django admin</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </nav>
+
+  <div class="lms-sidebar__footer">
+    <p class="lms-sidebar__user-email" title="{{ user.email }}">{{ user.email }}</p>
+    <a href="{% url 'accounts:logout' %}" class="lms-sidebar__logout">Sign out</a>
+  </div>
+  {% else %}
+  <nav class="lms-sidebar__nav">
+    <div class="lms-sidebar__section">
+      <a href="{% url 'accounts:login' %}" class="lms-sidebar__link is-active">Sign in</a>
+    </div>
+  </nav>
+  {% endif %}
+</aside>
+
+{# Mobile-only scrim that closes the drawer on tap. #}
+<div
+  class="lms-sidebar__scrim"
+  x-show="navOpen"
+  x-transition.opacity
+  @click="navOpen = false"
+  aria-hidden="true"
+></div>

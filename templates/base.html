@@ -1,138 +1,81 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en" class="dark">
+{% load static %}<!DOCTYPE html>
+{# SFLL-92 — Pacific shell.
+   The dark Tailwind chrome is gone; this is the light-theme sidebar+main
+   layout the Claude Design handoff delivered. CSS custom properties on
+   <html> (data-palette / data-type / data-density) drive the visual
+   system. Tailwind via CDN stays loaded for now because individual screens
+   still reference Tailwind classes — Phases 2+ rebuild each one against
+   the new tokens. #}
+<html
+  lang="en"
+  data-palette="pacific"
+  data-type="humanist-display"
+  data-density="balanced"
+>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="San Francisco Little League — League Management System">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="San Francisco Little League — League Management System" />
 
-    <!-- Tailwind CSS via CDN (dev) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-        }
-    </script>
+  <title>{% block title %}SFLL — League Management System{% endblock %}</title>
 
-    <!-- HTMX -->
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  {# Pacific design tokens (from the Claude Design handoff bundle).
+     Loaded BEFORE Tailwind so token-driven cards/buttons aren't overridden
+     by Tailwind's utility classes on legacy screens; per-screen rebuilds
+     in Phases 2+ stop using the legacy chrome. #}
+  <link rel="stylesheet" href="{% static 'css/lms-tokens.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/lms-shell.css' %}" />
 
-    <!-- Alpine.js -->
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  {# Google fonts — three families per the handoff:
+       Instrument Sans  — body / UI
+       Bricolage Grotesque — display
+       JetBrains Mono   — numbers + data
+     Newsreader is loaded too so the editorial-type tweak (data-type="editorial")
+     can switch in without re-fetching. #}
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:wght@400;500;600&display=swap" />
 
-    <title>{% block title %}SFLL — League Management System{% endblock %}</title>
-    {% block extra_head %}{% endblock %}
+  {# Tailwind CDN stays — Phases 2+ rebuild each screen onto the new tokens
+     and tear out Tailwind references screen-by-screen. Keeping it loaded
+     means existing pages stay readable on the new shell instead of
+     un-rendering entirely. #}
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-      x-data="{ mobileMenuOpen: false }">
+<body
+  class="lms-shell"
+  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+  x-data="{ navOpen: false }"
+>
+  {% include "_partials/sidebar.html" %}
 
-    <!-- Navigation -->
-    <nav class="bg-gray-800 border-b border-gray-700 shadow-lg sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <!-- Logo -->
-                <div class="flex items-center space-x-3">
-                    <a href="{% url 'dashboard' %}" class="text-2xl font-bold text-emerald-400">
-                        SFLL
-                    </a>
-                    <span class="hidden sm:inline text-gray-400 text-sm">League Management System</span>
-                </div>
+  <div class="lms-main">
+    {% include "_partials/topbar.html" %}
 
-                <!-- Desktop Nav -->
-                <div class="hidden md:flex items-center space-x-6">
-                    {% if user.is_authenticated %}
-                        <a href="{% url 'dashboard' %}" class="text-gray-300 hover:text-emerald-400 transition">Dashboard</a>
-                        <a href="{% url 'players:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Players</a>
-                        <a href="{% url 'tryouts:index' %}" class="text-gray-300 hover:text-emerald-400 transition">SES</a>
-                        <a href="{% url 'evaluations:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Evals</a>
-                        <a href="{% url 'draft:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Draft</a>
-                        <a href="{% url 'communications:index' %}" class="text-gray-300 hover:text-emerald-400 transition">Comms</a>
-                        {% if user_is_admin %}
-                            <a href="{% url 'import_history' %}" class="text-gray-300 hover:text-emerald-400 transition">Imports</a>
-                            <a href="{% url 'config_home' %}" class="text-gray-300 hover:text-emerald-400 transition">Config</a>
-                            <a href="{% url 'audit_log' %}" class="text-gray-300 hover:text-emerald-400 transition">Audit</a>
-                        {% endif %}
-                        {% if user.is_staff %}
-                            <a href="{% url 'admin:index' %}" class="text-gray-400 hover:text-emerald-400 transition text-sm">Admin</a>
-                        {% endif %}
-                        <div class="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-600">
-                            <span class="text-gray-400 text-sm">{{ user.email }}</span>
-                            <a href="{% url 'accounts:logout' %}"
-                               class="text-gray-400 hover:text-red-400 transition text-sm">Logout</a>
-                        </div>
-                    {% else %}
-                        <a href="{% url 'accounts:login' %}"
-                           class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition">
-                            Sign In
-                        </a>
-                    {% endif %}
-                </div>
-
-                <!-- Mobile menu button -->
-                <div class="md:hidden">
-                    <button @click="mobileMenuOpen = !mobileMenuOpen"
-                            class="text-gray-400 hover:text-white p-2">
-                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path x-show="!mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M4 6h16M4 12h16M4 18h16" />
-                            <path x-show="mobileMenuOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Mobile menu -->
-            <div x-show="mobileMenuOpen" x-transition class="md:hidden pb-4 space-y-1">
-                {% if user.is_authenticated %}
-                    <a href="{% url 'dashboard' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Dashboard</a>
-                    <a href="{% url 'players:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Players</a>
-                    <a href="{% url 'tryouts:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">SES Sessions</a>
-                    <a href="{% url 'evaluations:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Evaluations</a>
-                    <a href="{% url 'draft:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Draft</a>
-                    <a href="{% url 'communications:index' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700 hover:text-emerald-400">Communications</a>
-                    <div class="border-t border-gray-700 mt-2 pt-2">
-                        <span class="block py-2 px-3 text-gray-500 text-sm">{{ user.email }}</span>
-                        <a href="{% url 'accounts:logout' %}" class="block py-2 px-3 rounded text-red-400 hover:bg-gray-700">Logout</a>
-                    </div>
-                {% else %}
-                    <a href="{% url 'accounts:login' %}" class="block py-2 px-3 rounded text-emerald-400 hover:bg-gray-700">Sign In</a>
-                    <a href="{% url 'accounts:register' %}" class="block py-2 px-3 rounded text-gray-300 hover:bg-gray-700">Register</a>
-                {% endif %}
-            </div>
-        </div>
-    </nav>
-
-    <!-- Messages -->
     {% if messages %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-        {% for message in messages %}
-        <div class="rounded-lg p-4 mb-2
-            {% if message.tags == 'error' %}bg-red-900/50 text-red-300 border border-red-700
-            {% elif message.tags == 'success' %}bg-emerald-900/50 text-emerald-300 border border-emerald-700
-            {% elif message.tags == 'warning' %}bg-amber-900/50 text-amber-300 border border-amber-700
-            {% else %}bg-blue-900/50 text-blue-300 border border-blue-700{% endif %}">
-            {{ message }}
-        </div>
-        {% endfor %}
+    <div class="lms-flash">
+      {% for message in messages %}
+      <div class="lms-flash__item lms-flash__item--{{ message.tags|default:'info' }}">
+        {{ message }}
+      </div>
+      {% endfor %}
     </div>
     {% endif %}
 
-    <!-- Content -->
-    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        {% block content %}{% endblock %}
+    <main class="lms-content">
+      {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 border-t border-gray-700">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <p class="text-center text-gray-500 text-sm">
-                San Francisco Little League &mdash; League Management System v2
-            </p>
-        </div>
+    <footer class="lms-footer">
+      San Francisco Little League — League Management System
     </footer>
+  </div>
 
-    {% block extra_js %}{% endblock %}
+  {% block extra_js %}{% endblock %}
 </body>
 </html>
