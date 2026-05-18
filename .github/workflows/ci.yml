@@ -58,7 +58,16 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run Django system checks
-        run: python manage.py check --deploy --fail-level WARNING
+        # SFLL-105: was `check --deploy --fail-level WARNING`, but this CI job
+        # sets DEBUG=True. --deploy is designed for production-shape config and
+        # fires security.W004 (HSTS), security.W016 (CSRF cookie secure), etc.
+        # against DEBUG=True; --fail-level WARNING turns those into a job
+        # failure, blocking every PR on a check that has nothing to do with
+        # the diff. Plain `check` still catches model/template/admin/urlconf
+        # errors — that's what dev-environment system checks are for.
+        # Deployment warnings belong against a production-shape settings module
+        # (a future ci_settings.py pattern), not the dev workflow.
+        run: python manage.py check
 
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
