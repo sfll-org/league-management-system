@@ -1,407 +1,271 @@
 {% extends "base.html" %}
+{% load static %}
+
+{# SFLL-93 — Operations Dashboard.
+   Rebuilds the dashboard onto Pacific tokens from the Claude Design handoff
+   bundle (38nnfJ8G8l3n16PzuNoDQg). The legacy Tailwind chrome from the
+   pre-design scaffold is fully replaced. Admin view renders the rich layout
+   from screens-dashboard.jsx; other roles get a simplified stat row plus a
+   note pointing at the later-phase surfaces (Field Mode, Front Desk Kiosk).
+#}
 
 {% block title %}SFLL — Dashboard{% endblock %}
 
 {% block content %}
-<div class="space-y-8">
+<div class="page">
+
+  <div class="page-header">
     <div>
-        <h1 class="text-3xl font-bold text-white">Dashboard</h1>
-        <p class="mt-2 text-gray-400">
-            Welcome back, {{ user.get_full_name|default:user.email }}.
-            {% if season %}
-                <span class="text-emerald-400">{{ season.name }}</span> is active.
-            {% else %}
-                <span class="text-amber-400">No active season.</span>
-            {% endif %}
-        </p>
+      <h1 class="page-title">
+        {% if greeting %}{{ greeting }}, {% endif %}{{ user.first_name|default:user.get_username }}
+      </h1>
+      <div class="page-sub">
+        {% if season %}
+          {{ season.name }}
+          {% if season_summary %} · {{ season_summary }}{% endif %}
+        {% else %}
+          No active season — start one in <a href="#">Season setup</a>.
+        {% endif %}
+      </div>
     </div>
-
-    <!-- Quick Stats (shown to all) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
-            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Players</h3>
-            <p class="mt-2 text-2xl sm:text-3xl font-bold text-emerald-400">{{ player_count }}</p>
-            <p class="mt-1 text-xs sm:text-sm text-gray-500">Registered this season</p>
-        </div>
-        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
-            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">SES Sessions</h3>
-            <p class="mt-2 text-2xl sm:text-3xl font-bold text-blue-400">{{ session_count }}</p>
-            <p class="mt-1 text-xs sm:text-sm text-gray-500">Scheduled</p>
-        </div>
-        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
-            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Evaluations</h3>
-            <p class="mt-2 text-2xl sm:text-3xl font-bold text-amber-400">{{ eval_count }}</p>
-            <p class="mt-1 text-xs sm:text-sm text-gray-500">Completed</p>
-        </div>
-        <div class="bg-gray-800 rounded-xl p-5 sm:p-6 border border-gray-700">
-            <h3 class="text-xs sm:text-sm font-medium text-gray-400 uppercase tracking-wider">Draft Status</h3>
-            <p class="mt-2 text-2xl sm:text-3xl font-bold text-purple-400">{{ draft_status }}</p>
-            <p class="mt-1 text-xs sm:text-sm text-gray-500">Current state</p>
-        </div>
+    {% if is_admin %}
+    <div class="page-header__actions">
+      <a class="btn btn--ghost" href="#">This week</a>
+      <a class="btn btn--primary" href="#">New season</a>
     </div>
+    {% endif %}
+  </div>
 
-    {% if is_admin and season %}
-    <!-- ============================================================ -->
-    <!-- ADMIN WIDGETS: Season Overview, Division Counts, SES, etc.  -->
-    <!-- ============================================================ -->
-
-    <!-- Season Overview -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Season Overview</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-                <p class="text-sm text-gray-400">Current Season</p>
-                <p class="text-lg font-medium text-white">{{ season.name }} ({{ season.year }})</p>
-            </div>
-            <div>
-                <p class="text-sm text-gray-400">Registration</p>
-                <p class="text-lg font-medium {% if registration_open %}text-emerald-400{% else %}text-red-400{% endif %}">
-                    {% if registration_open %}Open{% else %}Closed{% endif %}
-                </p>
-            </div>
-            <div>
-                <p class="text-sm text-gray-400">Total Players</p>
-                <p class="text-lg font-medium text-white">{{ player_count }}</p>
-            </div>
-        </div>
+  {# ─── Stat row ─── always visible #}
+  <div class="stats">
+    {% for stat in dashboard_stats %}
+    <div class="stat">
+      <div class="stat__label">{{ stat.label }}</div>
+      <div class="stat__value tabular">{{ stat.value }}{% if stat.value_suffix %}<span style="color: var(--ink-3);">{{ stat.value_suffix }}</span>{% endif %}</div>
+      {% if stat.delta %}<div class="stat__delta stat__delta--{{ stat.delta_kind|default:'flat' }}">{{ stat.delta }}</div>{% endif %}
     </div>
+    {% endfor %}
+  </div>
 
-    <!-- Player Counts by Division -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Players by Division</h2>
-        {% if division_counts %}
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {% for dc in division_counts %}
-            <div class="bg-gray-700/50 rounded-lg p-4 text-center border border-gray-600">
-                <p class="text-sm text-gray-400">{{ dc.division__name|default:"Unassigned" }}</p>
-                <p class="text-2xl font-bold text-white mt-1">{{ dc.count }}</p>
-            </div>
-            {% endfor %}
+  {% if is_admin %}
+  <div class="dashboard-grid">
+
+    {# ─── Left column ─── #}
+    <div>
+
+      {# Needs-attention inbox #}
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">
+            Needs attention
+            <span class="card__title-sub">this week</span>
+          </div>
+          <div class="seg" role="group" aria-label="Filter alerts">
+            <button class="seg__btn seg__btn--active" type="button" data-filter="all">All</button>
+            <button class="seg__btn" type="button" data-filter="danger">Blockers</button>
+            <button class="seg__btn" type="button" data-filter="warn">Warnings</button>
+            <button class="seg__btn" type="button" data-filter="today">Today</button>
+          </div>
+        </div>
+
+        {% if attention_items %}
+        <div class="card__list">
+          {% for a in attention_items %}
+          <a class="alert" data-level="{{ a.level }}" data-today="{{ a.is_today|yesno:'1,0' }}"
+             {% if a.url %}href="{{ a.url }}"{% else %}href="#"{% endif %}>
+            <span class="alert__icon alert__icon--{{ a.level }}" aria-hidden="true">
+              {% if a.level == "danger" %}!
+              {% elif a.level == "warn" %}!
+              {% elif a.level == "success" %}✓
+              {% else %}i{% endif %}
+            </span>
+            <span class="alert__body">
+              <span class="alert__title">{{ a.title }}</span>
+              <span class="alert__sub">{{ a.sub }}</span>
+            </span>
+            {% if a.meta %}<span class="alert__meta">{{ a.meta }}</span>{% endif %}
+          </a>
+          {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500">No players registered yet.</p>
+        <div class="empty">
+          <strong>Nothing to fix.</strong>
+          Touch some grass.
+        </div>
         {% endif %}
-    </div>
+      </div>
 
-    <!-- SES Sessions & Rates -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Upcoming Sessions</h3>
-            <p class="mt-2 text-3xl font-bold text-blue-400">{{ upcoming_session_count }}</p>
+      {# Divisions table #}
+      <div class="card" style="margin-top: var(--gap-lg);">
+        <div class="card__head">
+          <div class="card__title">
+            Divisions
+            {% if season %}<span class="card__title-sub">{{ season.name }}</span>{% endif %}
+          </div>
+          <a class="btn btn--ghost btn--sm" href="{% url 'players:index' %}">Open roster ›</a>
         </div>
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">RSVP Rate</h3>
-            <p class="mt-2 text-3xl font-bold text-emerald-400">{{ rsvp_rate }}%</p>
-        </div>
-        <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-            <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Check-in Rate</h3>
-            <p class="mt-2 text-3xl font-bold text-amber-400">{{ checkin_rate }}%</p>
-        </div>
-    </div>
+        <table class="table table--clickable">
+          <thead>
+            <tr>
+              <th>Division</th>
+              <th>Ages</th>
+              <th class="col-num">Players</th>
+              <th class="col-num">Teams</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in division_rows %}
+            <tr {% if d.url %}onclick="window.location='{{ d.url }}'"{% endif %}>
+              <td><strong>{{ d.name }}</strong></td>
+              <td class="text-muted">{{ d.ages|default:'—' }}</td>
+              <td class="col-num">{{ d.players|default:'0' }}</td>
+              <td class="col-num">{{ d.teams|default:'0' }}</td>
+              <td>
+                <span class="pill pill--{{ d.status_kind|default:'neutral' }}">
+                  <span class="pill__dot"></span>{{ d.status_label|default:'—' }}
+                </span>
+              </td>
+              <td class="col-actions">›</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-muted" style="text-align:center; padding:24px;">No divisions configured for this season yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-    <!-- Evaluation Completion -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Evaluation Completion</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-                <p class="text-sm text-gray-400">Players Evaluated</p>
-                <p class="text-2xl font-bold text-emerald-400">{{ players_evaluated }}</p>
-                <p class="text-xs text-gray-500 mt-1">of {{ player_count }} registered</p>
-            </div>
-            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-                <p class="text-sm text-gray-400">Coaches Participated</p>
-                <p class="text-2xl font-bold text-blue-400">{{ coaches_evaluated }}</p>
-                <p class="text-xs text-gray-500 mt-1">have submitted evaluations</p>
-            </div>
-        </div>
-    </div>
+    </div>{# /left col #}
 
-    <!-- Draft Status per Division -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Draft Status by Division</h2>
-        {% if draft_sessions %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-gray-400 border-b border-gray-700">
-                        <th class="text-left py-2 px-3">Division</th>
-                        <th class="text-left py-2 px-3">Sub-League</th>
-                        <th class="text-left py-2 px-3">Status</th>
-                        <th class="text-left py-2 px-3">Round</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for ds in draft_sessions %}
-                    <tr class="border-b border-gray-700/50">
-                        <td class="py-2 px-3 text-white">{{ ds.division.name }}</td>
-                        <td class="py-2 px-3 text-gray-400">{{ ds.sub_league|default:"—" }}</td>
-                        <td class="py-2 px-3">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium
-                                {% if ds.status == 'completed' %}bg-emerald-900/50 text-emerald-300
-                                {% elif ds.status == 'drafting' %}bg-blue-900/50 text-blue-300
-                                {% elif ds.status == 'seeding' %}bg-amber-900/50 text-amber-300
-                                {% else %}bg-gray-700 text-gray-400{% endif %}">
-                                {{ ds.get_status_display }}
-                            </span>
-                        </td>
-                        <td class="py-2 px-3 text-gray-300">{{ ds.current_round }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    {# ─── Right column ─── #}
+    <div class="flex-col" style="gap: var(--gap-lg);">
+
+      {# Up next: SES sessions #}
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">Up next<span class="card__title-sub">SES sessions</span></div>
+        </div>
+        {% if upcoming_session_rows %}
+        <div class="card__list">
+          {% for s in upcoming_session_rows %}
+          <a class="alert" href="{{ s.url|default:'#' }}">
+            <span class="alert__icon alert__icon--info" aria-hidden="true">📅</span>
+            <span class="alert__body">
+              <span class="alert__title">{{ s.name }}</span>
+              <span class="alert__sub">{{ s.when }}{% if s.location %} · {{ s.location }}{% endif %}</span>
+            </span>
+            {% if s.checked_in is not None %}<span class="alert__meta tabular">{{ s.checked_in }}/{{ s.expected }}</span>{% endif %}
+          </a>
+          {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500">No draft sessions configured yet.</p>
+        <div class="empty">
+          <strong>No upcoming sessions.</strong>
+          Schedule SES from the Sessions page.
+        </div>
         {% endif %}
-    </div>
+      </div>
 
-    <!-- SportsConnect Sync -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">SportsConnect</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-                <p class="text-sm text-gray-400">Last Sync</p>
-                {% if last_import %}
-                <p class="text-lg text-white">{{ last_import.started_at|timesince }} ago</p>
-                <p class="text-xs text-gray-500">{{ last_import.total_rows }} rows &middot; {{ last_import.get_status_display }}</p>
-                {% else %}
-                <p class="text-lg text-gray-500">Never</p>
-                {% endif %}
-            </div>
-            <div>
-                <p class="text-sm text-gray-400">Flagged Records</p>
-                <p class="text-lg {% if flagged_count %}text-amber-400{% else %}text-emerald-400{% endif %}">
-                    {{ flagged_count|default:"0" }}
-                </p>
-            </div>
+      {# Top of the draft board #}
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">Top of the draft board<span class="card__title-sub">{{ top_division_name|default:'Majors' }}</span></div>
+          <a class="btn btn--ghost btn--sm" href="{% url 'draft:index' %}">Open ›</a>
         </div>
-    </div>
-
-    <!-- Recent Audit Log -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-semibold text-white">Recent Activity</h2>
-            <a href="{% url 'audit_log' %}" class="text-sm text-emerald-400 hover:text-emerald-300">View all</a>
-        </div>
-        {% if recent_audit %}
-        <div class="space-y-2">
-            {% for entry in recent_audit %}
-            <div class="flex items-start gap-3 py-2 border-b border-gray-700/50 last:border-0">
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm text-white">
-                        <span class="text-gray-400">{{ entry.user.get_full_name|default:entry.user.email|default:"System" }}</span>
-                        &middot; {{ entry.action }}
-                        <span class="text-gray-500">{{ entry.entity_type }} #{{ entry.entity_id }}</span>
-                    </p>
-                    <p class="text-xs text-gray-500">{{ entry.timestamp|timesince }} ago</p>
-                </div>
-            </div>
-            {% endfor %}
+        {% if top_players %}
+        <div class="card__list">
+          {% for p in top_players %}
+          <a class="alert" style="padding: 10px 14px;" href="{{ p.url|default:'#' }}">
+            <span style="width:30px; text-align:center; font-family:var(--font-mono); color:var(--accent); font-weight:700; font-size:14px;">#{{ forloop.counter }}</span>
+            <span class="alert__body">
+              <span class="alert__title">
+                {{ p.full_name }}
+                {% if p.is_top_4 %}<span class="pill pill--danger">Top-4</span>{% endif %}
+              </span>
+              <span class="alert__sub">{{ p.detail }}</span>
+            </span>
+            {% if p.team_label %}<span class="alert__meta">{{ p.team_label }}</span>{% endif %}
+          </a>
+          {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500 text-sm">No recent activity.</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if is_coach and season %}
-    <!-- ============================================================ -->
-    <!-- COACH WIDGETS                                                -->
-    <!-- ============================================================ -->
-
-    {% if coach_season %}
-    <!-- Team Info -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Your Team</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-            <div>
-                <p class="text-sm text-gray-400">Team</p>
-                <p class="text-lg font-medium text-white">{{ coach_season.team_season.team.name }}</p>
-            </div>
-            <div>
-                <p class="text-sm text-gray-400">Division</p>
-                <p class="text-lg font-medium text-white">{{ coach_season.team_season.division.name }}</p>
-            </div>
-            <div>
-                <p class="text-sm text-gray-400">Role</p>
-                <p class="text-lg font-medium text-white">{{ coach_season.get_role_display }}</p>
-            </div>
-        </div>
-
-        {% if team_players %}
-        <h3 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">Roster ({{ team_players.count }})</h3>
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-            {% for ps in team_players %}
-            <div class="bg-gray-700/50 rounded-lg px-3 py-2 text-sm text-white border border-gray-600">
-                {{ ps.player.full_name }}
-            </div>
-            {% endfor %}
+        <div class="empty">
+          <strong>No rankings yet.</strong>
+          Top-4 markers surface once evaluations complete.
         </div>
         {% endif %}
-    </div>
+      </div>
 
-    <!-- Upcoming Sessions -->
-    {% if coach_upcoming_sessions %}
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Upcoming Sessions</h2>
-        <div class="space-y-2">
-            {% for session in coach_upcoming_sessions %}
-            <div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-600">
-                <div>
-                    <p class="text-white font-medium">{{ session.name }}</p>
-                    <p class="text-sm text-gray-400">{{ session.date|date:"M j, Y" }} &middot; {{ session.start_time|time:"g:i A" }}</p>
-                </div>
-                <span class="text-xs text-gray-500">{{ session.location }}</span>
-            </div>
-            {% endfor %}
+      {# Recent imports #}
+      <div class="card">
+        <div class="card__head">
+          <div class="card__title">Recent imports<span class="card__title-sub">SportsConnect</span></div>
         </div>
-    </div>
-    {% endif %}
-
-    <!-- Evaluation Progress -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Your Evaluation Progress</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-                <p class="text-sm text-gray-400">Evaluations Submitted</p>
-                <p class="text-2xl font-bold text-emerald-400">{{ coach_eval_count }}</p>
-            </div>
-            <div class="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-                <p class="text-sm text-gray-400">Players in Division</p>
-                <p class="text-2xl font-bold text-blue-400">{{ division_player_count }}</p>
-            </div>
-        </div>
-    </div>
-
-    {% else %}
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <p class="text-gray-400">You have a coach role but are not assigned to a team this season.</p>
-    </div>
-    {% endif %}
-
-    <!-- Coach Quick Links -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Coach Links</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a href="{% url 'evaluations:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Evaluations</p>
-                    <p class="text-sm text-gray-400">Score players at stations</p>
-                </div>
-            </a>
-            <a href="{% url 'draft:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Rankings</p>
-                    <p class="text-sm text-gray-400">Pre-draft player rankings</p>
-                </div>
-            </a>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if is_front_desk and season %}
-    <!-- ============================================================ -->
-    <!-- FRONT DESK WIDGETS                                           -->
-    <!-- ============================================================ -->
-
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Today's Sessions</h2>
-        {% if todays_sessions %}
-        <div class="space-y-3">
-            {% for session in todays_sessions %}
-            <div class="flex items-center justify-between bg-gray-700/50 rounded-lg px-4 py-3 border border-gray-600">
-                <div>
-                    <p class="text-white font-medium">{{ session.name }}</p>
-                    <p class="text-sm text-gray-400">
-                        {{ session.division.name }} &middot;
-                        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} – {{ session.end_time|time:"g:i A" }}{% endif %}
-                    </p>
-                </div>
-                <a href="{% url 'tryouts:session_detail' session.pk %}"
-                   class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition">
-                    Check-in
-                </a>
-            </div>
-            {% endfor %}
+        {% if recent_import_rows %}
+        <div class="card__list">
+          {% for r in recent_import_rows %}
+          <div class="alert">
+            <span class="alert__icon alert__icon--{{ r.level|default:'info' }}" aria-hidden="true">
+              {% if r.level == "success" %}✓{% else %}↻{% endif %}
+            </span>
+            <span class="alert__body">
+              <span class="alert__title">{{ r.title }}</span>
+              <span class="alert__sub">{{ r.sub }}</span>
+            </span>
+            {% if r.when %}<span class="alert__meta">{{ r.when }}</span>{% endif %}
+          </div>
+          {% endfor %}
         </div>
         {% else %}
-        <p class="text-gray-500">No sessions scheduled for today.</p>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    <!-- Quick Actions (shown to all authenticated users) -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <a href="{% url 'players:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Player Roster</p>
-                    <p class="text-sm text-gray-400">View all registered players</p>
-                </div>
-            </a>
-            <a href="{% url 'tryouts:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">SES Sessions</p>
-                    <p class="text-sm text-gray-400">Schedule & check-in</p>
-                </div>
-            </a>
-            <a href="{% url 'draft:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Draft Board</p>
-                    <p class="text-sm text-gray-400">Run or view draft</p>
-                </div>
-            </a>
-            <a href="{% url 'evaluations:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Evaluations</p>
-                    <p class="text-sm text-gray-400">View scores & rankings</p>
-                </div>
-            </a>
-            <a href="{% url 'communications:index' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Communications</p>
-                    <p class="text-sm text-gray-400">Email templates & logs</p>
-                </div>
-            </a>
-            {% if is_admin %}
-            <a href="{% url 'user_list' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">User Management</p>
-                    <p class="text-sm text-gray-400">Manage users & roles</p>
-                </div>
-            </a>
-            <a href="{% url 'config_home' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Configuration</p>
-                    <p class="text-sm text-gray-400">Divisions, teams, stations</p>
-                </div>
-            </a>
-            <a href="{% url 'audit_log' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Audit Log</p>
-                    <p class="text-sm text-gray-400">View system activity</p>
-                </div>
-            </a>
-            <a href="{% url 'import_history' %}"
-               class="flex items-center p-4 bg-gray-700/50 rounded-lg hover:bg-gray-700 transition border border-gray-600">
-                <div>
-                    <p class="font-medium text-white">Imports</p>
-                    <p class="text-sm text-gray-400">SportsConnect sync</p>
-                </div>
-            </a>
-            {% endif %}
+        <div class="empty">
+          <strong>No imports yet.</strong>
+          Auto-imports from SportsConnect will appear here.
         </div>
+        {% endif %}
+      </div>
+
+    </div>{# /right col #}
+
+  </div>{# /dashboard-grid #}
+
+  {% else %}
+  {# Non-admin: minimal view; full role-specific surfaces land in later phases. #}
+  <div class="card">
+    <div class="card__body">
+      <p class="text-muted">
+        Your role-specific dashboard is on the roadmap — see the sidebar to jump straight to
+        {% if is_coach %}your team's roster and schedule.
+        {% elif is_front_desk %}today's check-in session.
+        {% else %}roster and sessions.{% endif %}
+      </p>
     </div>
-</div>
+  </div>
+  {% endif %}
+
+</div>{# /page #}
+
+<script>
+// Minimal client-side filter on the attention inbox. Server-side filter via
+// querystring + role-aware view is a follow-up (SFLL-93 scopes "visual phase"
+// — data wiring is incremental).
+(function() {
+  const segGroup = document.querySelector('.card .seg');
+  if (!segGroup) return;
+  const alerts = Array.from(document.querySelectorAll('.card__list .alert[data-level]'));
+
+  segGroup.addEventListener('click', (e) => {
+    const btn = e.target.closest('.seg__btn');
+    if (!btn) return;
+    const filter = btn.dataset.filter;
+    segGroup.querySelectorAll('.seg__btn').forEach(b => b.classList.toggle('seg__btn--active', b === btn));
+    alerts.forEach(a => {
+      const matches = filter === 'all'
+        || (filter === 'today' && a.dataset.today === '1')
+        || filter === a.dataset.level;
+      a.style.display = matches ? '' : 'none';
+    });
+  });
+})();
+</script>
 {% endblock %}
