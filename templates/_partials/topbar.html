@@ -1,6 +1,6 @@
 {# SFLL-92 — Pacific topbar.
-   Holds the mobile menu toggle, page title slot, and a placeholder ⌘K hint
-   (the actual command palette lands in Phase 10). #}
+   Holds the mobile menu toggle, page title slot, and the ⌘K command-palette
+   trigger (palette itself lives in _partials/command_palette.html, SFLL-101). #}
 <header class="lms-topbar">
   <button
     type="button"
@@ -20,7 +20,16 @@
   </div>
 
   <div class="lms-topbar__actions">
-    {# Placeholder shortcut hint — palette itself lands in Phase 10 (SFLL-101). #}
-    <kbd class="lms-topbar__cmdk" title="Command palette (Phase 10)">⌘K</kbd>
+    {% if user.is_authenticated %}
+    <button
+      type="button"
+      class="lms-topbar__cmdk-btn"
+      title="Open command palette (⌘K)"
+      aria-label="Open command palette"
+      @click="$dispatch('open-cmd-palette')"
+    >
+      <kbd class="lms-topbar__cmdk">⌘K</kbd>
+    </button>
+    {% endif %}
   </div>
 </header>

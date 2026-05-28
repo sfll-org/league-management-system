@@ -1,0 +1,202 @@
+{# SFLL-101 — ⌘K command palette.
+
+   Three sources per the spec:
+     • Pages   — sidebar nav routes, rendered statically by Alpine; filtered
+                 client-side as the user types.
+     • Players — HTMX-fetched from players:search as the user types.
+     • Families — same endpoint; distinct PlayerSeason.account_name values
+                  with a roster count.
+
+   State lives in the Alpine `commandPalette()` component below. The global
+   keybind (⌘K / Ctrl+K) and the cursor-highlight refresh after an HTMX
+   swap are vanilla JS — Alpine doesn't process directives added by
+   HTMX-injected HTML, so the swap-fetched player/family rows are plain
+   anchors and the active-row class is toggled imperatively.
+
+   Authenticated-only — the search endpoint requires login and the palette
+   has no useful targets for an anonymous visitor, so the partial is gated
+   in base.html and not rendered when logged out. #}
+<div
+  id="cmd-palette"
+  x-data='commandPalette({
+    pages: [
+      {label: "Dashboard", url: "{% url "dashboard" %}"},
+      {label: "Roster", url: "{% url "players:index" %}"},
+      {label: "Teams", url: "{% url "players:teams" %}"},
+      {label: "Communications", url: "{% url "communications:index" %}"},
+      {label: "SES Sessions", url: "{% url "tryouts:index" %}"},
+      {label: "Evaluations", url: "{% url "evaluations:index" %}"},
+      {label: "Draft", url: "{% url "draft:index" %}"}
+    ],
+    searchUrl: "{% url "players:search" %}"
+  })'
+  x-show="open"
+  x-cloak
+  @open-cmd-palette.window="openPalette()"
+  @keydown.escape.window="closePalette()"
+  @click.self="closePalette()"
+  class="lms-palette-overlay"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Command palette"
+>
+  <div class="lms-palette" @click.stop>
+    <div class="lms-palette__search">
+      <svg class="lms-palette__search-icon" viewBox="0 0 24 24" width="18" height="18"
+           fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <line x1="20" y1="20" x2="16.65" y2="16.65" />
+      </svg>
+      <input
+        x-ref="search"
+        x-model="query"
+        @input.debounce.150ms="onQueryChange()"
+        @keydown.arrow-down.prevent="moveCursor(1)"
+        @keydown.arrow-up.prevent="moveCursor(-1)"
+        @keydown.enter.prevent="activate()"
+        type="text"
+        class="lms-palette__input"
+        placeholder="Search pages, players, families…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <kbd class="lms-palette__hint">ESC</kbd>
+    </div>
+
+    <div class="lms-palette__results" id="cmd-palette-results">
+      <template x-if="visiblePages.length">
+        <div class="lms-palette__section">
+          <div class="lms-palette__section-label">Pages</div>
+          <template x-for="p in visiblePages" :key="p.url">
+            <a :href="p.url"
+               class="lms-palette__item"
+               data-cmd-item
+               @click="navigateTo(p.url, $event)">
+              <span class="lms-palette__item-label" x-text="p.label"></span>
+              <span class="lms-palette__item-meta">Page</span>
+            </a>
+          </template>
+        </div>
+      </template>
+
+      {# HTMX swap target — players + families partial is rendered here. #}
+      <div id="cmd-palette-search-results"></div>
+
+      <template x-if="!query.trim()">
+        <div class="lms-palette__empty">Type to search players and families.</div>
+      </template>
+    </div>
+
+    <div class="lms-palette__footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // SFLL-101 — vanilla JS owns the global keybind (per spec: "Alpine.js
+  // for state, vanilla JS for keybind"). The handler dispatches a custom
+  // event the Alpine component listens for; that keeps Alpine state self-
+  // contained while the keybind itself is portable.
+  (function () {
+    document.addEventListener('keydown', function (e) {
+      var key = (e.key || '').toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && key === 'k') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('open-cmd-palette'));
+      }
+    });
+  })();
+
+  function commandPalette(config) {
+    return {
+      open: false,
+      query: '',
+      cursor: 0,
+      pages: config.pages || [],
+      searchUrl: config.searchUrl,
+
+      get visiblePages() {
+        var q = this.query.trim().toLowerCase();
+        if (!q) return this.pages;
+        return this.pages.filter(function (p) {
+          return p.label.toLowerCase().indexOf(q) !== -1;
+        });
+      },
+
+      items: function () {
+        return document.querySelectorAll('#cmd-palette-results [data-cmd-item]');
+      },
+
+      openPalette: function () {
+        this.open = true;
+        this.cursor = 0;
+        var self = this;
+        this.$nextTick(function () {
+          if (self.$refs.search) self.$refs.search.focus();
+          self.refreshHighlight();
+        });
+      },
+
+      closePalette: function () {
+        this.open = false;
+        this.query = '';
+        var results = document.getElementById('cmd-palette-search-results');
+        if (results) results.innerHTML = '';
+        this.cursor = 0;
+      },
+
+      onQueryChange: function () {
+        this.cursor = 0;
+        var results = document.getElementById('cmd-palette-search-results');
+        var q = this.query.trim();
+        var self = this;
+        if (q.length >= 1 && window.htmx) {
+          htmx.ajax('GET', this.searchUrl + '?q=' + encodeURIComponent(q), {
+            target: '#cmd-palette-search-results',
+            swap: 'innerHTML'
+          }).then(function () {
+            self.$nextTick(function () { self.refreshHighlight(); });
+          });
+        } else {
+          if (results) results.innerHTML = '';
+          this.$nextTick(function () { self.refreshHighlight(); });
+        }
+      },
+
+      moveCursor: function (delta) {
+        var items = this.items();
+        if (!items.length) return;
+        this.cursor = (this.cursor + delta + items.length) % items.length;
+        this.refreshHighlight();
+        var el = items[this.cursor];
+        if (el && el.scrollIntoView) el.scrollIntoView({block: 'nearest'});
+      },
+
+      refreshHighlight: function () {
+        var items = this.items();
+        if (this.cursor >= items.length) this.cursor = 0;
+        for (var i = 0; i < items.length; i++) {
+          items[i].classList.toggle('is-active', i === this.cursor);
+        }
+      },
+
+      activate: function () {
+        var items = this.items();
+        var el = items[this.cursor];
+        if (!el) return;
+        var href = el.getAttribute('href');
+        if (href) this.navigateTo(href);
+      },
+
+      navigateTo: function (url, event) {
+        if (event) event.preventDefault();
+        this.closePalette();
+        window.location.href = url;
+      }
+    };
+  }
+</script>

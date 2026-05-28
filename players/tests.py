@@ -271,3 +271,166 @@ class PlayerViewTests(TestCase):
         self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(reverse('players:teams'))
         self.assertEqual(resp.status_code, 200)
+
+
+class PlayerSearchTests(TestCase):
+    """SFLL-101 — ⌘K palette search endpoint + roster filter."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+
+        # Two players in the Smith family; one Jones to confirm filtering.
+        self.smith_a = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-S1',
+            first_name='Anna', last_name='Smith',
+        )
+        self.smith_b = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-S2',
+            first_name='Ben', last_name='Smith',
+        )
+        self.jones = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-J1',
+            first_name='Carla', last_name='Jones',
+        )
+        PlayerSeason.objects.create(
+            player=self.smith_a, season=self.season, division=self.division,
+            account_name='Smith Household', account_email='smith@example.com',
+        )
+        PlayerSeason.objects.create(
+            player=self.smith_b, season=self.season, division=self.division,
+            account_name='Smith Household', account_email='smith@example.com',
+        )
+        PlayerSeason.objects.create(
+            player=self.jones, season=self.season, division=self.division,
+            account_name='Jones Family', account_email='jones@example.com',
+        )
+
+    def _login(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+
+    def test_search_requires_login(self):
+        resp = self.client.get(reverse('players:search'), {'q': 'Smith'})
+        self.assertEqual(resp.status_code, 302)
+
+    def test_search_empty_query_returns_empty_partial(self):
+        self._login()
+        resp = self.client.get(reverse('players:search'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No matching')
+
+    def test_search_matches_player_last_name(self):
+        self._login()
+        resp = self.client.get(reverse('players:search'), {'q': 'Smith'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Anna Smith')
+        self.assertContains(resp, 'Ben Smith')
+        self.assertNotContains(resp, 'Carla Jones')
+
+    def test_search_matches_player_first_name_case_insensitive(self):
+        self._login()
+        resp = self.client.get(reverse('players:search'), {'q': 'carla'})
+        self.assertContains(resp, 'Carla Jones')
+
+    def test_search_returns_family_with_player_count(self):
+        self._login()
+        resp = self.client.get(reverse('players:search'), {'q': 'Smith'})
+        # Family section + pluralized count for the two Smith kids.
+        self.assertContains(resp, 'Smith Household')
+        self.assertContains(resp, '2 players')
+
+    def test_search_excludes_blank_account_names(self):
+        # A player_season with no account_name shouldn't appear as a family.
+        ghost_player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-G1',
+            first_name='Ghost', last_name='Ghost',
+        )
+        PlayerSeason.objects.create(
+            player=ghost_player, season=self.season, division=self.division,
+            account_name='',
+        )
+        self._login()
+        # Search by player name so the player shows up but no blank family does.
+        resp = self.client.get(reverse('players:search'), {'q': 'Ghost'})
+        self.assertContains(resp, 'Ghost Ghost')
+        # Family section header only appears when there's at least one family.
+        self.assertNotContains(resp, 'lms-palette__section-label">Families')
+
+    def test_search_scoped_to_active_season(self):
+        # A player only in an inactive season shouldn't match.
+        old_season = Season.objects.create(
+            league=self.league, name='Fall 2024', year=2024, season_type='fall',
+            is_active=False,
+        )
+        old_player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-OLD',
+            first_name='Old', last_name='Smith',
+        )
+        PlayerSeason.objects.create(
+            player=old_player, season=old_season, division=self.division,
+            account_name='Old Smith Household',
+        )
+        self._login()
+        resp = self.client.get(reverse('players:search'), {'q': 'Old'})
+        self.assertNotContains(resp, 'Old Smith')
+        self.assertNotContains(resp, 'Old Smith Household')
+
+    def test_index_filter_by_q(self):
+        self._login()
+        resp = self.client.get(reverse('players:index'), {'q': 'Smith'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Anna Smith')
+        self.assertContains(resp, 'Ben Smith')
+        self.assertNotContains(resp, 'Carla Jones')
+
+    def test_index_filter_by_family(self):
+        self._login()
+        resp = self.client.get(reverse('players:index'), {'family': 'Smith Household'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Anna Smith')
+        self.assertContains(resp, 'Ben Smith')
+        self.assertNotContains(resp, 'Carla Jones')
+
+    def test_index_unfiltered_returns_all(self):
+        self._login()
+        resp = self.client.get(reverse('players:index'))
+        self.assertContains(resp, 'Anna Smith')
+        self.assertContains(resp, 'Carla Jones')
+
+
+class CommandPaletteIntegrationTests(TestCase):
+    """SFLL-101 — palette partial wires into base.html for logged-in users."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+
+    def test_palette_rendered_for_authenticated_user(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index'))
+        self.assertContains(resp, 'id="cmd-palette"')
+        self.assertContains(resp, 'commandPalette(')
+        self.assertContains(resp, 'open-cmd-palette')
+
+    def test_palette_not_rendered_for_anonymous(self):
+        # Public RSVP-style page would extend base; using the login page
+        # as a stand-in since the user is anonymous there.
+        resp = self.client.get(reverse('accounts:login'))
+        self.assertNotContains(resp, 'id="cmd-palette"')
+
+    def test_topbar_cmdk_button_dispatches_open_event(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index'))
+        self.assertContains(resp, 'lms-topbar__cmdk-btn')
+        self.assertContains(resp, "$dispatch('open-cmd-palette')")

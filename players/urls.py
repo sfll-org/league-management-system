@@ -7,4 +7,5 @@ app_name = 'players'
 urlpatterns = [
     path('', views.index, name='index'),
     path('teams/', views.teams, name='teams'),
+    path('search/', views.search, name='search'),
 ]

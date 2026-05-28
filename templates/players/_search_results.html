@@ -1,0 +1,33 @@
+{# SFLL-101 — HTMX partial for the ⌘K command palette.
+   Returned by players:search. Each result anchor carries data-cmd-item
+   so the palette's vanilla-JS arrow nav (in command_palette.html) can
+   find it and apply the .is-active highlight after the swap. #}
+{% if players %}
+<div class="lms-palette__section">
+  <div class="lms-palette__section-label">Players</div>
+  {% for p in players %}
+  <a href="{% url 'players:index' %}?q={{ p.full_name|urlencode }}"
+     class="lms-palette__item" data-cmd-item>
+    <span class="lms-palette__item-label">{{ p.full_name }}</span>
+    <span class="lms-palette__item-meta">Player</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if families %}
+<div class="lms-palette__section">
+  <div class="lms-palette__section-label">Families</div>
+  {% for f in families %}
+  <a href="{% url 'players:index' %}?family={{ f.account_name|urlencode }}"
+     class="lms-palette__item" data-cmd-item>
+    <span class="lms-palette__item-label">{{ f.account_name }}</span>
+    <span class="lms-palette__item-meta">{{ f.player_count }} player{{ f.player_count|pluralize }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not players and not families %}
+<div class="lms-palette__empty">No matching players or families.</div>
+{% endif %}

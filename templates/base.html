@@ -76,6 +76,13 @@
     </footer>
   </div>
 
+  {# SFLL-101 — ⌘K command palette. Authenticated only; the search endpoint
+     requires login and the palette has no useful targets for anonymous
+     visitors. #}
+  {% if user.is_authenticated %}
+    {% include "_partials/command_palette.html" %}
+  {% endif %}
+
   {% block extra_js %}{% endblock %}
 </body>
 </html>
