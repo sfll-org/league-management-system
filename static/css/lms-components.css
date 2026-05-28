@@ -1629,3 +1629,535 @@ select.kiosk-walkin-input { cursor: pointer; }
   flex-shrink: 0;
 }
 .kiosk__toolbar-right .kiosk__search { flex: 1; min-width: 240px; }
+
+/* ─── Coach Field Mode (mobile, SFLL-113) ───
+   iPhone-first surface that renders inside a centered phone frame on the
+   desktop shell and full-bleed on a real phone. Layout splits into a sticky
+   header, scrolling body, and a fixed bottom tab bar so coaches with a
+   phone in one hand can hit any tab without re-aiming. All tap targets
+   are ≥44px per Apple HIG. Tokens come from lms-tokens.css; no hard-coded
+   colors here. */
+
+.field-mode {
+  /* Wrapper around the phone frame. Centers + provides breathing room on
+     desktop; collapses to full-bleed on mobile (the screen IS the phone). */
+  padding: 24px 0;
+  background: var(--bg-2);
+  min-height: calc(100vh - 54px); /* topbar height */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.field-frame {
+  width: 100%;
+  max-width: 420px;
+  min-height: 760px;
+  height: calc(100vh - 100px);
+  background: var(--bg);
+  border-radius: 28px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+@media (max-width: 767px) {
+  .field-mode { padding: 0; min-height: 100vh; }
+  .field-frame {
+    max-width: none;
+    height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+    border: 0;
+    box-shadow: none;
+  }
+}
+
+.field-screen {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0; /* allow inner scroll */
+}
+
+.field-screen__header {
+  flex-shrink: 0;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.field-screen__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.field-screen__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.1;
+  margin: 0;
+}
+
+.field-screen__sub {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.field-screen__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px 96px; /* bottom padding leaves room for tab bar */
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Bottom tab bar ── */
+
+.field-tabbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 6px 8px 10px;
+  /* iOS home-indicator safe area */
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+}
+
+.field-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 6px;
+  min-height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.field-tab:hover { color: var(--ink-2); }
+
+.field-tab__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.field-tab--active {
+  color: var(--primary);
+}
+
+.field-tab--active .field-tab__icon {
+  color: var(--primary);
+}
+
+/* ── Compliance ping (top-of-screen banner) ── */
+
+.field-ping {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+  text-decoration: none;
+}
+
+.field-ping__icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--warn);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.field-ping__body { flex: 1; min-width: 0; }
+.field-ping__title { font-weight: 600; font-size: 14px; }
+.field-ping__sub { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+.field-ping__chev { color: var(--ink-3); font-size: 18px; align-self: center; }
+
+/* ── Mobile card (softer than .card; flush with the screen edges) ── */
+
+.field-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.field-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 8px;
+}
+
+.field-card__title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.field-card__title-sub {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.field-card__list > .field-row {
+  border-top: 1px solid var(--border);
+}
+
+.field-card__list > .field-row:first-child {
+  border-top: 0;
+}
+
+.field-card__foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ── 56px tap-target row (used for players, schedule items, etc.) ── */
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  min-height: 56px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.field-row:active { background: var(--bg-2); }
+
+.field-row__icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bg-3);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 13px;
+  font-family: var(--font-display);
+}
+
+.field-row__body { flex: 1; min-width: 0; }
+.field-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.field-row__sub {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.field-row__meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ── Hero card: the next-event-up-front block on Today ── */
+
+.field-hero {
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.field-hero__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+.field-hero__title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+
+.field-hero__meta {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.9;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.field-hero__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.field-hero__btn {
+  flex: 1;
+  padding: 10px 12px;
+  min-height: 40px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--primary-ink);
+  font-weight: 600;
+  font-size: 13px;
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.field-hero__btn:hover { background: rgba(255, 255, 255, 0.22); }
+
+.field-hero__btn--solid {
+  background: #fff;
+  color: var(--primary);
+}
+
+.field-hero__btn--solid:hover { background: rgba(255, 255, 255, 0.92); }
+
+/* ── RSVP toggle group ── */
+
+.field-rsvp {
+  display: inline-flex;
+  gap: 0;
+  background: var(--bg-3);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.field-rsvp__btn {
+  border: 0;
+  background: transparent;
+  padding: 6px 10px;
+  min-height: 32px;
+  min-width: 44px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.field-rsvp__btn--attending.is-active {
+  background: var(--success);
+  color: #fff;
+}
+
+.field-rsvp__btn--maybe.is-active {
+  background: var(--warn);
+  color: #fff;
+}
+
+.field-rsvp__btn--declined.is-active {
+  background: var(--ink-3);
+  color: var(--surface);
+}
+
+/* RSVP summary at top of card */
+.field-rsvp-summary {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.field-rsvp-summary__stat { display: inline-flex; align-items: center; gap: 5px; }
+.field-rsvp-summary__dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.field-rsvp-summary__dot--attending { background: var(--success); }
+.field-rsvp-summary__dot--maybe { background: var(--warn); }
+.field-rsvp-summary__dot--declined { background: var(--ink-3); }
+.field-rsvp-summary__dot--none { background: var(--border-2); }
+
+/* ── Week schedule day row ── */
+
+.field-schedule-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.field-schedule-day:first-child { border-top: 0; }
+
+.field-schedule-day__date {
+  flex-shrink: 0;
+  width: 44px;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.field-schedule-day__date strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.field-schedule-day__date span {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+.field-schedule-day__body { flex: 1; min-width: 0; }
+.field-schedule-day__title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.field-schedule-day__sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.field-schedule-day--rest { opacity: 0.55; }
+
+/* ── Lineup-builder rows (drag-or-arrows reorder) ── */
+
+.field-lineup__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.field-lineup__row:first-child { border-top: 0; }
+
+.field-lineup__slot {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-soft-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.field-lineup__name { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; color: var(--ink); }
+.field-lineup__pos {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg-3);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--border);
+}
+
+.field-lineup__nudge {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.field-lineup__nudge-btn {
+  width: 28px;
+  height: 22px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font: inherit;
+}
+
+.field-lineup__nudge-btn:hover { background: var(--bg-3); }
+.field-lineup__nudge-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Inline empty state for mobile cards ── */
+
+.field-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+.field-empty strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 4px; }
+
+/* ── Light-touch toast/inline note (HTMX surface for RSVP toggle) ── */
+
+.field-note {
+  font-size: 12px;
+  color: var(--ink-3);
+  padding: 0 14px 12px;
+}

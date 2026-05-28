@@ -1,0 +1,55 @@
+{% extends "field/base.html" %}
+
+{# SFLL-113 — Roster screen.
+   Compact alphabetical list of the coach's team. One tap → contact actions
+   (call / text / email parents) via standard tel:/sms:/mailto: intents,
+   which Apple/Android both handle natively without a webview. Players
+   that don't yet have account contact info collapse the action row but
+   still surface in the list. #}
+
+{% block field_title %}Roster{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">{{ team_label|default:'Team' }}</div>
+<h1 class="field-screen__title">Roster</h1>
+<div class="field-screen__sub">{{ roster_count }} players{% if division_label %} · {{ division_label }}{% endif %}</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if roster_rows %}
+  <div class="field-card">
+    <div class="field-card__list" role="list">
+      {% for row in roster_rows %}
+      <div class="field-row" role="listitem">
+        <span class="field-row__icon" aria-hidden="true">{{ row.initials }}</span>
+        <span class="field-row__body">
+          <span class="field-row__title">{{ row.name }}</span>
+          <span class="field-row__sub">
+            {% if row.age %}{{ row.age }} yrs{% endif %}
+            {% if row.account_name %}{% if row.age %} · {% endif %}{{ row.account_name }}{% endif %}
+          </span>
+        </span>
+        {% if row.tel %}
+        <a class="btn btn--ghost btn--sm"
+           href="tel:{{ row.tel }}"
+           aria-label="Call {{ row.account_name|default:row.name }}">Call</a>
+        {% elif row.email %}
+        <a class="btn btn--ghost btn--sm"
+           href="mailto:{{ row.email }}"
+           aria-label="Email {{ row.account_name|default:row.name }}">Email</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>No players on your roster yet.</strong>
+      Draft assignments will appear here as soon as your division drafts.
+    </div>
+  </div>
+  {% endif %}
+
+{% endblock %}

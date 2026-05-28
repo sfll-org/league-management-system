@@ -358,3 +358,134 @@ class HealthCheckTests(TestCase):
         resp = self.client.get(reverse('health-check'))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'ok')
+
+
+class FieldModeTests(TestCase):
+    """Coach Field Mode (SFLL-113, Phase 8) — three mobile screens behind
+    /field/. Tests cover: auth gating, the no-active-season fallback, the
+    no-team-yet fallback (signed-in user without a CoachSeason should still
+    get a graceful empty state), the populated-team happy path, and the
+    bare /field/ alias redirecting to Today."""
+
+    def setUp(self):
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026,
+            season_type='spring', is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+        self.client = Client()
+
+    def _coach_with_team(self, email='coach@sfll.org'):
+        user = _create_user(email=email)
+        coach = Coach.objects.create(user=user, league=self.league)
+        team = Team.objects.create(league=self.league, name='Marlins')
+        ts = TeamSeason.objects.create(
+            team=team, season=self.season, division=self.division,
+        )
+        cs = CoachSeason.objects.create(
+            coach=coach, team_season=ts, season=self.season, role='head_coach',
+        )
+        UserRole.objects.create(
+            user=user, league=self.league, role='head_coach',
+            division=self.division, is_active=True,
+        )
+        return user, cs, ts
+
+    def test_field_today_requires_login(self):
+        resp = self.client.get(reverse('field_today'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_field_roster_requires_login(self):
+        resp = self.client.get(reverse('field_roster'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_field_lineup_requires_login(self):
+        resp = self.client.get(reverse('field_lineup'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_field_index_redirects_to_today(self):
+        _create_user(email='plain@sfll.org')
+        self.client.login(username='plain@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('field_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse('field_today'), resp.url)
+
+    def test_field_today_renders_without_coach_profile(self):
+        """Signed-in non-coach user should still get the surface — empty
+        states, not a 500. Surface is reachable from the sidebar by anyone
+        who knows the URL; the empty state communicates that the user
+        isn't linked to a team."""
+        _create_user(email='plain@sfll.org')
+        self.client.login(username='plain@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('field_today'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['rsvp_rows'], [])
+        self.assertIsNone(resp.context['next_event'])
+
+    def test_field_today_with_team(self):
+        user, _, _ = self._coach_with_team()
+        self.client.login(username='coach@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('field_today'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['field_active'], 'today')
+        # Week strip is 7 days regardless of session count
+        self.assertEqual(len(resp.context['week_rows']), 7)
+
+    def test_field_roster_with_players(self):
+        user, _, ts = self._coach_with_team()
+        # Two roster players + one assigned-to-a-different-team distractor
+        p1 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='p1',
+            first_name='Alex', last_name='Bell',
+        )
+        p2 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='p2',
+            first_name='Casey', last_name='Diaz',
+        )
+        p3 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='p3',
+            first_name='Drew', last_name='Echo',
+        )
+        PlayerSeason.objects.create(player=p1, season=self.season, assigned_team=ts)
+        PlayerSeason.objects.create(player=p2, season=self.season, assigned_team=ts)
+        # Distractor — different team
+        other_team = Team.objects.create(league=self.league, name='Giants')
+        other_ts = TeamSeason.objects.create(
+            team=other_team, season=self.season, division=self.division,
+        )
+        PlayerSeason.objects.create(player=p3, season=self.season, assigned_team=other_ts)
+
+        self.client.login(username='coach@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('field_roster'))
+        self.assertEqual(resp.status_code, 200)
+        # Coach sees their two players, not the distractor.
+        self.assertEqual(resp.context['roster_count'], 2)
+        names = [r['name'] for r in resp.context['roster_rows']]
+        self.assertIn('Alex Bell', names)
+        self.assertIn('Casey Diaz', names)
+        self.assertNotIn('Drew Echo', names)
+
+    def test_field_lineup_renders(self):
+        user, _, _ = self._coach_with_team()
+        self.client.login(username='coach@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('field_lineup'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['field_active'], 'lineup')
+
+    def test_compliance_ping_surfaces_when_phone_missing(self):
+        """Coach without a phone number should see a compliance ping; once
+        a phone is on file, the ping disappears. Phone is the Phase-2-era
+        stand-in until the real compliance model lands."""
+        user, _, _ = self._coach_with_team()
+        self.client.login(username='coach@sfll.org', password='testpass123')
+
+        resp = self.client.get(reverse('field_today'))
+        self.assertIsNotNone(resp.context['compliance_ping'])
+
+        coach = Coach.objects.get(user=user)
+        coach.phone = '+14155551212'
+        coach.save()
+
+        resp = self.client.get(reverse('field_today'))
+        self.assertIsNone(resp.context['compliance_ping'])

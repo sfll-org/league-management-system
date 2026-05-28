@@ -1,0 +1,113 @@
+{% extends "field/base.html" %}
+
+{# SFLL-113 — Lineup screen.
+   Batting order builder. Numeric slot chip + name + position pill +
+   up/down nudge controls. Drag-to-reorder is intentionally not in this
+   phase — arrows hit reliably on a phone and don't fight scroll. Real
+   persistence (model + HTMX swap) lands in a follow-up; this phase is
+   the visual + interaction model.
+
+   The "position pill" column previews per-player default positions where
+   the model carries one; otherwise renders an empty pill placeholder so
+   the coach can see the slot and tap a follow-up phase to fill it. #}
+
+{% block field_title %}Lineup{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">{{ team_label|default:'Team' }}</div>
+<h1 class="field-screen__title">Lineup</h1>
+<div class="field-screen__sub">
+  {% if next_event %}For {{ next_event.title }}{% else %}Draft batting order{% endif %}
+</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if lineup_rows %}
+  <div class="field-card">
+    <div class="field-card__head">
+      <div class="field-card__title">Batting order</div>
+      <div class="field-card__title-sub">{{ lineup_count }} slots</div>
+    </div>
+    <div class="field-card__list" role="list">
+      {% for row in lineup_rows %}
+      <div class="field-lineup__row" role="listitem" data-slot="{{ forloop.counter }}">
+        <span class="field-lineup__slot" aria-label="Slot {{ forloop.counter }}">{{ forloop.counter }}</span>
+        <span class="field-lineup__name">{{ row.name }}</span>
+        <span class="field-lineup__pos">{{ row.position|default:'—' }}</span>
+        <span class="field-lineup__nudge" role="group" aria-label="Move {{ row.name }}">
+          <button type="button" class="field-lineup__nudge-btn" data-nudge="up"
+                  {% if forloop.first %}disabled{% endif %}
+                  aria-label="Move up">▲</button>
+          <button type="button" class="field-lineup__nudge-btn" data-nudge="down"
+                  {% if forloop.last %}disabled{% endif %}
+                  aria-label="Move down">▼</button>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="field-card__foot">
+      <span class="text-muted text-xs">Saved locally · sync coming in a follow-up.</span>
+      <button type="button" class="btn btn--primary btn--sm" data-action="reset-lineup">Reset</button>
+    </div>
+  </div>
+  {% else %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>No roster yet.</strong>
+      Lineup-building lights up once your team is drafted.
+    </div>
+  </div>
+  {% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Phase 8 ships the interaction model only. Reorder is local-state;
+  // server persistence + HTMX swap is a follow-up (SFLL-113 PR notes).
+  (function() {
+    var list = document.querySelector('.field-card__list');
+    if (!list) return;
+
+    function rerankSlots() {
+      var rows = list.querySelectorAll('.field-lineup__row');
+      rows.forEach(function(row, i) {
+        var slot = row.querySelector('.field-lineup__slot');
+        if (slot) {
+          slot.textContent = (i + 1);
+          slot.setAttribute('aria-label', 'Slot ' + (i + 1));
+        }
+        var up = row.querySelector('[data-nudge="up"]');
+        var down = row.querySelector('[data-nudge="down"]');
+        if (up) up.disabled = (i === 0);
+        if (down) down.disabled = (i === rows.length - 1);
+      });
+    }
+
+    list.addEventListener('click', function(e) {
+      var btn = e.target.closest('.field-lineup__nudge-btn');
+      if (!btn || btn.disabled) return;
+      var row = btn.closest('.field-lineup__row');
+      if (!row) return;
+      if (btn.dataset.nudge === 'up') {
+        var prev = row.previousElementSibling;
+        if (prev) list.insertBefore(row, prev);
+      } else {
+        var next = row.nextElementSibling;
+        if (next) list.insertBefore(next, row);
+      }
+      rerankSlots();
+    });
+
+    var reset = document.querySelector('[data-action="reset-lineup"]');
+    if (reset) {
+      var initial = Array.from(list.children).slice();
+      reset.addEventListener('click', function() {
+        initial.forEach(function(r) { list.appendChild(r); });
+        rerankSlots();
+      });
+    }
+  })();
+</script>
+{% endblock %}
