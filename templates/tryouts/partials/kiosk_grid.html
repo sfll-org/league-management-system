@@ -1,0 +1,48 @@
+{# SFLL-115 — kiosk grid partial. Rendered standalone for HTMX search swaps
+   and inline by kiosk.html on first paint. The Alpine controller in
+   kiosk.html owns the modal; each tile dispatches the click event with the
+   player payload needed to render the confirmation. #}
+
+<div class="kiosk-grid">
+  {% for tile in tiles %}
+  <button
+    type="button"
+    id="kiosk-tile-{{ tile.assignment.pk }}"
+    class="kiosk-tile{% if tile.checked_in %} kiosk-tile--checked-in{% endif %}"
+    {% if not tile.checked_in %}
+    @click="openTile({
+      id: {{ tile.assignment.pk }},
+      name: '{{ tile.player.last_name|escapejs }}, {{ tile.player.first_name|escapejs }}',
+      session: '{{ tile.session.name|escapejs }}',
+      division: '{{ tile.division.name|escapejs }}',
+      time: '{{ tile.session.start_time|time:"g:i A"|escapejs }}'
+    })"
+    {% else %}
+    disabled
+    aria-disabled="true"
+    {% endif %}
+  >
+    <span class="kiosk-tile__name">{{ tile.player.last_name }}, {{ tile.player.first_name }}</span>
+    <span class="kiosk-tile__meta">
+      <span>{{ tile.division.name }}</span>
+      <span aria-hidden="true">·</span>
+      <span>{{ tile.session.start_time|time:"g:i A" }}</span>
+    </span>
+    {% if tile.checked_in %}
+    <span class="kiosk-tile__time tabular">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+        <path d="M5 12l5 5L20 7" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      Checked in {{ tile.checkin.checked_in_at|time:"g:i A" }}
+    </span>
+    {% else %}
+    <span class="kiosk-tile__time tabular">Tap to check in</span>
+    {% endif %}
+  </button>
+  {% empty %}
+  <div class="kiosk__empty">
+    <strong>No players found.</strong>
+    Adjust your search or pick a different session.
+  </div>
+  {% endfor %}
+</div>

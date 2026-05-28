@@ -1,0 +1,23 @@
+{# SFLL-115 — kiosk live feed (most-recent check-ins today, newest first). #}
+
+<div class="kiosk-feed__head">
+  <span class="kiosk-feed__dot" aria-hidden="true"></span>
+  Just checked in
+</div>
+
+<ul class="kiosk-feed__list">
+  {% for ci in feed %}
+  <li class="kiosk-feed__item">
+    <div>
+      <span class="kiosk-feed__name">
+        {{ ci.session_assignment.player_season.player.last_name }},
+        {{ ci.session_assignment.player_season.player.first_name }}
+      </span>
+      <span class="kiosk-feed__sub">{{ ci.session_assignment.session.division.name }}</span>
+    </div>
+    <span class="kiosk-feed__time">{{ ci.checked_in_at|time:"g:i A" }}</span>
+  </li>
+  {% empty %}
+  <li class="kiosk-feed__empty">No check-ins yet today.</li>
+  {% endfor %}
+</ul>

@@ -1,0 +1,35 @@
+{# SFLL-115 — combined response after a successful kiosk check-in.
+   The kiosk page's JS parses this fragment and swaps four targets:
+   1. The single tile (by id), 2. the live feed, 3. the checked-in counter,
+   4. the expected counter. Keeping them in one response keeps the round
+   trip minimal — important on a kiosk where two volunteers may be tapping
+   in parallel. #}
+
+{# 1. Tile #}
+<button
+  type="button"
+  id="kiosk-tile-{{ tile.assignment.pk }}"
+  class="kiosk-tile kiosk-tile--checked-in"
+  disabled
+  aria-disabled="true"
+>
+  <span class="kiosk-tile__name">{{ tile.player.last_name }}, {{ tile.player.first_name }}</span>
+  <span class="kiosk-tile__meta">
+    <span>{{ tile.division.name }}</span>
+    <span aria-hidden="true">·</span>
+    <span>{{ tile.session.start_time|time:"g:i A" }}</span>
+  </span>
+  <span class="kiosk-tile__time tabular">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+      <path d="M5 12l5 5L20 7" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    Checked in {{ tile.checkin.checked_in_at|time:"g:i A" }}
+  </span>
+</button>
+
+{# 2. Feed wrapper — JS reads .innerHTML and assigns it back. #}
+<div id="kiosk-feed">{% include "tryouts/partials/kiosk_feed.html" %}</div>
+
+{# 3 + 4. Counters — JS reads .textContent. #}
+<span id="kiosk-checked-in-count">{{ checked_in_count }}</span>
+<span id="kiosk-total-count">{{ total_count }}</span>

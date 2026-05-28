@@ -741,6 +741,216 @@ def player_qr_code(request, player_season_id):
     return HttpResponse(png_data, content_type='image/png')
 
 
+# ---------------------------------------------------------------------------
+# Kiosk views (SFLL-115 / Phase 10 — iPad-landscape front-desk surface)
+# ---------------------------------------------------------------------------
+
+KIOSK_FEED_LIMIT = 12
+
+
+def _kiosk_assignments_for_today(season):
+    """All SessionAssignments for today across the active season's sessions.
+
+    Returns the queryset plus the date so callers don't have to recompute it.
+    The view selects across all divisions running at Big Rec on the same day,
+    which is the front-desk reality the kiosk is built for.
+    """
+    today = date.today()
+    qs = (
+        SessionAssignment.objects.select_related(
+            'session', 'session__division',
+            'player_season__player', 'player_season__division',
+        )
+        .filter(session__season=season, session__date=today)
+        .prefetch_related('checkin')
+        .order_by('player_season__player__last_name', 'player_season__player__first_name')
+    )
+    return qs, today
+
+
+def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
+    """Materialize the tile dataset the kiosk grid renders."""
+    tiles = []
+    sessions_seen = {}
+    total = 0
+    checked_in = 0
+    search_lower = (search or '').strip().lower()
+
+    for a in assignments:
+        sess = a.session
+        sessions_seen.setdefault(sess.pk, {
+            'session': sess,
+            'count': 0,
+            'checked_in': 0,
+        })
+        sessions_seen[sess.pk]['count'] += 1
+        total += 1
+
+        try:
+            checkin = a.checkin
+            has_checkin = True
+        except CheckIn.DoesNotExist:
+            checkin = None
+            has_checkin = False
+
+        if has_checkin:
+            sessions_seen[sess.pk]['checked_in'] += 1
+            checked_in += 1
+
+        if session_filter_id and sess.pk != session_filter_id:
+            continue
+        if search_lower:
+            player = a.player_season.player
+            haystack = f"{player.first_name} {player.last_name}".lower()
+            if search_lower not in haystack:
+                continue
+
+        tiles.append({
+            'assignment': a,
+            'player': a.player_season.player,
+            'session': sess,
+            'division': sess.division,
+            'checked_in': has_checkin,
+            'checkin': checkin,
+        })
+
+    session_filters = sorted(
+        sessions_seen.values(),
+        key=lambda s: (s['session'].start_time, s['session'].name),
+    )
+    return tiles, session_filters, total, checked_in
+
+
+def _kiosk_recent_feed(season):
+    """Most-recent check-ins today, newest first."""
+    today = date.today()
+    return (
+        CheckIn.objects.select_related(
+            'session_assignment__player_season__player',
+            'session_assignment__session__division',
+        )
+        .filter(session_assignment__session__season=season,
+                session_assignment__session__date=today)
+        .order_by('-checked_in_at')[:KIOSK_FEED_LIMIT]
+    )
+
+
+@login_required
+def kiosk(request):
+    """iPad-landscape front-desk kiosk for SES check-in at Big Rec.
+
+    Pulls every player assigned to a session today (across divisions) into a
+    single 6-col tile grid. Volunteers tap a tile, confirm in a modal, and the
+    live feed on the right rail surfaces the most recent check-ins so the desk
+    can immediately see the action they just took.
+    """
+    if not _can_checkin(request.user):
+        return HttpResponseForbidden("You do not have permission to check in players.")
+
+    active_season = _get_active_season()
+    if not active_season:
+        return render(request, 'tryouts/kiosk.html', {
+            'season': None,
+            'today': date.today(),
+            'tiles': [],
+            'session_filters': [],
+            'total_count': 0,
+            'checked_in_count': 0,
+            'selected_session_id': None,
+            'feed': [],
+        })
+
+    try:
+        session_filter_id = int(request.GET.get('session') or 0) or None
+    except ValueError:
+        session_filter_id = None
+
+    assignments, today = _kiosk_assignments_for_today(active_season)
+    tiles, session_filters, total, checked_in = _kiosk_build_tiles(
+        assignments, session_filter_id=session_filter_id,
+    )
+    feed = _kiosk_recent_feed(active_season)
+
+    return render(request, 'tryouts/kiosk.html', {
+        'season': active_season,
+        'today': today,
+        'tiles': tiles,
+        'session_filters': session_filters,
+        'total_count': total,
+        'checked_in_count': checked_in,
+        'selected_session_id': session_filter_id,
+        'feed': feed,
+    })
+
+
+@login_required
+def kiosk_search(request):
+    """HTMX endpoint: re-render the kiosk grid for a name search + session filter."""
+    if not _can_checkin(request.user):
+        return HttpResponseForbidden()
+
+    active_season = _get_active_season()
+    if not active_season:
+        return render(request, 'tryouts/partials/kiosk_grid.html', {'tiles': []})
+
+    try:
+        session_filter_id = int(request.GET.get('session') or 0) or None
+    except ValueError:
+        session_filter_id = None
+    search = request.GET.get('q', '')
+
+    assignments, _ = _kiosk_assignments_for_today(active_season)
+    tiles, _filters, _total, _checked = _kiosk_build_tiles(
+        assignments, session_filter_id=session_filter_id, search=search,
+    )
+
+    return render(request, 'tryouts/partials/kiosk_grid.html', {
+        'tiles': tiles,
+        'selected_session_id': session_filter_id,
+    })
+
+
+@login_required
+@require_POST
+def kiosk_checkin(request, assignment_id):
+    """HTMX: record a check-in from the kiosk; returns updated tile + OOB feed/stat."""
+    if not _can_checkin(request.user):
+        return HttpResponseForbidden()
+
+    assignment = get_object_or_404(
+        SessionAssignment.objects.select_related(
+            'session__division', 'player_season__player',
+        ),
+        pk=assignment_id,
+    )
+
+    checkin, _created = CheckIn.objects.get_or_create(
+        session_assignment=assignment,
+        defaults={'checked_in_by': request.user, 'notes': 'kiosk'},
+    )
+
+    season = assignment.session.season
+    assignments, _ = _kiosk_assignments_for_today(season)
+    _tiles, _filters, total, checked_in = _kiosk_build_tiles(assignments)
+    feed = _kiosk_recent_feed(season)
+
+    tile = {
+        'assignment': assignment,
+        'player': assignment.player_season.player,
+        'session': assignment.session,
+        'division': assignment.session.division,
+        'checked_in': True,
+        'checkin': checkin,
+    }
+
+    return render(request, 'tryouts/partials/kiosk_tile_after_checkin.html', {
+        'tile': tile,
+        'feed': feed,
+        'total_count': total,
+        'checked_in_count': checked_in,
+    })
+
+
 @login_required
 def session_qr_codes(request, pk):
     """Printable page with QR codes for all assigned players in a session."""

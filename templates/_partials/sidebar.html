@@ -46,9 +46,17 @@
 
     <div class="lms-sidebar__section">
       <p class="lms-sidebar__section-label">Season</p>
-      <a href="{% url 'tryouts:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'tryouts' %} is-active{% endif %}">SES Sessions</a>
+      <a href="{% url 'tryouts:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'tryouts' and request.resolver_match.url_name != 'kiosk' %} is-active{% endif %}">SES Sessions</a>
       <a href="{% url 'evaluations:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'evaluations' %} is-active{% endif %}">Evaluations</a>
       <a href="{% url 'draft:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'draft' %} is-active{% endif %}">Draft</a>
+    </div>
+
+    <div class="lms-sidebar__section">
+      {# SFLL-115 / Phase 10 — front-desk tablet surfaces. The Draft Room
+         lives off a specific draft session, so it's reached from the Draft
+         Board, not from this section. #}
+      <p class="lms-sidebar__section-label">Tablet</p>
+      <a href="{% url 'tryouts:kiosk' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'kiosk' %} is-active{% endif %}">Check-In Kiosk</a>
     </div>
 
     {% if user_is_admin %}

@@ -13,6 +13,7 @@ urlpatterns = [
     path('seeding/<int:division_id>/lock/', views.lock_seeding, name='lock_seeding'),
     # Live draft
     path('live/<int:session_id>/', views.draft_board, name='draft_board'),
+    path('live/<int:session_id>/room/', views.draft_room, name='draft_room'),
     path('live/<int:session_id>/start/', views.start_draft, name='start_draft'),
     path('live/<int:session_id>/undo/', views.undo_pick, name='undo_pick'),
     path('live/<int:session_id>/complete/', views.complete_draft, name='complete_draft'),
