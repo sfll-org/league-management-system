@@ -50,6 +50,11 @@
       <a href="{% url 'draft:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'draft' %} is-active{% endif %}">Draft</a>
     </div>
 
+    <div class="lms-sidebar__section">
+      <p class="lms-sidebar__section-label">Coach</p>
+      <a href="{% url 'field_today' %}" class="lms-sidebar__link{% if 'field_' in request.resolver_match.url_name|default:'' %} is-active{% endif %}">Field Mode</a>
+    </div>
+
     {% if user_is_admin %}
     <div class="lms-sidebar__section">
       <p class="lms-sidebar__section-label">Admin</p>
