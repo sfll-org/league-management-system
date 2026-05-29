@@ -13,6 +13,7 @@
         <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
             <h3 class="text-lg font-semibold text-white">{{ ts.team.name }}</h3>
             <p class="text-sm text-gray-400">{{ ts.division.name }}{% if ts.sub_league %} — {{ ts.sub_league }}{% endif %}</p>
+            <a class="text-sm text-blue-400 hover:underline" href="{% url 'players:dugout_card' ts.pk %}">Print dugout card →</a>
         </div>
         {% endfor %}
     </div>

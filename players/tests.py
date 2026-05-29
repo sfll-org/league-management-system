@@ -271,3 +271,67 @@ class PlayerViewTests(TestCase):
         self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(reverse('players:teams'))
         self.assertEqual(resp.status_code, 200)
+
+
+class DugoutCardViewTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+        self.team = Team.objects.create(league=self.league, name='Marlins')
+        self.team_season = TeamSeason.objects.create(
+            team=self.team, season=self.season, division=self.division,
+        )
+        self.player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='sc-1',
+            first_name='Ada', last_name='Lovelace',
+        )
+        self.ps = PlayerSeason.objects.create(
+            player=self.player, season=self.season, division=self.division,
+            assigned_team=self.team_season, account_name='Augusta Lovelace',
+        )
+
+    def test_dugout_card_requires_login(self):
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_dugout_card_renders_for_valid_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Team strip header, roster row, guardian, schedule heading,
+        # and the window.print() Print button are all on the card.
+        self.assertContains(resp, 'Marlins')
+        self.assertContains(resp, 'Ada Lovelace')
+        self.assertContains(resp, 'Augusta Lovelace')
+        self.assertContains(resp, 'Next 5 games')
+        self.assertContains(resp, 'window.print()')
+
+    def test_dugout_card_404_for_missing_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[9999]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dugout_card_renders_empty_roster(self):
+        empty_team = Team.objects.create(league=self.league, name='Penguins')
+        empty_ts = TeamSeason.objects.create(
+            team=empty_team, season=self.season, division=self.division,
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[empty_ts.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No players assigned')

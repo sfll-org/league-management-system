@@ -1,5 +1,5 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 
 from .models import Division, Player, PlayerSeason, Season, Team, TeamSeason
 
@@ -30,4 +30,30 @@ def teams(request):
     return render(request, 'players/teams.html', {
         'team_seasons': team_seasons,
         'season': active_season,
+    })
+
+
+@login_required
+def dugout_card(request, pk):
+    """Printable half-sheet dugout card for a single TeamSeason.
+
+    Schedule + per-player emergency phones are blank fill-in rows: SFLL
+    doesn't store games or guardian phone numbers yet, and coaches who
+    actually print this expect to ink those in field-side.
+    """
+    team_season = get_object_or_404(
+        TeamSeason.objects.select_related('team', 'division', 'season'),
+        pk=pk,
+    )
+    roster = (
+        PlayerSeason.objects
+        .select_related('player')
+        .filter(assigned_team=team_season)
+        .order_by('player__last_name', 'player__first_name')
+    )
+
+    return render(request, 'players/dugout_card.html', {
+        'team_season': team_season,
+        'roster': roster,
+        'schedule_slots': range(5),
     })
