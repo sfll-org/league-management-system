@@ -566,3 +566,81 @@ class FamilyDetailTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, 'Balance')
         self.assertNotContains(resp, 'Treasurer view')
+
+
+class RosterFilterTests(TestCase):
+    """Roster (SFLL-108) — querystring filters: q, division, league, view."""
+
+    def setUp(self):
+        self.client = Client()
+        _create_user()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.majors = Division.objects.create(
+            league=self.league, name='Majors', display_order=0,
+            has_leagues=True, league_names=['American', 'National'],
+        )
+        self.aaa = Division.objects.create(
+            league=self.league, name='AAA', display_order=1,
+        )
+        team = Team.objects.create(league=self.league, name='Marlins')
+        self.team_american = TeamSeason.objects.create(
+            team=team, season=self.season, division=self.majors,
+            sub_league='American',
+        )
+        self.alpha = self._player('SC-A', 'Alpha', 'Adams', division=self.majors,
+                                  team=self.team_american, top4=True)
+        self.bravo = self._player('SC-B', 'Bravo', 'Brown', division=self.majors)
+        self.charlie = self._player('SC-C', 'Charlie', 'Clark', division=self.aaa)
+
+    def _player(self, sc_id, first, last, division=None, team=None, top4=False):
+        p = Player.objects.create(
+            league=self.league, sportsconnect_player_id=sc_id,
+            first_name=first, last_name=last,
+        )
+        return PlayerSeason.objects.create(
+            player=p, season=self.season, division=division,
+            assigned_team=team, is_top_4=top4,
+        )
+
+    def test_search_matches_last_name(self):
+        resp = self.client.get(reverse('players:index'), {'q': 'Brown'})
+        self.assertEqual(resp.status_code, 200)
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.bravo])
+
+    def test_division_filter(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.aaa.id)})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.charlie])
+        self.assertEqual(resp.context['selected_division'], self.aaa)
+
+    def test_unassigned_view_excludes_assigned(self):
+        resp = self.client.get(reverse('players:index'), {'view': 'unassigned'})
+        items = list(resp.context['player_seasons'])
+        self.assertIn(self.bravo, items)
+        self.assertIn(self.charlie, items)
+        self.assertNotIn(self.alpha, items)
+
+    def test_top4_view(self):
+        resp = self.client.get(reverse('players:index'), {'view': 'top4'})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+
+    def test_sub_league_only_active_for_multi_league_division(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.majors.id),
+                                'league': 'American'})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+        self.assertEqual(resp.context['sub_leagues'], ['American', 'National'])
+
+    def test_sub_leagues_empty_for_single_league_division(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.aaa.id)})
+        self.assertEqual(resp.context['sub_leagues'], [])
