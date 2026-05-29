@@ -139,11 +139,19 @@ class UserRoleModelTests(TestCase):
         self.assertIn('Global', str(role))
 
     def test_role_choices_count(self):
-        self.assertEqual(len(UserRole.ROLE_CHOICES), 9)
+        self.assertEqual(len(UserRole.ROLE_CHOICES), 10)
 
     def test_global_roles_list(self):
-        expected = ['cto', 'ses_manager', 'vp_player_agents', 'president']
+        expected = [
+            'cto', 'ses_manager', 'vp_player_agents', 'president', 'treasurer',
+        ]
         self.assertEqual(UserRole.GLOBAL_ROLES, expected)
+
+    def test_treasurer_role_choice_present(self):
+        # SFLL-95 — treasurer is the role that gates the read-only balance
+        # view on the family detail page.
+        codes = [code for code, _ in UserRole.ROLE_CHOICES]
+        self.assertIn('treasurer', codes)
 
 
 class CoachModelTests(TestCase):

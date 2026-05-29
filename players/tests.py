@@ -1,14 +1,16 @@
-"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason."""
+"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95)."""
 
 from datetime import date
 
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from accounts.models import User
+from accounts.models import User, UserRole
+from communications.models import EmailLog
 from players.models import (
     Division, League, Player, PlayerSeason, Season, Station, Team, TeamSeason,
 )
+from players.views import encode_family_key
 
 
 def _create_league():
@@ -335,3 +337,212 @@ class DugoutCardViewTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'No players assigned')
+
+
+# ---------------------------------------------------------------------------
+# SFLL-95 — Family Detail (Phase 4)
+# ---------------------------------------------------------------------------
+
+FAMILY_EMAIL = 'rodriguez.family@example.com'
+OTHER_FAMILY_EMAIL = 'other@example.com'
+
+
+class FamilyDetailTests(TestCase):
+    """Family Detail page: groups PlayerSeasons by account_email and surfaces
+    players, contacts, balance shell, volunteer shell, and comms history."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+
+        self.player1 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-FAM-1',
+            first_name='Jayden', last_name='Rodriguez',
+        )
+        self.player2 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-FAM-2',
+            first_name='Alex', last_name='Rodriguez',
+        )
+        self.ps1 = PlayerSeason.objects.create(
+            player=self.player1, season=self.season, division=self.division,
+            account_name='Maria Rodriguez',
+            account_email=FAMILY_EMAIL,
+            additional_email='papa@example.com',
+        )
+        self.ps2 = PlayerSeason.objects.create(
+            player=self.player2, season=self.season, division=self.division,
+            account_name='Maria Rodriguez',
+            account_email=FAMILY_EMAIL,
+        )
+        # An unrelated player on a different account.
+        other_player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-OTHER',
+            first_name='Other', last_name='Kid',
+        )
+        PlayerSeason.objects.create(
+            player=other_player, season=self.season, division=self.division,
+            account_name='Other Parent', account_email=OTHER_FAMILY_EMAIL,
+        )
+
+        self.family_key = encode_family_key(FAMILY_EMAIL)
+
+    # ----- index -----
+
+    def test_family_index_requires_login(self):
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_family_index_lists_families(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Maria Rodriguez')
+        self.assertContains(resp, FAMILY_EMAIL)
+        self.assertContains(resp, 'Other Parent')
+
+    def test_family_index_no_active_season(self):
+        self.season.is_active = False
+        self.season.save()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No active season')
+
+    # ----- detail -----
+
+    def test_family_detail_requires_login(self):
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_family_detail_renders(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Header pulls account name + sibling count.
+        self.assertContains(resp, 'Maria Rodriguez')
+        self.assertContains(resp, '2 players')
+        # Both siblings appear.
+        self.assertContains(resp, 'Jayden Rodriguez')
+        self.assertContains(resp, 'Alex Rodriguez')
+        # Other family isn't accidentally pulled in.
+        self.assertNotContains(resp, 'Other Kid')
+        # Contacts grid shows primary + secondary; emergency is a placeholder.
+        self.assertContains(resp, 'Primary parent')
+        self.assertContains(resp, 'Secondary contact')
+        self.assertContains(resp, 'Emergency contact')
+        self.assertContains(resp, 'papa@example.com')
+        # Volunteer shell and division context.
+        self.assertContains(resp, 'Volunteer obligations')
+        self.assertContains(resp, 'Majors')
+        # Comms shell renders even with no email logs.
+        self.assertContains(resp, 'Recent communications')
+
+    def test_family_detail_404_for_unknown_family(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        bogus = encode_family_key('nobody@example.com')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[bogus]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_404_for_malformed_key(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=['not-a-valid-key!!!']),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_404_when_no_active_season(self):
+        self.season.is_active = False
+        self.season.save()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_includes_comms_history(self):
+        EmailLog.objects.create(
+            player_season=self.ps1,
+            to_address=FAMILY_EMAIL,
+            subject='SES reminder for Jayden',
+            body_snapshot='You have an SES session tomorrow.',
+        )
+        EmailLog.objects.create(
+            player_season=self.ps2,
+            to_address=FAMILY_EMAIL,
+            subject='SES reminder for Alex',
+            body_snapshot='You have an SES session tomorrow.',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'SES reminder for Jayden')
+        self.assertContains(resp, 'SES reminder for Alex')
+
+    # ----- treasurer + balance gating -----
+
+    def test_balance_section_hidden_for_regular_user(self):
+        # Plain logged-in user (no admin / treasurer role) sees no balance.
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertNotContains(resp, '>Balance<')
+        self.assertNotContains(resp, 'Treasurer view')
+
+    def test_treasurer_sees_balance_in_readonly_mode(self):
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='treasurer',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertContains(resp, 'Treasurer view')
+        self.assertContains(resp, 'read-only')
+
+    def test_admin_sees_balance_without_readonly_badge(self):
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='cto',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertNotContains(resp, 'Treasurer view')
+
+    def test_treasurer_plus_admin_loses_readonly_badge(self):
+        # Multi-role: someone with both treasurer and admin caps shouldn't be
+        # locked into the read-only view.
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='treasurer',
+        )
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='president',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertNotContains(resp, 'Treasurer view')
