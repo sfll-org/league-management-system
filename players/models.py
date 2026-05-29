@@ -124,6 +124,7 @@ class PlayerSeason(TimeStampedModel):
     status = models.CharField(max_length=20, default='registered')
     draft_slot = models.PositiveIntegerField(null=True, blank=True)
     is_top_4 = models.BooleanField(default=False)
+    jersey_number = models.PositiveSmallIntegerField(null=True, blank=True)
 
     # Contact / account info from SportsConnect
     account_name = models.CharField(max_length=200, blank=True)
