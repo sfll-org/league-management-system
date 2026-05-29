@@ -11,6 +11,10 @@ urlpatterns = [
     path('sessions/<int:pk>/edit/', views.session_edit, name='session_edit'),
     path('sessions/<int:pk>/delete/', views.session_delete, name='session_delete'),
     path('sessions/<int:pk>/assign/', views.session_assign_players, name='session_assign'),
+    # SES Session screen HTMX endpoints
+    path('sessions/<int:pk>/roster-search/', views.ses_roster_search, name='ses_roster_search'),
+    path('sessions/<int:pk>/quick-checkin/<int:assignment_id>/', views.ses_quick_checkin, name='ses_quick_checkin'),
+    path('sessions/<int:pk>/quick-reschedule/<int:assignment_id>/', views.ses_quick_reschedule, name='ses_quick_reschedule'),
     # Check-in
     path('sessions/<int:pk>/checkin/', views.session_checkin, name='session_checkin'),
     path('checkin/<uuid:token>/', views.checkin_by_token, name='checkin_by_token'),
