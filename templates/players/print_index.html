@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}SFLL — Print roster cards{% endblock %}
+
+{% block content %}
+<div class="page">
+  <header class="page-header">
+    <div>
+      <h1 class="page-title">Print roster cards</h1>
+      <p class="page-sub">
+        {% if season %}
+          Half-sheet dugout cards for {{ season.name }}. Each card carries the
+          team strip, the next five scheduled events, and the emergency-contact
+          roster. Two cards print per letter sheet.
+        {% else %}
+          No active season — set one from Config first.
+        {% endif %}
+      </p>
+    </div>
+  </header>
+
+  {% if team_seasons %}
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Team</th>
+          <th>Division</th>
+          <th class="col-actions">&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ts in team_seasons %}
+        <tr>
+          <td>{{ ts.team.name }}</td>
+          <td class="text-muted">
+            {{ ts.division.name }}{% if ts.sub_league %} · {{ ts.sub_league }}{% endif %}
+          </td>
+          <td class="col-actions">
+            <a class="btn btn--primary" href="{% url 'players:print_dugout_card' ts.pk %}">
+              Print card
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="empty">
+      <strong>Nothing to print yet.</strong>
+      Teams will appear here once the active season is set and rosters are drafted.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
