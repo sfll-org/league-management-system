@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+SFLL-98 — Parent phone view shell.
+Mirrors the Coach Field Mode (SFLL-113) chrome — same .field-mode /
+.field-frame phone frame, same sticky-header + scrolling-body + fixed
+bottom tab bar. The only structural difference is a four-tab bar
+(Today / Schedule / Account / Inbox) instead of three. Sub-templates fill
+field_header / field_body and pass parent_active in context so the tab
+bar lights up the right tab.
+{% endcomment %}
+
+{% block title %}{% block field_title %}Parent{% endblock %} — SFLL{% endblock %}
+
+{% block content %}
+<div class="field-mode">
+  <div class="field-frame" role="region" aria-label="Parent phone view">
+
+    <div class="field-screen">
+      <header class="field-screen__header">
+        {% block field_header %}{% endblock %}
+      </header>
+
+      <div class="field-screen__body">
+        {% block field_body %}{% endblock %}
+      </div>
+    </div>
+
+    {% include "parent/_partials/tabbar.html" %}
+
+  </div>
+</div>
+{% endblock %}

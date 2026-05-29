@@ -1,0 +1,142 @@
+{% extends "parent/base.html" %}
+
+{# SFLL-98 — Parent Account screen.
+   Balance, volunteer obligations, documents on file, contact info.
+   The data backing balance / volunteer / documents doesn't exist yet
+   (no fee or volunteer model has shipped); the screen renders the
+   structure today with "Not tracked yet" placeholders, ready to plug in
+   real fields when those phases land. #}
+
+{% block field_title %}Account{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">Family</div>
+<h1 class="field-screen__title">Account</h1>
+<div class="field-screen__sub">
+  {% if user_email %}{{ user_email }}{% else %}Signed in{% endif %}
+</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if not has_children %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>No registered players linked to {{ user.email }}.</strong>
+      Your balance, volunteer obligations, and documents show here once you've
+      registered a player for the season.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Children ── #}
+  {% if player_cards %}
+  <div class="field-card">
+    <div class="field-card__head">
+      <div class="field-card__title">
+        {% if account_summary.children_count == 1 %}Player{% else %}Players{% endif %}
+      </div>
+      <div class="field-card__title-sub">{{ account_summary.children_count }} registered</div>
+    </div>
+    <div class="field-card__list" role="list">
+      {% for card in player_cards %}
+      <div class="field-row" role="listitem">
+        <span class="field-row__icon" aria-hidden="true">{{ card.initials }}</span>
+        <span class="field-row__body">
+          <span class="field-row__title">{{ card.name }}</span>
+          <span class="field-row__sub">
+            {% if card.age %}{{ card.age }} yrs{% endif %}
+            {% if card.team_label %}{% if card.age %} · {% endif %}{{ card.team_label }}{% endif %}
+          </span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Balance ── #}
+  <div class="parent-summary">
+    <div class="parent-summary__row">
+      <div class="parent-summary__label">Balance</div>
+      <div class="parent-summary__value">
+        {% if account_summary.balance_status == 'paid' %}
+        <span class="pill pill--success">All paid up</span>
+        {% elif account_summary.balance_status == 'due' and account_summary.balance %}
+        <span class="pill pill--warn">${{ account_summary.balance }} due</span>
+        {% else %}
+        <span class="parent-summary__placeholder">Not tracked yet</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Volunteer ── #}
+    <div class="parent-summary__row">
+      <div class="parent-summary__label">Volunteer</div>
+      <div class="parent-summary__value">
+        {% if account_summary.volunteer_status == 'fulfilled' %}
+        <span class="pill pill--success">Fulfilled</span>
+        {% elif account_summary.volunteer_status == 'open' %}
+        <span class="pill pill--warn">{{ account_summary.volunteer_hours_open }} hrs open</span>
+        {% else %}
+        <span class="parent-summary__placeholder">Not tracked yet</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Documents ── #}
+  <div class="field-card">
+    <div class="field-card__head">
+      <div class="field-card__title">Documents on file</div>
+    </div>
+    {% if account_summary.documents %}
+    <div class="field-card__list" role="list">
+      {% for doc in account_summary.documents %}
+      <div class="field-row" role="listitem">
+        <span class="field-row__icon" aria-hidden="true">📄</span>
+        <span class="field-row__body">
+          <span class="field-row__title">{{ doc.name }}</span>
+          {% if doc.expires %}<span class="field-row__sub">Expires {{ doc.expires }}</span>{% endif %}
+        </span>
+        {% if doc.status == 'ok' %}
+        <span class="pill pill--success">On file</span>
+        {% elif doc.status == 'expiring' %}
+        <span class="pill pill--warn">Expiring</span>
+        {% else %}
+        <span class="pill pill--danger">Missing</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="field-empty">
+      <strong>No documents to track yet.</strong>
+      Medical releases, waivers, and pickup permissions will show here once the
+      forms feature ships.
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Contact ── #}
+  <div class="field-card">
+    <div class="field-card__head">
+      <div class="field-card__title">Contact</div>
+    </div>
+    <div class="field-card__list">
+      <div class="field-row">
+        <span class="field-row__body">
+          <span class="field-row__title">Email</span>
+          <span class="field-row__sub">{{ user_email|default:'Not set' }}</span>
+        </span>
+      </div>
+      <div class="field-row">
+        <span class="field-row__body">
+          <span class="field-row__title">Phone</span>
+          <span class="field-row__sub">{{ user_phone|default:'Not set' }}</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+{% endblock %}

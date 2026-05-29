@@ -1,0 +1,112 @@
+{% extends "parent/base.html" %}
+
+{# SFLL-98 — Parent Today screen.
+   Game-day surface: per-child player card up top, next-event hero with
+   In/Maybe/Out RSVP buttons, account-mini ribbon as a one-tap reminder
+   if anything urgent's owed. One card per child so a parent with two
+   kids on the same team sees both RSVPs side-by-side. #}
+
+{% block field_title %}Today{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">My kids</div>
+<h1 class="field-screen__title">{% if greeting %}{{ greeting }}, {% endif %}{{ user_first_name }}</h1>
+<div class="field-screen__sub">{{ today_label|default:'Today' }}</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if not has_children %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>We don't see a registered player linked to {{ user.email }}.</strong>
+      Once registration's processed, your kids' team and schedule show up here.
+    </div>
+  </div>
+  {% endif %}
+
+  {% for card in player_cards %}
+  {# ── Per-child player card ── #}
+  <div class="parent-card">
+    <div class="parent-card__head">
+      <span class="parent-card__avatar" aria-hidden="true">{{ card.initials }}</span>
+      <div class="parent-card__head-body">
+        <div class="parent-card__name">{{ card.name }}</div>
+        <div class="parent-card__meta">
+          {% if card.age %}{{ card.age }} yrs{% endif %}
+          {% if card.team_label %}{% if card.age %} · {% endif %}{{ card.team_label }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if card.next_event %}
+    {# Next event hero per child — RSVP buttons are the primary action. #}
+    <div class="parent-event">
+      <div class="parent-event__eyebrow">Next up</div>
+      <div class="parent-event__title">{{ card.next_event.title }}</div>
+      <div class="parent-event__meta">
+        <span>{{ card.next_event.when }}</span>
+        {% if card.next_event.location %}<span>{{ card.next_event.location }}</span>{% endif %}
+      </div>
+      <div class="parent-rsvp" role="group" aria-label="RSVP for {{ card.name }}">
+        <button type="button"
+                class="parent-rsvp__btn parent-rsvp__btn--attending{% if card.next_event.status == 'attending' %} is-active{% endif %}"
+                data-parent-rsvp-id="{{ card.next_event.player_season_id }}"
+                data-parent-rsvp-session="{{ card.next_event.session_id }}"
+                data-rsvp-status="attending"
+                aria-pressed="{% if card.next_event.status == 'attending' %}true{% else %}false{% endif %}">
+          We're in
+        </button>
+        <button type="button"
+                class="parent-rsvp__btn parent-rsvp__btn--maybe{% if card.next_event.status == 'maybe' %} is-active{% endif %}"
+                data-parent-rsvp-id="{{ card.next_event.player_season_id }}"
+                data-parent-rsvp-session="{{ card.next_event.session_id }}"
+                data-rsvp-status="maybe"
+                aria-pressed="{% if card.next_event.status == 'maybe' %}true{% else %}false{% endif %}">
+          Maybe
+        </button>
+        <button type="button"
+                class="parent-rsvp__btn parent-rsvp__btn--declined{% if card.next_event.status == 'not_attending' %} is-active{% endif %}"
+                data-parent-rsvp-id="{{ card.next_event.player_season_id }}"
+                data-parent-rsvp-session="{{ card.next_event.session_id }}"
+                data-rsvp-status="not_attending"
+                aria-pressed="{% if card.next_event.status == 'not_attending' %}true{% else %}false{% endif %}">
+          Can't make it
+        </button>
+      </div>
+    </div>
+    {% else %}
+    <div class="parent-event parent-event--empty">
+      Nothing on the schedule yet. We'll surface the next one here.
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Visual-only RSVP toggle for Phase 7. Real persistence lands as the
+  // HTMX swap in a follow-up — same pattern Coach Field Mode used. Updating
+  // aria-pressed + the is-active class locally keeps the demo honest
+  // without touching the server.
+  (function() {
+    document.querySelectorAll('.parent-rsvp').forEach(function(group) {
+      group.addEventListener('click', function(e) {
+        var btn = e.target.closest('.parent-rsvp__btn');
+        if (!btn) return;
+        var alreadyActive = btn.classList.contains('is-active');
+        group.querySelectorAll('.parent-rsvp__btn').forEach(function(b) {
+          b.classList.remove('is-active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        if (!alreadyActive) {
+          btn.classList.add('is-active');
+          btn.setAttribute('aria-pressed', 'true');
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

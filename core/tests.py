@@ -2,15 +2,18 @@
 
 import io
 import os
-from datetime import date
+from datetime import date, time as dt_time, timedelta
 
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Coach, CoachSeason, User, UserRole
+from communications.models import RSVP, EmailLog
 from core.importers import SportsConnectImporter, _normalize_key, _parse_date
 from core.models import AuditLog, ImportFlag, ImportRun
 from players.models import Division, League, Player, PlayerSeason, Season, Team, TeamSeason
+from tryouts.models import Session, SessionAssignment
 
 
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fixtures')
@@ -489,3 +492,241 @@ class FieldModeTests(TestCase):
 
         resp = self.client.get(reverse('field_today'))
         self.assertIsNone(resp.context['compliance_ping'])
+
+
+class ParentPhoneTests(TestCase):
+    """Parent phone view (SFLL-98, Phase 7 — parent half). Four mobile
+    screens behind /parent/. Tests cover: auth gating, the no-children
+    fallback (a signed-in user not linked to any PlayerSeason should still
+    get the surface with an empty state), the populated-children happy
+    path, schedule-tab data shape, account-tab placeholder semantics, and
+    inbox row sourcing from EmailLog. Same fallback pattern as Coach
+    Field Mode (SFLL-113) — render the surface honestly, never 500."""
+
+    def setUp(self):
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026,
+            season_type='spring', is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+        self.client = Client()
+
+    def _parent_with_children(self, email='parent@sfll.org', n=1):
+        """Build a parent User and N registered children. The data model
+        links parent → player by string email match on PlayerSeason."""
+        user = _create_user(email=email)
+        team = Team.objects.create(league=self.league, name='Marlins')
+        ts = TeamSeason.objects.create(
+            team=team, season=self.season, division=self.division,
+        )
+        children = []
+        for i in range(n):
+            p = Player.objects.create(
+                league=self.league,
+                sportsconnect_player_id=f'kid-{i}-{email}',
+                first_name=f'Kid{i}', last_name='Test',
+                date_of_birth=date(2014, 6, 1),
+            )
+            ps = PlayerSeason.objects.create(
+                player=p, season=self.season, assigned_team=ts,
+                account_email=email,
+                account_name='Parent User',
+            )
+            children.append(ps)
+        return user, ts, children
+
+    def test_parent_today_requires_login(self):
+        resp = self.client.get(reverse('parent_today'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_parent_schedule_requires_login(self):
+        resp = self.client.get(reverse('parent_schedule'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_parent_account_requires_login(self):
+        resp = self.client.get(reverse('parent_account'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_parent_inbox_requires_login(self):
+        resp = self.client.get(reverse('parent_inbox'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_parent_index_redirects_to_today(self):
+        _create_user(email='plain@sfll.org')
+        self.client.login(username='plain@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('parent_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse('parent_today'), resp.url)
+
+    def test_parent_today_without_matched_children(self):
+        """Signed-in user with no PlayerSeason linked to their email
+        should still get the screen — empty state, not 500. Matches the
+        graceful-fallback pattern Coach Field Mode established."""
+        _create_user(email='plain@sfll.org')
+        self.client.login(username='plain@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('parent_today'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context['has_children'])
+        self.assertEqual(resp.context['player_cards'], [])
+
+    def test_parent_today_matches_account_email_case_insensitive(self):
+        """Parents register on SportsConnect with whatever capitalization
+        they typed. The view should match regardless of case so a parent
+        signed in as `Parent@SFLL.org` still sees their kids."""
+        email = 'parent@sfll.org'
+        _user, _ts, children = self._parent_with_children(email=email, n=2)
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_today'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context['parent_active'], 'today')
+        # Both kids surface in the cards list, ordered by first name.
+        names = [c['name'] for c in resp.context['player_cards']]
+        self.assertEqual(len(names), 2)
+
+    def test_parent_today_matches_additional_email(self):
+        """A parent registered as the second contact (additional_email)
+        should still see the child — many families have both parents on
+        the registration."""
+        user, ts, _kids = self._parent_with_children(email='primary@sfll.org', n=1)
+        # Reassign the existing PlayerSeason rows: clear account_email,
+        # populate additional_email with this parent's address instead.
+        partner_email = 'partner@sfll.org'
+        _create_user(email=partner_email)
+        PlayerSeason.objects.filter(account_email='primary@sfll.org').update(
+            additional_email=partner_email,
+        )
+        self.client.login(username=partner_email, password='testpass123')
+        resp = self.client.get(reverse('parent_today'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context['has_children'])
+
+    def test_parent_today_surfaces_next_session_for_child(self):
+        """If a Session exists in the child's division (or assigned to
+        the child specifically), the Today card shows it as next-up with
+        RSVP buttons."""
+        email = 'parent@sfll.org'
+        _user, _ts, children = self._parent_with_children(email=email, n=1)
+        ps = children[0]
+        future = timezone.now().date() + timedelta(days=3)
+        sess = Session.objects.create(
+            season=self.season, name='Saturday practice',
+            date=future, start_time=dt_time(10, 0),
+            division=self.division, location='Mission Field',
+        )
+        SessionAssignment.objects.create(session=sess, player_season=ps)
+
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_today'))
+        self.assertEqual(resp.status_code, 200)
+        cards = resp.context['player_cards']
+        self.assertEqual(len(cards), 1)
+        next_event = cards[0]['next_event']
+        self.assertIsNotNone(next_event)
+        self.assertEqual(next_event['session_id'], sess.id)
+        self.assertEqual(next_event['location'], 'Mission Field')
+        self.assertEqual(next_event['status'], '')  # No RSVP yet
+
+    def test_parent_schedule_lists_upcoming_sessions(self):
+        email = 'parent@sfll.org'
+        _user, _ts, children = self._parent_with_children(email=email, n=1)
+        ps = children[0]
+        today = timezone.now().date()
+        # Two upcoming + one outside the 3-week horizon
+        s1 = Session.objects.create(
+            season=self.season, name='Practice 1',
+            date=today + timedelta(days=2), start_time=dt_time(17, 0),
+            division=self.division,
+        )
+        s2 = Session.objects.create(
+            season=self.season, name='Practice 2',
+            date=today + timedelta(days=10), start_time=dt_time(17, 0),
+            division=self.division,
+        )
+        s3 = Session.objects.create(
+            season=self.season, name='Too far out',
+            date=today + timedelta(days=40), start_time=dt_time(17, 0),
+            division=self.division,
+        )
+        SessionAssignment.objects.create(session=s1, player_season=ps)
+        SessionAssignment.objects.create(session=s2, player_season=ps)
+        SessionAssignment.objects.create(session=s3, player_season=ps)
+
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_schedule'))
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.context['schedule_rows']
+        # The 40-day-out session must not surface
+        titles = [r['title'] for r in rows]
+        self.assertIn('Practice 1', titles)
+        self.assertIn('Practice 2', titles)
+        self.assertNotIn('Too far out', titles)
+
+    def test_parent_schedule_includes_rsvp_status(self):
+        email = 'parent@sfll.org'
+        _user, _ts, children = self._parent_with_children(email=email, n=1)
+        ps = children[0]
+        today = timezone.now().date()
+        s = Session.objects.create(
+            season=self.season, name='RSVP test',
+            date=today + timedelta(days=2), start_time=dt_time(17, 0),
+            division=self.division,
+        )
+        SessionAssignment.objects.create(session=s, player_season=ps)
+        RSVP.objects.create(player_season=ps, session=s, status='attending')
+
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_schedule'))
+        rows = resp.context['schedule_rows']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['status'], 'attending')
+
+    def test_parent_account_lists_children_and_placeholders(self):
+        """Account tab surfaces every child the parent has, plus
+        placeholder slots for the un-modeled balance / volunteer /
+        documents fields. The summary returns None for everything until
+        real models ship."""
+        email = 'parent@sfll.org'
+        _user, _ts, _children = self._parent_with_children(email=email, n=2)
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_account'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['player_cards']), 2)
+        summary = resp.context['account_summary']
+        self.assertIsNone(summary['balance'])
+        self.assertIsNone(summary['volunteer_status'])
+        self.assertEqual(summary['documents'], [])
+        self.assertEqual(summary['children_count'], 2)
+
+    def test_parent_inbox_sources_from_email_log(self):
+        """Inbox rows come from EmailLog, scoped to PlayerSeasons that
+        belong to this parent. Newest first."""
+        email = 'parent@sfll.org'
+        _user, _ts, children = self._parent_with_children(email=email, n=1)
+        ps = children[0]
+
+        # An email about this parent's child + one about a different
+        # child as a distractor.
+        EmailLog.objects.create(
+            player_season=ps, to_address=email,
+            subject='Practice tonight at 5:30',
+            body_snapshot='Field 4. Bring water bottles.',
+        )
+        # Distractor — a different family's email log
+        other_user, _other_ts, other_children = self._parent_with_children(
+            email='other@sfll.org', n=1,
+        )
+        EmailLog.objects.create(
+            player_season=other_children[0],
+            to_address='other@sfll.org',
+            subject='Should not appear',
+            body_snapshot='private',
+        )
+
+        self.client.login(username=email, password='testpass123')
+        resp = self.client.get(reverse('parent_inbox'))
+        self.assertEqual(resp.status_code, 200)
+        rows = resp.context['inbox_rows']
+        subjects = [r['subject'] for r in rows]
+        self.assertIn('Practice tonight at 5:30', subjects)
+        self.assertNotIn('Should not appear', subjects)

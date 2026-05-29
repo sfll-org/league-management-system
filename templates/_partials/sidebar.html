@@ -6,7 +6,8 @@
    Sections follow the Claude Design handoff:
      Operations  · Dashboard, Roster, Family, Comms
      Season      · SES, Evals, Draft
-     Phone/iPad  · field-side surfaces (placeholder routes until Phase 7/8)
+     Coach       · Field Mode (SFLL-113)
+     Parent      · My family (SFLL-98)
      Admin       · imports, audit, config — visible to admins only
 #}
 <aside
@@ -53,6 +54,11 @@
     <div class="lms-sidebar__section">
       <p class="lms-sidebar__section-label">Coach</p>
       <a href="{% url 'field_today' %}" class="lms-sidebar__link{% if 'field_' in request.resolver_match.url_name|default:'' %} is-active{% endif %}">Field Mode</a>
+    </div>
+
+    <div class="lms-sidebar__section">
+      <p class="lms-sidebar__section-label">Parent</p>
+      <a href="{% url 'parent_today' %}" class="lms-sidebar__link{% if 'parent_' in request.resolver_match.url_name|default:'' %} is-active{% endif %}">My family</a>
     </div>
 
     {% if user_is_admin %}

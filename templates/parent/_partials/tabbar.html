@@ -1,0 +1,33 @@
+{% comment %}
+SFLL-98 — Bottom tab bar for the Parent phone view. Four tabs (Today /
+Schedule / Account / Inbox). The view sets parent_active so the tab
+bar lights up the right tab; absent variable means nothing is highlighted,
+which is fine for a stray render outside the parent/* views.
+{% endcomment %}
+
+<nav class="field-tabbar field-tabbar--4" aria-label="Parent sections">
+  <a href="{% url 'parent_today' %}"
+     class="field-tab{% if parent_active == 'today' %} field-tab--active{% endif %}"
+     {% if parent_active == 'today' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">◐</span>
+    <span>Today</span>
+  </a>
+  <a href="{% url 'parent_schedule' %}"
+     class="field-tab{% if parent_active == 'schedule' %} field-tab--active{% endif %}"
+     {% if parent_active == 'schedule' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">▦</span>
+    <span>Schedule</span>
+  </a>
+  <a href="{% url 'parent_account' %}"
+     class="field-tab{% if parent_active == 'account' %} field-tab--active{% endif %}"
+     {% if parent_active == 'account' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">◉</span>
+    <span>Account</span>
+  </a>
+  <a href="{% url 'parent_inbox' %}"
+     class="field-tab{% if parent_active == 'inbox' %} field-tab--active{% endif %}"
+     {% if parent_active == 'inbox' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">✉</span>
+    <span>Inbox</span>
+  </a>
+</nav>

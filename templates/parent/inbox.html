@@ -1,0 +1,56 @@
+{% extends "parent/base.html" %}
+
+{# SFLL-98 — Parent Inbox screen.
+   League messages sent to the parent's account, most recent first.
+   Backed by EmailLog (communications.models); each row shows subject,
+   when, which child it was about, and a delivery indicator so a parent
+   can spot bounces. #}
+
+{% block field_title %}Inbox{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">League messages</div>
+<h1 class="field-screen__title">Inbox</h1>
+<div class="field-screen__sub">
+  {% if inbox_count %}{{ inbox_count }} recent{% else %}Nothing yet{% endif %}
+</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if not has_children %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>No registered players linked to your account.</strong>
+      League emails about your kids show up here once registration's in place.
+    </div>
+  </div>
+  {% elif inbox_rows %}
+  <div class="field-card">
+    <div class="field-card__list" role="list">
+      {% for row in inbox_rows %}
+      <div class="field-row" role="listitem">
+        <span class="field-row__icon" aria-hidden="true">
+          {% if row.bounced %}!{% else %}✉{% endif %}
+        </span>
+        <span class="field-row__body">
+          <span class="field-row__title">{{ row.subject }}</span>
+          <span class="field-row__sub">
+            About {{ row.child_name }} · {{ row.when }}
+            {% if row.bounced %} · Bounced{% endif %}
+          </span>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>No messages yet.</strong>
+      League emails about your kids will appear here.
+    </div>
+  </div>
+  {% endif %}
+
+{% endblock %}

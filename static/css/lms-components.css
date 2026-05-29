@@ -937,3 +937,219 @@
   color: var(--ink-3);
   padding: 0 14px 12px;
 }
+
+/* ─── Parent phone view (SFLL-98) ───
+   Reuses the .field-mode / .field-frame phone shell and the
+   .field-screen / .field-tabbar / .field-tab primitives that Coach
+   Field Mode (SFLL-113) added — the parent surface is the same
+   shape, just a different audience. Adds a 4-tab tabbar variant
+   plus parent-specific cards (per-child player card, next-event hero
+   with RSVP buttons, account-summary rows). No hard-coded colors;
+   everything draws from lms-tokens.css. */
+
+/* ── 4-tab variant of the bottom tab bar ── */
+
+.field-tabbar--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* ── Per-child player card ── */
+
+.parent-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.parent-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.parent-card__avatar {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary-soft-ink);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.parent-card__head-body { min-width: 0; }
+
+.parent-card__name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.parent-card__meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+/* ── Next-event hero per child ── */
+
+.parent-event {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.parent-event--empty {
+  color: var(--ink-3);
+  font-size: 13.5px;
+  text-align: center;
+  padding: 18px 14px;
+}
+
+.parent-event__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+
+.parent-event__title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.parent-event__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.parent-event__meta span { display: inline-flex; }
+
+/* ── RSVP buttons (parent flavor — three-column grid, full-width pills) ── */
+
+.parent-rsvp {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.parent-rsvp__btn {
+  min-height: 44px;
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 6px;
+  text-align: center;
+  line-height: 1.15;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.parent-rsvp__btn:hover {
+  background: var(--bg-2);
+  border-color: var(--ink-4);
+}
+
+.parent-rsvp__btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.parent-rsvp__btn--attending.is-active {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+
+.parent-rsvp__btn--maybe.is-active {
+  background: var(--warn);
+  border-color: var(--warn);
+  color: #fff;
+}
+
+.parent-rsvp__btn--declined.is-active {
+  background: var(--ink-3);
+  border-color: var(--ink-3);
+  color: var(--surface);
+}
+
+/* ── Account summary rows (balance / volunteer) ── */
+
+.parent-summary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.parent-summary__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.parent-summary__row:first-child { border-top: 0; }
+
+.parent-summary__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.parent-summary__value {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.parent-summary__placeholder {
+  color: var(--ink-3);
+  font-style: italic;
+  font-size: 12.5px;
+}
+
+/* ── Stacked date label for the Schedule row icon ── */
+
+.parent-schedule__date {
+  width: 56px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.parent-schedule__date strong {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+}
