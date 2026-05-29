@@ -1,0 +1,48 @@
+{# SES Session — no-show queue with one-click reschedule. #}
+<div class="card__body" style="padding: 0;">
+  {% if no_show_queue %}
+    {% for item in no_show_queue %}
+      <div class="ses-noshow-row" id="ses-noshow-{{ item.assignment.pk }}">
+        <div class="player-cell">
+          <div>
+            <div class="player-cell__name">
+              {{ item.player.last_name }}, {{ item.player.first_name }}
+              {% if item.is_flagged %}
+                <span class="pill pill--warn" style="margin-left: 6px;">flagged</span>
+              {% endif %}
+            </div>
+            <div class="ses-noshow-row__target">
+              {% if item.division %}{{ item.division.name }}{% endif %}
+              {% if item.reschedule_target %}
+                <span class="crumbs__sep">·</span>
+                → {{ item.reschedule_target.name }}
+                ({{ item.reschedule_target.date|date:"M j" }})
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div>
+          {% if item.reschedule_target and can_reassign %}
+            <button type="button"
+                    class="btn btn--sm"
+                    title="Reschedule to {{ item.reschedule_target.name }} on {{ item.reschedule_target.date|date:'M j' }}"
+                    hx-post="{% url 'tryouts:ses_quick_reschedule' session.pk item.assignment.pk %}"
+                    hx-target="#ses-noshow"
+                    hx-swap="innerHTML">
+              Reschedule
+            </button>
+          {% elif can_reassign %}
+            <span class="text-muted">No makeup scheduled</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <strong>Nobody waiting</strong>
+      All registered players are checked in.
+    </div>
+  {% endif %}
+</div>

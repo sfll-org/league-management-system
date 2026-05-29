@@ -1,0 +1,11 @@
+{# Response body for ses_quick_checkin: the updated row + OOB swaps that
+   refresh the stat row and no-show queue in the same response. #}
+{% include "tryouts/partials/ses_roster_row.html" with row=row %}
+
+<div id="ses-stats" hx-swap-oob="innerHTML">
+  {% include "tryouts/partials/ses_stats.html" %}
+</div>
+
+<div id="ses-noshow" hx-swap-oob="innerHTML">
+  {% include "tryouts/partials/ses_noshow.html" %}
+</div>

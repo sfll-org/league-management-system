@@ -1,0 +1,7 @@
+{# Response body for ses_quick_reschedule: the refreshed no-show queue plus
+   an OOB stat row swap so all four numbers stay consistent. #}
+{% include "tryouts/partials/ses_noshow.html" %}
+
+<div id="ses-stats" hx-swap-oob="innerHTML">
+  {% include "tryouts/partials/ses_stats.html" %}
+</div>

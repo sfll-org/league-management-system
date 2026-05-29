@@ -23,6 +23,10 @@ urlpatterns = [
     # QR codes
     path('players/<int:player_season_id>/qr/', views.player_qr_code, name='player_qr_code'),
     path('sessions/<int:pk>/qrcodes/', views.session_qr_codes, name='session_qr_codes'),
+    # SES Session screen — HTMX endpoints (Phase 6 — SFLL-111)
+    path('sessions/<int:pk>/ses/roster/', views.ses_roster_search, name='ses_roster_search'),
+    path('sessions/<int:pk>/ses/checkin/<int:assignment_id>/', views.ses_quick_checkin, name='ses_quick_checkin'),
+    path('sessions/<int:pk>/ses/reschedule/<int:assignment_id>/', views.ses_quick_reschedule, name='ses_quick_reschedule'),
     # Keep the index as a redirect to session_list
     path('', views.session_list, name='index'),
 ]

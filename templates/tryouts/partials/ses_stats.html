@@ -1,0 +1,29 @@
+{# SES Session — stat row. Re-rendered initially in session_detail.html
+   and OOB-swapped after any check-in or reschedule so all four numbers
+   update together. #}
+<div class="stats">
+  <div class="stat">
+    <div class="stat__label">Registered</div>
+    <div class="stat__value tabular">{{ stats.registered }}</div>
+    <div class="stat__delta stat__delta--flat">expected today</div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">Checked-in</div>
+    <div class="stat__value tabular">{{ stats.checked_in }}</div>
+    <div class="stat__delta stat__delta--up">
+      {% if stats.registered %}{% widthratio stats.checked_in stats.registered 100 %}% arrived{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">No-show</div>
+    <div class="stat__value tabular">{{ stats.no_show }}</div>
+    <div class="stat__delta {% if stats.no_show %}stat__delta--down{% else %}stat__delta--flat{% endif %}">
+      awaiting reschedule
+    </div>
+  </div>
+  <div class="stat">
+    <div class="stat__label">On-station</div>
+    <div class="stat__value tabular">{{ stats.on_station }}</div>
+    <div class="stat__delta stat__delta--flat">eval started</div>
+  </div>
+</div>
