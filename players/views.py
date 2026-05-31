@@ -90,23 +90,29 @@ def _decode_family_key(family_key):
         raise Http404("Unknown family")
 
 
-def _user_has_role(user, *role_names):
+def _user_has_role(user, *role_names, league=None):
     if user.is_superuser:
         return True
-    return user.roles.filter(is_active=True, role__in=role_names).exists()
+    qs = user.roles.filter(is_active=True, role__in=role_names)
+    if league is not None:
+        qs = qs.filter(league=league)
+    return qs.exists()
 
 
-def _treasurer_view_only(user):
+def _treasurer_view_only(user, league=None):
     """True if this user can see balances but not edit anything else.
 
     Treasurers handle dues and outstanding balances; admin/finance edits are
     out-of-scope for the family detail page until a real Balance model lands.
+    Scoped to `league` when provided so a treasurer on a different League
+    does not get visibility into this family's balance.
     """
     if user.is_superuser:
         return False
-    roles = set(
-        user.roles.filter(is_active=True).values_list('role', flat=True),
-    )
+    role_qs = user.roles.filter(is_active=True)
+    if league is not None:
+        role_qs = role_qs.filter(league=league)
+    roles = set(role_qs.values_list('role', flat=True))
     admin_roles = {'cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent'}
     return 'treasurer' in roles and not (roles & admin_roles)
 
@@ -250,10 +256,12 @@ def family_detail(request, family_key):
         .order_by('-sent_at')[:FAMILY_COMMS_LIMIT]
     )
 
-    treasurer_only = _treasurer_view_only(request.user)
+    league = active_season.league
+    treasurer_only = _treasurer_view_only(request.user, league=league)
     is_admin = _user_has_role(
         request.user,
         'cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent',
+        league=league,
     )
     can_see_balance = treasurer_only or is_admin
 

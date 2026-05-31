@@ -546,3 +546,23 @@ class FamilyDetailTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Balance')
         self.assertNotContains(resp, 'Treasurer view')
+
+    def test_balance_hidden_for_role_in_other_league(self):
+        # A treasurer or admin role on a *different* League must not grant
+        # visibility into this family's Balance section.
+        other_league = League.objects.create(
+            name='Oakland Little League', short_name='OLL',
+        )
+        UserRole.objects.create(
+            user=self.user, league=other_league, role='treasurer',
+        )
+        UserRole.objects.create(
+            user=self.user, league=other_league, role='president',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, '>Balance<')
+        self.assertNotContains(resp, 'Treasurer view')
