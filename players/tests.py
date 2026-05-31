@@ -558,6 +558,38 @@ class PlayerDetailViewTests(TestCase):
         self.ps.refresh_from_db()
         self.assertIsNone(self.ps.jersey_number)
 
+    def test_field_save_jersey_number_zero(self):
+        """Jersey number 0 must save, display as #0, and not render as dash."""
+        self.client.login(username='admin@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('players:detail_field_save', args=[self.ps.pk, 'jersey_number']),
+            {'value': '0'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, 0)
+        self.assertContains(resp, '#0')
+
+    def test_roster_jersey_number_zero_renders(self):
+        """Jersey #0 must appear as #0 in the roster, not as a dash."""
+        self.ps.jersey_number = 0
+        self.ps.save()
+        self.client.login(username='admin@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index'))
+        self.assertContains(resp, '#0')
+        self.assertNotContains(resp, 'col-num">—')
+
+    def test_field_read_jersey_number_zero_renders(self):
+        """Read-mode partial for jersey_number=0 must show #0, not a dash."""
+        self.ps.jersey_number = 0
+        self.ps.save()
+        self.client.login(username='admin@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:detail_field', args=[self.ps.pk, 'jersey_number'])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, '#0')
+
     def test_field_save_jersey_number_out_of_range(self):
         self.client.login(username='admin@sfll.org', password='testpass123')
         resp = self.client.post(

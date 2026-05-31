@@ -29,7 +29,7 @@
   {% elif field == 'jersey_number' %}
     <input
       type="number" name="value"
-      value="{% if ps.jersey_number %}{{ ps.jersey_number }}{% endif %}"
+      value="{% if ps.jersey_number is not None %}{{ ps.jersey_number }}{% endif %}"
       min="0" max="999" autofocus
     />
   {% elif field == 'assigned_team' %}

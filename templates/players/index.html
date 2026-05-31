@@ -88,7 +88,7 @@
             {% if ps.assigned_team %}{{ ps.assigned_team.team.name }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
           </td>
           <td class="col-num">
-            {% if ps.jersey_number %}#{{ ps.jersey_number }}{% else %}<span class="text-muted">—</span>{% endif %}
+            {% if ps.jersey_number is not None %}#{{ ps.jersey_number }}{% else %}<span class="text-muted">—</span>{% endif %}
           </td>
           <td>
             <span class="pill pill--{% if ps.status == 'registered' %}success{% else %}neutral{% endif %}">
