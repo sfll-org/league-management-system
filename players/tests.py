@@ -590,6 +590,27 @@ class PlayerDetailViewTests(TestCase):
         self.ps.refresh_from_db()
         self.assertIsNone(self.ps.assigned_team)
 
+    def test_field_save_assigned_team_rejects_wrong_division(self):
+        # A same-season team from a different division must be rejected.
+        # Without the division guard, PlayerSeason.division and
+        # assigned_team.division would diverge, corrupting roster/draft views.
+        other_division = Division.objects.create(
+            league=self.league, name='AAA', display_order=1,
+        )
+        other_team = Team.objects.create(league=self.league, name='Cubs')
+        other_ts = TeamSeason.objects.create(
+            team=other_team, season=self.season, division=other_division,
+        )
+        original_team_id = self.ps.assigned_team_id
+        self.client.login(username='admin@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('players:detail_field_save', args=[self.ps.pk, 'assigned_team']),
+            {'value': str(other_ts.pk)},
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.assigned_team_id, original_team_id)
+
     def test_field_save_sub_league(self):
         self.client.login(username='admin@sfll.org', password='testpass123')
         resp = self.client.post(

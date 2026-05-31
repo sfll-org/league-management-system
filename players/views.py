@@ -427,6 +427,8 @@ def detail_field_save(request, player_season_id, field):
                     )
                 except (TeamSeason.DoesNotExist, ValueError):
                     return HttpResponseBadRequest('Unknown team for this season.')
+                if ps.division_id and ts.division_id != ps.division_id:
+                    return HttpResponseBadRequest('Team is not in the player\'s division.')
                 ps.assigned_team = ts
             else:
                 ps.assigned_team = None
