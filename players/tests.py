@@ -564,5 +564,5 @@ class FamilyDetailTests(TestCase):
             reverse('players:family_detail', args=[self.family_key]),
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, '>Balance<')
+        self.assertNotContains(resp, 'Balance')
         self.assertNotContains(resp, 'Treasurer view')
