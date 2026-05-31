@@ -644,3 +644,16 @@ class RosterFilterTests(TestCase):
         resp = self.client.get(reverse('players:index'),
                                {'division': str(self.aaa.id)})
         self.assertEqual(resp.context['sub_leagues'], [])
+
+    def test_search_preserves_active_filters(self):
+        # Regression: form submit must not drop active division/view filters.
+        # Template hidden inputs make this work; this test catches regressions.
+        resp = self.client.get(reverse('players:index'), {
+            'q': 'Adams', 'division': str(self.majors.id), 'view': 'top4',
+        })
+        self.assertEqual(resp.status_code, 200)
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+        content = resp.content.decode()
+        self.assertIn(f'name="division" value="{self.majors.id}"', content)
+        self.assertIn('name="view" value="top4"', content)

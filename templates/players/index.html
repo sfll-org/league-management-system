@@ -51,6 +51,11 @@
         <input type="search" name="q" value="{{ q }}" placeholder="Search players…"
                autocomplete="off" />
       </label>
+      {# Hidden inputs preserve active chip/seg state when the search form submits.
+         Without these, typing a query from a filtered view drops division/league/view. #}
+      {% if selected_division %}<input type="hidden" name="division" value="{{ selected_division.id }}">{% endif %}
+      {% if selected_league %}<input type="hidden" name="league" value="{{ selected_league }}">{% endif %}
+      {% if view != 'all' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
 
       {# Division chips. The "All" chip clears the division filter. #}
       <a href="?{% if q %}q={{ q }}&amp;{% endif %}{% if view != 'all' %}view={{ view }}{% endif %}"
