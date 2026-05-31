@@ -405,3 +405,380 @@
   display: flex;
   flex-direction: column;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Print: half-sheet dugout card (SFLL-114, Phase 9)
+   Two cards per US letter sheet. The screen-side preview wraps
+   each card in a Pacific-tokened "paper" so a coach can verify
+   the layout before the print dialog fires; @media print strips
+   the chrome and lets the @page rules drive sizing.
+   ───────────────────────────────────────────────────────────── */
+
+.print-body {
+  background: var(--bg-2);
+  color: var(--ink);
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.print-toolbar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.print-toolbar__meta strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.print-toolbar__meta span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.print-toolbar__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--ink-2);
+}
+
+.btn--ghost:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+.print-sheet {
+  /* Letter width minus printer margins; the @media print rules below
+     reset margin to 0 so the @page block governs the real paper edge.
+     On screen the sheet is a centered "paper" so the coach can see
+     two cards stacked exactly as they'll print. */
+  width: 8.5in;
+  max-width: 100%;
+  margin: 24px auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dugout-card {
+  /* Half-sheet — 8.5in × 5.5in landscape footprint flipped to fit the
+     portrait paper as two stacked cards. The fixed height keeps the
+     bottom card from sliding onto a third page when the roster is long;
+     long rosters truncate the visible bottom rather than overflowing,
+     which matches the dugout-clipboard reality where the card has to
+     fit the binder no matter what. */
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+  min-height: 5.25in;
+  padding: 18px 22px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dugout-card__strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--primary);
+}
+
+.dugout-card__team {
+  min-width: 0;
+}
+
+.dugout-card__eyebrow {
+  margin: 0 0 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dugout-card__team-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: var(--ink);
+  word-wrap: break-word;
+}
+
+.dugout-card__team-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.dugout-card__coaches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.dugout-card__coach {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.dugout-card__coach-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dugout-card__coach-name {
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dugout-card__coach-phone {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dugout-card__coach--empty {
+  grid-template-columns: 1fr;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.dugout-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dugout-card__section--roster {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dugout-card__section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-transform: uppercase;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dugout-card__section-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dugout-card__empty {
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.dugout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.dugout-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.dugout-table td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  vertical-align: top;
+}
+
+.dugout-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.dugout-col-date {
+  width: 64px;
+  white-space: nowrap;
+}
+
+.dugout-col-time {
+  width: 72px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.dugout-col-loc {
+  width: 32%;
+  color: var(--ink-2);
+}
+
+.dugout-col-num {
+  width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+.dugout-col-contact {
+  width: 38%;
+}
+
+.dugout-cell-day {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.dugout-cell-date {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dugout-cell-player {
+  font-weight: 600;
+}
+
+.dugout-cell-email {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.dugout-cell-email--alt {
+  color: var(--ink-3);
+}
+
+.dugout-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dugout-card__footer-meta {
+  text-align: right;
+}
+
+/* — Print rules.
+   @page sets letter portrait with 0.35in margins (about as tight as
+   most printers will honor without clipping). The body chrome is
+   removed and the sheet stack collapses so each card lands on its
+   own half. min-height stays in inches so the card always claims a
+   real half-sheet's worth of vertical space — coaches read down the
+   page, not across it. */
+@media print {
+  .print-toolbar { display: none; }
+  .print-body { background: #ffffff; }
+  .print-sheet {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+  }
+  .dugout-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 5.0in;
+    padding: 0.3in 0.35in 0.25in;
+    page-break-after: always;
+    break-after: page;
+  }
+  .dugout-card:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+@page {
+  size: letter portrait;
+  margin: 0.35in;
+}

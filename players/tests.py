@@ -271,3 +271,111 @@ class PlayerViewTests(TestCase):
         self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(reverse('players:teams'))
         self.assertEqual(resp.status_code, 200)
+
+
+class PrintSurfaceTests(TestCase):
+    """Print preview / dugout roster card (SFLL-114, Phase 9)."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(
+            league=self.league, name='Majors', display_order=1,
+        )
+        self.team = Team.objects.create(league=self.league, name='Dolphins')
+        self.team_season = TeamSeason.objects.create(
+            team=self.team, season=self.season, division=self.division,
+            sub_league='American',
+        )
+
+    def test_print_index_requires_login(self):
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_print_index_lists_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Dolphins')
+        self.assertContains(resp, 'Print card')
+
+    def test_print_index_empty_when_no_active_season(self):
+        Season.objects.filter(pk=self.season.pk).update(is_active=False)
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No active season')
+
+    def test_dugout_card_requires_login(self):
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk])
+        )
+        self.assertEqual(resp.status_code, 302)
+
+    def test_dugout_card_renders_team_strip(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Dolphins')
+        self.assertContains(resp, 'Majors')
+        self.assertContains(resp, 'American')
+
+    def test_dugout_card_404_for_unknown_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[99999])
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dugout_card_includes_roster_emergency_contacts(self):
+        player = Player.objects.create(
+            league=self.league,
+            sportsconnect_player_id='SCP-1',
+            first_name='Mia',
+            last_name='Nguyen',
+        )
+        PlayerSeason.objects.create(
+            player=player,
+            season=self.season,
+            division=self.division,
+            assigned_team=self.team_season,
+            account_name='Linh Nguyen',
+            account_email='linh@example.com',
+            additional_email='backup@example.com',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Mia Nguyen')
+        self.assertContains(resp, 'Linh Nguyen')
+        self.assertContains(resp, 'linh@example.com')
+        self.assertContains(resp, 'backup@example.com')
+
+    def test_dugout_card_auto_print_default(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk])
+        )
+        # The auto-print path emits an addEventListener('load') handler.
+        self.assertContains(resp, "addEventListener('load'")
+
+    def test_dugout_card_auto_print_suppressed_with_query(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk])
+            + '?print=0'
+        )
+        # The manual reprint button still calls window.print(), so anchor
+        # on the auto-firing addEventListener('load') call that only the
+        # auto path emits.
+        self.assertNotContains(resp, "addEventListener('load'")
