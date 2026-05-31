@@ -657,6 +657,44 @@ class PlayerDetailViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Jayden')
 
+    def test_field_save_player_agent_same_division_allowed(self):
+        """Player Agent scoped to the player's division can edit roster fields."""
+        from accounts.models import UserRole
+        agent = _create_user(email='majors_agent@sfll.org')
+        UserRole.objects.create(
+            user=agent, league=self.league, role='player_agent',
+            division=self.division, is_active=True,
+        )
+        self.client.login(username='majors_agent@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('players:detail_field_save', args=[self.ps.pk, 'jersey_number']),
+            {'value': '42'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, 42)
+
+    def test_field_save_player_agent_wrong_division_denied(self):
+        """Player Agent from a different division is denied with 403."""
+        from accounts.models import UserRole
+        other_division = Division.objects.create(
+            league=self.league, name='AAA', display_order=1,
+        )
+        agent = _create_user(email='aaa_agent@sfll.org')
+        UserRole.objects.create(
+            user=agent, league=self.league, role='player_agent',
+            division=other_division, is_active=True,
+        )
+        self.client.login(username='aaa_agent@sfll.org', password='testpass123')
+        original_jersey = self.ps.jersey_number
+        resp = self.client.post(
+            reverse('players:detail_field_save', args=[self.ps.pk, 'jersey_number']),
+            {'value': '99'},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, original_jersey)
+
 
 class RosterFiltersTests(TestCase):
     """The roster page also got rebuilt off Tailwind in this phase; verify the

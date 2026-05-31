@@ -155,18 +155,22 @@ EDITABLE_FIELDS = {
 }
 
 
-def _user_can_edit_roster(user):
+def _user_can_edit_roster(user, player_season):
     """Edits on the detail page require admin-equivalent role.
 
-    Player Agents / CTO / VP / President / SES Manager may rewrite roster
-    fields. Coaches view but can't mutate (their channel is evaluations).
+    Global roles (cto, ses_manager, vp_player_agents, president) may edit any
+    player. player_agent is scoped to the target player's division — a Player
+    Agent assigned to AAA cannot edit Majors players.
     """
     if user.is_staff or user.is_superuser:
         return True
-    return user.roles.filter(
-        is_active=True,
-        role__in=['cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent'],
-    ).exists()
+    roles = user.roles.filter(is_active=True)
+    if roles.filter(role__in=['cto', 'ses_manager', 'vp_player_agents', 'president']).exists():
+        return True
+    division = player_season.division
+    if division and roles.filter(role='player_agent', division=division).exists():
+        return True
+    return False
 
 
 def _can_view_evals(user, division=None):
@@ -265,7 +269,7 @@ def player_detail(request, player_season_id):
     if active_tab not in {'overview', 'season', 'evals'}:
         active_tab = 'overview'
 
-    can_edit = _user_can_edit_roster(request.user)
+    can_edit = _user_can_edit_roster(request.user, player_season)
 
     # Teams the user can reassign this player to within the same division.
     available_teams = TeamSeason.objects.filter(
@@ -318,7 +322,7 @@ def _field_partial(request, ps, field):
     return render(
         request,
         'players/_partials/detail_field.html',
-        {'ps': ps, 'field': field, 'can_edit': _user_can_edit_roster(request.user)},
+        {'ps': ps, 'field': field, 'can_edit': _user_can_edit_roster(request.user, ps)},
     )
 
 
@@ -363,12 +367,12 @@ def detail_field_edit(request, player_season_id, field):
     """Return the edit-mode cell (input/select) on first click."""
     if field not in EDITABLE_FIELDS:
         return HttpResponseBadRequest('Unknown field.')
-    if not _user_can_edit_roster(request.user):
-        return HttpResponseForbidden('Editing roster fields requires admin role.')
     ps = get_object_or_404(
         PlayerSeason.objects.select_related('player', 'division', 'assigned_team__team'),
         pk=player_season_id,
     )
+    if not _user_can_edit_roster(request.user, ps):
+        return HttpResponseForbidden('Editing roster fields requires admin role.')
     return _edit_partial(request, ps, field)
 
 
@@ -378,13 +382,13 @@ def detail_field_save(request, player_season_id, field):
     """Persist an inline edit and return the read-mode cell."""
     if field not in EDITABLE_FIELDS:
         return HttpResponseBadRequest('Unknown field.')
-    if not _user_can_edit_roster(request.user):
-        return HttpResponseForbidden('Editing roster fields requires admin role.')
 
     ps = get_object_or_404(
         PlayerSeason.objects.select_related('player', 'division', 'assigned_team__team'),
         pk=player_season_id,
     )
+    if not _user_can_edit_roster(request.user, ps):
+        return HttpResponseForbidden('Editing roster fields requires admin role.')
     raw = (request.POST.get('value') or '').strip()
 
     try:
