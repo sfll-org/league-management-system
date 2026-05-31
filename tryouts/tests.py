@@ -481,6 +481,23 @@ class SESSessionScreenContextTests(TestCase):
         for item in ctx['no_show_queue']:
             self.assertIsNone(item['reschedule_target'])
 
+    def test_earlier_same_day_session_not_chosen(self):
+        """An earlier same-day session must never be the reschedule target."""
+        earlier_today = Session.objects.create(
+            season=self.base['season'], name='SES Day 1 Early',
+            date=date.today(), start_time=time(8, 0),
+            division=self.base['division'],
+        )
+        tomorrow = Session.objects.create(
+            season=self.base['season'], name='SES Day 2',
+            date=date.today() + timedelta(days=1), start_time=time(9, 0),
+            division=self.base['division'],
+        )
+        ctx = self._ctx()
+        for item in ctx['no_show_queue']:
+            self.assertEqual(item['reschedule_target'].pk, tomorrow.pk,
+                             'earlier same-day session must not be chosen as reschedule target')
+
     def test_roster_search_filter(self):
         ctx = self._ctx(q='Last0')
         roster_pks = [r['assignment'].pk for r in ctx['roster']]

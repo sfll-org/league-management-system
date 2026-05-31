@@ -184,12 +184,16 @@ def _next_makeup_target(session):
 
     Prefers an upcoming makeup session for this division; falls back to the next
     regular session if no makeup is scheduled. Returns ``None`` if none qualify.
+
+    Filters strictly after the current session's date+time so that an earlier
+    same-day session is never chosen as a reschedule target.
     """
-    today = date.today()
     upcoming = Session.objects.filter(
         season=session.season,
         division=session.division,
-        date__gte=today,
+    ).filter(
+        Q(date__gt=session.date) |
+        Q(date=session.date, start_time__gt=session.start_time)
     ).exclude(pk=session.pk).order_by('date', 'start_time')
     makeup = upcoming.filter(is_makeup=True).first()
     if makeup:
