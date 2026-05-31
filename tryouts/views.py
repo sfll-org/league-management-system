@@ -917,11 +917,17 @@ def kiosk_checkin(request, assignment_id):
     if not _can_checkin(request.user):
         return HttpResponseForbidden()
 
+    active_season = _get_active_season()
+    if not active_season:
+        return HttpResponseForbidden()
+
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
             'session__division', 'player_season__player',
         ),
         pk=assignment_id,
+        session__season=active_season,
+        session__date=date.today(),
     )
 
     checkin, _created = CheckIn.objects.get_or_create(
@@ -929,10 +935,9 @@ def kiosk_checkin(request, assignment_id):
         defaults={'checked_in_by': request.user, 'notes': 'kiosk'},
     )
 
-    season = assignment.session.season
-    assignments, _ = _kiosk_assignments_for_today(season)
+    assignments, _ = _kiosk_assignments_for_today(active_season)
     _tiles, _filters, total, checked_in = _kiosk_build_tiles(assignments)
-    feed = _kiosk_recent_feed(season)
+    feed = _kiosk_recent_feed(active_season)
 
     tile = {
         'assignment': assignment,

@@ -393,6 +393,28 @@ class KioskViewTests(TestCase):
             CheckIn.objects.filter(session_assignment=self.assignment).count(), 1
         )
 
+    def test_kiosk_checkin_rejects_non_today_assignment(self):
+        """POSTing the pk of a past/future-day assignment must return 404."""
+        yesterday_session = Session.objects.create(
+            season=self.base['season'], name='SES Yesterday',
+            date=date.today() - timedelta(days=1), start_time=time(9, 0),
+            division=self.base['division'],
+        )
+        other_player = _create_player(self.base['league'], sc_id='SC-004', first='Old', last='Day')
+        other_ps = PlayerSeason.objects.create(
+            player=other_player, season=self.base['season'],
+            division=self.base['division'],
+        )
+        past_assignment = SessionAssignment.objects.create(
+            session=yesterday_session, player_season=other_ps, assigned_by=self.user,
+        )
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('tryouts:kiosk_checkin', args=[past_assignment.pk])
+        )
+        self.assertEqual(resp.status_code, 404)
+        self.assertFalse(CheckIn.objects.filter(session_assignment=past_assignment).exists())
+
     def test_kiosk_session_filter_narrows_grid(self):
         # A second session on the same day with a different player.
         other_session = Session.objects.create(
