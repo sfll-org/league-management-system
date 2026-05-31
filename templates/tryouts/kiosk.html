@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% load static %}
+
+{# SFLL-115 — iPad-landscape SES Check-In Kiosk.
+   Pacific tokens; lms-components.css from Phase 2 carries .kiosk-* primitives.
+   This is the front-desk surface at Big Rec — one tablet sees every player
+   assigned to any session running today, no per-session navigation. Tap a
+   tile, confirm, kid is checked in. The live feed on the right rail is the
+   "I just did that" reassurance for the volunteer at the desk. #}
+
+{% block title %}Check-In Kiosk — SFLL{% endblock %}
+{% block body_class %}tablet-mode{% endblock %}
+
+{% block content %}
+<section
+  class="kiosk"
+  x-data="kioskApp()"
+  @keydown.escape.window="closeModal()"
+>
+  <header class="kiosk__header">
+    <div class="kiosk__brand">
+      <span class="kiosk__brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" focusable="false">
+          <path d="M12 2 L22 12 L12 22 L2 12 Z" fill="currentColor" />
+        </svg>
+      </span>
+      <span>
+        <span class="kiosk__title">SES Check-In</span>
+        <span class="kiosk__title-sub">{{ today|date:"l, F j" }} · Big Rec</span>
+      </span>
+    </div>
+
+    <div class="kiosk__stats">
+      <div class="kiosk__stat">
+        <div class="kiosk__stat-value tabular" id="kiosk-checked-in-count">{{ checked_in_count }}</div>
+        <div class="kiosk__stat-label">Checked in</div>
+      </div>
+      <div class="kiosk__stat">
+        <div class="kiosk__stat-value tabular" id="kiosk-total-count">{{ total_count }}</div>
+        <div class="kiosk__stat-label">Expected</div>
+      </div>
+      <a class="kiosk__exit" href="{% url 'dashboard' %}">Exit kiosk</a>
+    </div>
+  </header>
+
+  <div class="kiosk__toolbar">
+    <div class="kiosk__sessions" role="tablist" aria-label="Today's sessions">
+      <a
+        class="kiosk__session-chip{% if not selected_session_id %} kiosk__session-chip--active{% endif %}"
+        href="{% url 'tryouts:kiosk' %}"
+      >
+        All sessions
+        <span class="kiosk__session-chip__count tabular">{{ total_count }}</span>
+      </a>
+      {% for sf in session_filters %}
+      <a
+        class="kiosk__session-chip{% if selected_session_id == sf.session.pk %} kiosk__session-chip--active{% endif %}"
+        href="{% url 'tryouts:kiosk' %}?session={{ sf.session.pk }}"
+      >
+        {{ sf.session.division.name }} · {{ sf.session.start_time|time:"g:i A" }}
+        <span class="kiosk__session-chip__count tabular">{{ sf.checked_in }}/{{ sf.count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+
+    <label class="kiosk__search">
+      <svg class="kiosk__search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="m20 20-3-3" stroke-linecap="round" />
+      </svg>
+      <input
+        type="search"
+        name="q"
+        placeholder="Search by player name…"
+        autocomplete="off"
+        autofocus
+        aria-label="Search players"
+        hx-get="{% url 'tryouts:kiosk_search' %}"
+        hx-trigger="keyup changed delay:200ms, search"
+        hx-target="#kiosk-grid"
+        hx-include="[name='session']"
+        hx-swap="innerHTML"
+      />
+      <input type="hidden" name="session" value="{{ selected_session_id|default_if_none:'' }}" />
+    </label>
+  </div>
+
+  <div class="kiosk__body">
+    <div class="kiosk__grid-wrap">
+      <div id="kiosk-grid">
+        {% include "tryouts/partials/kiosk_grid.html" %}
+      </div>
+    </div>
+
+    <aside class="kiosk-feed" id="kiosk-feed">
+      {% include "tryouts/partials/kiosk_feed.html" %}
+    </aside>
+  </div>
+
+  {# Confirmation modal — single instance, populated by Alpine on tile tap. #}
+  <div
+    class="kiosk-modal__backdrop"
+    x-show="pending"
+    x-transition.opacity.duration.120ms
+    @click.self="closeModal()"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="kiosk-modal-title"
+    style="display:none"
+  >
+    <div class="kiosk-modal">
+      <h2 class="kiosk-modal__title" id="kiosk-modal-title">Confirm check-in</h2>
+      <p class="kiosk-modal__player">
+        <strong x-text="pending?.name"></strong>
+      </p>
+      <div class="kiosk-modal__meta">
+        <div><strong x-text="pending?.session"></strong></div>
+        <div><span x-text="pending?.division"></span> · <span x-text="pending?.time"></span></div>
+      </div>
+      <div class="kiosk-modal__actions">
+        <button type="button" class="btn" @click="closeModal()" :disabled="submitting">Cancel</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          @click="submit()"
+          :disabled="submitting"
+          x-text="submitting ? 'Checking in…' : 'Check in'"
+        ></button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function kioskApp() {
+  return {
+    pending: null,
+    submitting: false,
+
+    openTile(payload) {
+      this.pending = payload;
+      this.submitting = false;
+    },
+
+    closeModal() {
+      if (this.submitting) return;
+      this.pending = null;
+    },
+
+    submit() {
+      if (!this.pending || this.submitting) return;
+      this.submitting = true;
+      const id = this.pending.id;
+      const url = `/tryouts/kiosk/checkin/${id}/`;
+      const csrf = document.querySelector('[name="csrfmiddlewaretoken"]')?.value
+                || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+      fetch(url, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrf, 'HX-Request': 'true'},
+      })
+      .then(r => r.text())
+      .then(html => {
+        // Replace the tile in the grid + the feed via HTMX-style targets in the response
+        const tpl = document.createElement('template');
+        tpl.innerHTML = html.trim();
+
+        // Tile replacement
+        const tile = tpl.content.querySelector(`#kiosk-tile-${id}`);
+        const target = document.getElementById(`kiosk-tile-${id}`);
+        if (tile && target) target.outerHTML = tile.outerHTML;
+
+        // Feed swap (out-of-band)
+        const feed = tpl.content.querySelector('#kiosk-feed');
+        if (feed) document.getElementById('kiosk-feed').innerHTML = feed.innerHTML;
+
+        // Counter swap
+        const ci = tpl.content.querySelector('#kiosk-checked-in-count');
+        const tot = tpl.content.querySelector('#kiosk-total-count');
+        if (ci) document.getElementById('kiosk-checked-in-count').textContent = ci.textContent;
+        if (tot) document.getElementById('kiosk-total-count').textContent = tot.textContent;
+
+        this.pending = null;
+        this.submitting = false;
+      })
+      .catch(err => {
+        console.error('kiosk check-in failed', err);
+        this.submitting = false;
+        alert('Check-in failed. Try again.');
+      });
+    },
+  };
+}
+</script>
+<form style="display:none">{% csrf_token %}</form>
+{% endblock %}

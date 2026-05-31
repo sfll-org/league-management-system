@@ -16,6 +16,10 @@ urlpatterns = [
     path('checkin/<uuid:token>/', views.checkin_by_token, name='checkin_by_token'),
     path('sessions/<int:pk>/checkin/search/', views.checkin_search, name='checkin_search'),
     path('sessions/<int:pk>/checkin/<int:assignment_id>/', views.checkin_player, name='checkin_player'),
+    # Kiosk (front-desk tablet — Phase 10 / SFLL-115)
+    path('kiosk/', views.kiosk, name='kiosk'),
+    path('kiosk/search/', views.kiosk_search, name='kiosk_search'),
+    path('kiosk/checkin/<int:assignment_id>/', views.kiosk_checkin, name='kiosk_checkin'),
     # Reassignment
     path('sessions/<int:pk>/reassign/<int:assignment_id>/', views.reassign_player, name='reassign_player'),
     # No-show flagging

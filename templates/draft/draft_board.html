@@ -81,6 +81,11 @@
         <!-- Admin controls -->
         {% if is_admin %}
         <div class="mt-4 flex flex-wrap gap-2">
+            <a href="{% url 'draft:draft_room' session_id=draft_session.pk %}"
+               class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+               target="_blank" rel="noopener">
+                Open Room view ↗
+            </a>
             {% if draft_session.status == 'seeding' %}
             <form method="post" action="{% url 'draft:start_draft' session_id=draft_session.pk %}"
                   onsubmit="return confirm('Start the draft? This cannot be undone.');">

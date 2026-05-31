@@ -323,3 +323,61 @@ class SeedingViewTests(TestCase):
             reverse('draft:lock_seeding', args=[self.d['division'].pk]),
         )
         self.assertEqual(resp.status_code, 400)
+
+
+class DraftRoomViewTests(TestCase):
+    """SFLL-115 — iPad Draft Room split-pane."""
+
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.ds = DraftSession.objects.create(
+            season=self.d['season'], division=self.d['division'],
+            status='drafting', current_round=1, current_pick=1,
+            team_order=[self.d['ts1'].pk, self.d['ts2'].pk],
+        )
+        # Authorize coach_user as CTO so they can render the room.
+        UserRole.objects.create(
+            user=self.d['coach_user'], league=self.d['league'],
+            role='cto', is_active=True,
+        )
+        self.client = Client()
+
+    def test_draft_room_renders(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'draft-room')
+        self.assertContains(resp, 'On the clock')
+        self.assertContains(resp, 'On deck')
+        self.assertContains(resp, self.d['division'].name)
+
+    def test_draft_room_lists_available_players(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        # All 8 seeded players should appear in the JSON payload.
+        for ps in self.d['player_seasons']:
+            self.assertContains(resp, ps.player.full_name)
+
+    def test_draft_room_excludes_drafted_players(self):
+        DraftPick.objects.create(
+            draft_session=self.ds, team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1, pick_number=1, is_top_4=False,
+            picked_by=self.d['coach_user'],
+        )
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        # The JSON payloads embedded in the page set picks and available
+        # arrays separately; verify the drafted player appears in picks
+        # but not in available by parsing each array's identifiers out of
+        # the rendered JS literals.
+        body = resp.content.decode()
+        picks_block = body.split('picks: ', 1)[1].split('available:', 1)[0]
+        available_block = body.split('available: ', 1)[1].split('currentTeamId', 1)[0]
+        self.assertIn('"player_id": 1', picks_block)
+        self.assertNotIn('"id": 1,', available_block)
+
+    def test_draft_room_404_for_missing_session(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[99999]))
+        self.assertEqual(resp.status_code, 404)
