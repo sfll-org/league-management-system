@@ -19,7 +19,7 @@
     {% elif field == 'date_of_birth' %}
       {% if ps.player.date_of_birth %}{{ ps.player.date_of_birth|date:'Y-m-d' }}{% else %}<span class="text-muted">—</span>{% endif %}
     {% elif field == 'jersey_number' %}
-      {% if ps.jersey_number %}<span class="tabular">#{{ ps.jersey_number }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+      {% if ps.jersey_number is not None %}<span class="tabular">#{{ ps.jersey_number }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
     {% elif field == 'assigned_team' %}
       {% if ps.assigned_team %}{{ ps.assigned_team.team.name }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
     {% elif field == 'sub_league' %}
