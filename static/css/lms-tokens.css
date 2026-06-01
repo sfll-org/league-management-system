@@ -1079,6 +1079,110 @@ html[data-palette="twilight"] .cmdk-backdrop { background: oklch(0.05 0 0 / 0.55
 }
 .empty strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 4px; }
 
+/* ─────────────────────── family detail (SFLL-95, Phase 4) ─────────────────────── */
+.family-head {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.contacts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+}
+.contact-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.contact-card--empty {
+  border-style: dashed;
+  background: var(--bg-2);
+}
+.contact-card__role { display: flex; }
+.contact-card__name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.contact-card__lines { display: flex; flex-direction: column; gap: 2px; }
+.contact-card__line {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.contact-card__line:hover { color: var(--primary); text-decoration: underline; }
+
+.balance-row { padding: 4px 0 16px; }
+.balance-row__current {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.balance-row__label {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.balance-row__amount {
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.balance-row__hint { font-size: 12.5px; }
+
+.vol-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+.vol-row__cell {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--bg-2);
+}
+.vol-row__label {
+  font-size: 12px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vol-row__value {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The player_head crumbs + pills come from the SFLL-94 detail page; replicate
+   the small slice we need here so the family page renders standalone on main
+   until that PR merges. */
+.player-head__crumbs {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+.player-head__crumbs a { color: var(--ink-2); text-decoration: none; }
+.player-head__crumbs a:hover { color: var(--primary); }
+.player-head__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+  .vol-row { grid-template-columns: 1fr; }
+  .family-head { flex-direction: column; align-items: flex-start; }
+}
+
 /* ─────────────────────── utilities ─────────────────────── */
 .flex { display: flex; }
 .flex-col { display: flex; flex-direction: column; }

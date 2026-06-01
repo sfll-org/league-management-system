@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{# SFLL-95 — Family index (Phase 4).
+   Directory of families in the active season. Identity is the SportsConnect
+   account_email; each row links to the per-family detail page. #}
+
+{% block title %}Families — SFLL{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Families</h1>
+      <p class="page-sub">
+        {% if season %}
+        {{ families|length }} famil{{ families|length|pluralize:"y,ies" }} in
+        {{ season.name }}.
+        {% else %}
+        No active season — set one in Config to populate this list.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if families %}
+  <div class="card">
+    <table class="table table--clickable">
+      <thead>
+        <tr>
+          <th>Family</th>
+          <th>Account email</th>
+          <th class="col-num">Players</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for fam in families %}
+        <tr onclick="window.location='{% url 'players:family_detail' fam.family_key %}'">
+          <td>
+            <a href="{% url 'players:family_detail' fam.family_key %}">
+              {{ fam.name|default:fam.email }}
+            </a>
+          </td>
+          <td class="text-muted">{{ fam.email }}</td>
+          <td class="col-num tabular">{{ fam.player_count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="empty">
+      <strong>No families yet.</strong>
+      Families appear here after the first SportsConnect import of the season.
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
