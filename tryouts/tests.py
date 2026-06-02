@@ -4,11 +4,10 @@ from datetime import date, time, timedelta
 
 from django.test import TestCase, Client
 from django.urls import reverse
-from django.utils import timezone
 
 from accounts.models import User, UserRole
-from players.models import Division, League, Player, PlayerSeason, Season, Station
-from tryouts.models import CheckIn, Session, SessionAssignment
+from players.models import Division, League, Player, PlayerSeason, Season
+from tryouts.models import CheckIn, Session, SessionAssignment, WalkIn
 
 
 def _setup_base():
@@ -152,19 +151,19 @@ class SessionViewPermissionTests(TestCase):
         self.assertIn('login', resp.url)
 
     def test_session_list_authenticated(self):
-        user = _create_user()
+        _create_user()
         self.client.login(username='user@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_list'))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_create_forbidden_for_regular_user(self):
-        user = _create_user()
+        _create_user()
         self.client.login(username='user@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_create'))
         self.assertEqual(resp.status_code, 403)
 
     def test_session_create_allowed_for_superuser(self):
-        user = _create_user(email='admin@sfll.org', is_superuser=True)
+        _create_user(email='admin@sfll.org', is_superuser=True)
         self.client.login(username='admin@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_create'))
         self.assertEqual(resp.status_code, 200)
@@ -189,7 +188,7 @@ class SessionViewPermissionTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_session_delete_forbidden_for_regular_user(self):
-        user = _create_user()
+        _create_user()
         session = Session.objects.create(
             season=self.base['season'], name='SES 1',
             date=date.today(), start_time=time(9, 0),
@@ -223,7 +222,7 @@ class CheckInViewTests(TestCase):
         self.client = Client()
 
     def test_checkin_dashboard_requires_permission(self):
-        regular_user = _create_user(email='nobody@sfll.org')
+        _create_user(email='nobody@sfll.org')
         self.client.login(username='nobody@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse('tryouts:session_checkin', args=[self.session.pk])
@@ -266,7 +265,7 @@ class CheckInViewTests(TestCase):
     def test_public_checkin_by_token(self):
         """Public QR code check-in should work without authentication."""
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(CheckIn.objects.filter(session_assignment=self.assignment).exists())
@@ -275,7 +274,7 @@ class CheckInViewTests(TestCase):
         """If already checked in, public check-in should show already_checked_in."""
         CheckIn.objects.create(session_assignment=self.assignment)
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
 
@@ -285,7 +284,7 @@ class CheckInViewTests(TestCase):
         self.session.date = date.today() - timedelta(days=1)
         self.session.save()
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
 
@@ -434,6 +433,73 @@ class KioskViewTests(TestCase):
         resp = self.client.get(reverse('tryouts:kiosk'), {'session': self.session.pk})
         self.assertContains(resp, 'Rodriguez')
         self.assertNotContains(resp, 'Park')
+
+    def test_kiosk_walkin_creates_record(self):
+        """POSTing a walk-in creates a WalkIn record and returns feed+walkin-list HTML."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco',
+            'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(WalkIn.objects.filter(first_name='Marco', last_name='Reyes').exists())
+        self.assertContains(resp, 'kiosk-feed')
+        self.assertContains(resp, 'kiosk-walkin-list')
+
+    def test_kiosk_walkin_requires_name(self):
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {'first_name': '', 'last_name': ''})
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(WalkIn.objects.exists())
+
+    def test_kiosk_walkin_requires_login(self):
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco', 'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 302)
+
+    def test_kiosk_walkin_requires_checkin_permission(self):
+        _create_user(email='noperm@sfll.org')
+        self.client.login(username='noperm@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco', 'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_kiosk_walkin_with_session(self):
+        """Walk-in linked to a session; division is inferred from session.division."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Ana',
+            'last_name': 'Silva',
+            'session': self.session.pk,
+        })
+        wi = WalkIn.objects.get(first_name='Ana', last_name='Silva')
+        self.assertEqual(wi.session, self.session)
+        self.assertEqual(wi.division, self.session.division)
+
+    def test_kiosk_walkin_without_session_still_visible(self):
+        """Walk-ins without a session linkage still appear in the feed (season FK fix)."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Joe',
+            'last_name': 'NoSession',
+        })
+        self.assertEqual(resp.status_code, 200)
+        wi = WalkIn.objects.get(first_name='Joe', last_name='NoSession')
+        self.assertIsNone(wi.session)
+        self.assertEqual(wi.season, self.base['season'])
+        # Walk-in list HTML should include the name
+        self.assertContains(resp, 'NoSession')
+
+    def test_kiosk_checkin_includes_walkin_list(self):
+        """Check-in response now includes both feed and walk-in list wrappers."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('tryouts:kiosk_checkin', args=[self.assignment.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'kiosk-walkin-list')
 
 
 class SessionCreatePostTests(TestCase):

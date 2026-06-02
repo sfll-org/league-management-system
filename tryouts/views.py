@@ -5,12 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
 from players.models import Division, PlayerSeason, Season, Station
-from .models import CheckIn, Session, SessionAssignment
+from .models import CheckIn, Session, SessionAssignment, WalkIn
 from .utils import generate_checkin_qr
 
 
@@ -245,7 +244,6 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
     session.makeup_for = makeup_for
     session.save()
 
-    action = "updated" if session.pk else "created"
     messages.success(request, f"Session \"{session.name}\" saved successfully.")
     return redirect('tryouts:session_detail', pk=session.pk)
 
@@ -805,9 +803,11 @@ def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
             if search_lower not in haystack:
                 continue
 
+        ps = a.player_season
         tiles.append({
             'assignment': a,
-            'player': a.player_season.player,
+            'player': ps.player,
+            'player_season': ps,
             'session': sess,
             'division': sess.division,
             'checked_in': has_checkin,
@@ -824,7 +824,7 @@ def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
 def _kiosk_recent_feed(season):
     """Most-recent check-ins today, newest first."""
     today = date.today()
-    return (
+    checkins = list(
         CheckIn.objects.select_related(
             'session_assignment__player_season__player',
             'session_assignment__session__division',
@@ -832,6 +832,17 @@ def _kiosk_recent_feed(season):
         .filter(session_assignment__session__season=season,
                 session_assignment__session__date=today)
         .order_by('-checked_in_at')[:KIOSK_FEED_LIMIT]
+    )
+    return checkins
+
+
+def _kiosk_today_walk_ins(season):
+    """Walk-ins logged today for this season (regardless of session linkage)."""
+    today = date.today()
+    return list(
+        WalkIn.objects.select_related('division', 'session')
+        .filter(logged_at__date=today, season=season)
+        .order_by('-logged_at')[:KIOSK_FEED_LIMIT]
     )
 
 
@@ -854,10 +865,12 @@ def kiosk(request):
             'today': date.today(),
             'tiles': [],
             'session_filters': [],
+            'today_sessions': [],
             'total_count': 0,
             'checked_in_count': 0,
             'selected_session_id': None,
             'feed': [],
+            'walk_ins': [],
         })
 
     try:
@@ -870,16 +883,22 @@ def kiosk(request):
         assignments, session_filter_id=session_filter_id,
     )
     feed = _kiosk_recent_feed(active_season)
+    walk_ins = _kiosk_today_walk_ins(active_season)
+
+    # today_sessions feeds the walk-in form division/session pickers
+    today_sessions = [sf['session'] for sf in session_filters]
 
     return render(request, 'tryouts/kiosk.html', {
         'season': active_season,
         'today': today,
         'tiles': tiles,
         'session_filters': session_filters,
+        'today_sessions': today_sessions,
         'total_count': total,
         'checked_in_count': checked_in,
         'selected_session_id': session_filter_id,
         'feed': feed,
+        'walk_ins': walk_ins,
     })
 
 
@@ -939,9 +958,12 @@ def kiosk_checkin(request, assignment_id):
     _tiles, _filters, total, checked_in = _kiosk_build_tiles(assignments)
     feed = _kiosk_recent_feed(active_season)
 
+    walk_ins = _kiosk_today_walk_ins(active_season)
+
     tile = {
         'assignment': assignment,
         'player': assignment.player_season.player,
+        'player_season': assignment.player_season,
         'session': assignment.session,
         'division': assignment.session.division,
         'checked_in': True,
@@ -951,8 +973,60 @@ def kiosk_checkin(request, assignment_id):
     return render(request, 'tryouts/partials/kiosk_tile_after_checkin.html', {
         'tile': tile,
         'feed': feed,
+        'walk_ins': walk_ins,
         'total_count': total,
         'checked_in_count': checked_in,
+    })
+
+
+@login_required
+@require_POST
+def kiosk_walkin(request):
+    """Log a walk-in player who has no PlayerSeason record."""
+    if not _can_checkin(request.user):
+        return HttpResponseForbidden()
+
+    active_season = _get_active_season()
+    if not active_season:
+        return HttpResponseForbidden()
+
+    first_name = (request.POST.get('first_name') or '').strip()
+    last_name = (request.POST.get('last_name') or '').strip()
+    if not first_name or not last_name:
+        return HttpResponse('Name is required.', status=400)
+
+    division_id = request.POST.get('division') or None
+    session_id = request.POST.get('session') or None
+
+    division = None
+    if division_id:
+        from players.models import Division as Div
+        division = Div.objects.filter(pk=division_id).first()
+
+    session = None
+    if session_id:
+        session = Session.objects.filter(
+            pk=session_id, season=active_season,
+        ).select_related('division').first()
+        if session and division is None:
+            division = session.division
+
+    WalkIn.objects.create(
+        first_name=first_name,
+        last_name=last_name,
+        season=active_season,
+        division=division,
+        session=session,
+        logged_by=request.user,
+        notes=request.POST.get('notes', '').strip(),
+    )
+
+    feed = _kiosk_recent_feed(active_season)
+    walk_ins = _kiosk_today_walk_ins(active_season)
+    return render(request, 'tryouts/partials/kiosk_walkin_response.html', {
+        'feed': feed,
+        'walk_ins': walk_ins,
+        'walk_in_name': f"{last_name}, {first_name}",
     })
 
 

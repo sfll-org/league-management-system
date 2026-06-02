@@ -213,8 +213,14 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ teams_data|json_script:"teams-data" }}
+{{ picks_data|json_script:"picks-data" }}
+{{ available_data|json_script:"available-data" }}
 <script>
 function draftRoom() {
+  const teams = JSON.parse(document.getElementById('teams-data').textContent);
+  const picks = JSON.parse(document.getElementById('picks-data').textContent);
+  const available = JSON.parse(document.getElementById('available-data').textContent);
   return {
     // State pulled from the server-rendered context.
     sessionId: {{ draft_session.pk }},
@@ -225,9 +231,9 @@ function draftRoom() {
     currentUserId: {{ current_user_id }},
     isAdmin: {{ is_admin|yesno:"true,false" }},
 
-    teams: {{ teams_json|safe }},
-    picks: {{ picks_json|safe }},
-    available: {{ available_json|safe }},
+    teams,
+    picks,
+    available,
 
     currentTeamId: null,
     search: '',

@@ -344,8 +344,14 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ teams_data|json_script:"teams-data" }}
+{{ picks_data|json_script:"picks-data" }}
+{{ available_data|json_script:"available-data" }}
 <script>
 function draftBoard() {
+    const teams = JSON.parse(document.getElementById('teams-data').textContent);
+    const picks = JSON.parse(document.getElementById('picks-data').textContent);
+    const available = JSON.parse(document.getElementById('available-data').textContent);
     return {
         // Session state
         sessionId: {{ draft_session.pk }},
@@ -358,9 +364,9 @@ function draftBoard() {
         drafterTeamId: {{ drafter_team_id|default:"null" }},
 
         // Data
-        teams: {{ teams_json|safe }},
-        picks: {{ picks_json|safe }},
-        available: {{ available_json|safe }},
+        teams,
+        picks,
+        available,
         currentTeamId: null,
 
         // UI state

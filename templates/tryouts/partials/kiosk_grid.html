@@ -12,10 +12,16 @@
     {% if not tile.checked_in %}
     @click="openTile({
       id: {{ tile.assignment.pk }},
+      url: '{% url "tryouts:kiosk_checkin" tile.assignment.pk %}',
       name: '{{ tile.player.last_name|escapejs }}, {{ tile.player.first_name|escapejs }}',
       session: '{{ tile.session.name|escapejs }}',
       division: '{{ tile.division.name|escapejs }}',
-      time: '{{ tile.session.start_time|time:"g:i A"|escapejs }}'
+      time: '{{ tile.session.start_time|time:"g:i A"|escapejs }}',
+      parent: '{{ tile.player_season.account_name|escapejs }}',
+      photoRelease: {% if tile.player_season.photo_release is None %}null{% elif tile.player_season.photo_release %}true{% else %}false{% endif %},
+      medicalForm: {% if tile.player_season.medical_form is None %}null{% elif tile.player_season.medical_form %}true{% else %}false{% endif %},
+      balance: {% if tile.player_season.balance_outstanding %}'{{ tile.player_season.balance_outstanding|floatformat:2 }}'{% else %}null{% endif %},
+      hasCompliance: {% if tile.player_season.photo_release == False or tile.player_season.medical_form == False or tile.player_season.balance_outstanding %}true{% else %}false{% endif %}
     })"
     {% else %}
     disabled
