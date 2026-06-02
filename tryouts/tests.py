@@ -265,7 +265,7 @@ class CheckInViewTests(TestCase):
     def test_public_checkin_by_token(self):
         """Public QR code check-in should work without authentication."""
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(CheckIn.objects.filter(session_assignment=self.assignment).exists())
@@ -274,7 +274,7 @@ class CheckInViewTests(TestCase):
         """If already checked in, public check-in should show already_checked_in."""
         CheckIn.objects.create(session_assignment=self.assignment)
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
 
@@ -284,7 +284,7 @@ class CheckInViewTests(TestCase):
         self.session.date = date.today() - timedelta(days=1)
         self.session.save()
         resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
+            reverse('tryouts:checkin_by_token', args=[self.ps.checkin_token])
         )
         self.assertEqual(resp.status_code, 200)
 
