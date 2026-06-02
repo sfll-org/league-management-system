@@ -311,7 +311,7 @@ function kioskApp() {
       if (!this.pending || this.submitting) return;
       this.submitting = true;
       const id = this.pending.id;
-      const url = `/tryouts/kiosk/checkin/${id}/`;
+      const url = "{% url 'tryouts:kiosk' %}" + "checkin/" + id + "/";
       const csrf = document.querySelector('[name="csrfmiddlewaretoken"]')?.value
                 || document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 
