@@ -5,7 +5,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
@@ -245,7 +244,6 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
     session.makeup_for = makeup_for
     session.save()
 
-    action = "updated" if session.pk else "created"
     messages.success(request, f"Session \"{session.name}\" saved successfully.")
     return redirect('tryouts:session_detail', pk=session.pk)
 

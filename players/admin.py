@@ -47,13 +47,29 @@ class PlayerAdmin(admin.ModelAdmin):
 
 @admin.register(PlayerSeason)
 class PlayerSeasonAdmin(admin.ModelAdmin):
-    list_display = ('player', 'season', 'division', 'assigned_team', 'status', 'is_protected', 'is_top_4', 'photo_release', 'medical_form', 'balance_outstanding')
+    list_display = (
+        'player', 'season', 'division', 'assigned_team', 'status',
+        'is_protected', 'is_top_4', 'photo_release', 'medical_form', 'balance_outstanding',
+    )
     list_filter = ('season', 'division', 'status', 'is_protected', 'is_top_4', 'photo_release', 'medical_form')
     search_fields = ('player__first_name', 'player__last_name', 'account_email')
     fieldsets = (
-        (None, {'fields': ('player', 'season', 'division', 'assigned_team', 'coaches_child_of', 'status', 'is_protected', 'is_top_4', 'draft_slot')}),
-        ('SportsConnect', {'fields': ('account_name', 'account_email', 'additional_email', 'order_id', 'sportsconnect_order_detail_id')}),
-        ('Compliance', {'fields': ('photo_release', 'medical_form', 'balance_outstanding'), 'description': 'Manually entered until SportsConnect API audit (SFLL-120).'}),
+        (None, {
+            'fields': (
+                'player', 'season', 'division', 'assigned_team', 'coaches_child_of',
+                'status', 'is_protected', 'is_top_4', 'draft_slot',
+            ),
+        }),
+        ('SportsConnect', {
+            'fields': (
+                'account_name', 'account_email', 'additional_email',
+                'order_id', 'sportsconnect_order_detail_id',
+            ),
+        }),
+        ('Compliance', {
+            'fields': ('photo_release', 'medical_form', 'balance_outstanding'),
+            'description': 'Manually entered until SportsConnect API audit (SFLL-120).',
+        }),
         ('Tokens', {'fields': ('rsvp_token', 'checkin_token'), 'classes': ('collapse',)}),
     )
 

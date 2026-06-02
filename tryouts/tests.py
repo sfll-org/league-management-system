@@ -4,10 +4,9 @@ from datetime import date, time, timedelta
 
 from django.test import TestCase, Client
 from django.urls import reverse
-from django.utils import timezone
 
 from accounts.models import User, UserRole
-from players.models import Division, League, Player, PlayerSeason, Season, Station
+from players.models import Division, League, Player, PlayerSeason, Season
 from tryouts.models import CheckIn, Session, SessionAssignment, WalkIn
 
 
@@ -152,19 +151,19 @@ class SessionViewPermissionTests(TestCase):
         self.assertIn('login', resp.url)
 
     def test_session_list_authenticated(self):
-        user = _create_user()
+        _create_user()
         self.client.login(username='user@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_list'))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_create_forbidden_for_regular_user(self):
-        user = _create_user()
+        _create_user()
         self.client.login(username='user@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_create'))
         self.assertEqual(resp.status_code, 403)
 
     def test_session_create_allowed_for_superuser(self):
-        user = _create_user(email='admin@sfll.org', is_superuser=True)
+        _create_user(email='admin@sfll.org', is_superuser=True)
         self.client.login(username='admin@sfll.org', password='testpass123')
         resp = self.client.get(reverse('tryouts:session_create'))
         self.assertEqual(resp.status_code, 200)
@@ -189,7 +188,7 @@ class SessionViewPermissionTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
     def test_session_delete_forbidden_for_regular_user(self):
-        user = _create_user()
+        _create_user()
         session = Session.objects.create(
             season=self.base['season'], name='SES 1',
             date=date.today(), start_time=time(9, 0),
@@ -223,7 +222,7 @@ class CheckInViewTests(TestCase):
         self.client = Client()
 
     def test_checkin_dashboard_requires_permission(self):
-        regular_user = _create_user(email='nobody@sfll.org')
+        _create_user(email='nobody@sfll.org')
         self.client.login(username='nobody@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse('tryouts:session_checkin', args=[self.session.pk])
