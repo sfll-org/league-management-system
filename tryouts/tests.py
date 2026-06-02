@@ -467,7 +467,7 @@ class KioskViewTests(TestCase):
         self.assertEqual(resp.status_code, 403)
 
     def test_kiosk_walkin_with_session(self):
-        """Walk-in can optionally be linked to a session."""
+        """Walk-in linked to a session; division is inferred from session.division."""
         self.client.login(username='user@sfll.org', password='testpass123')
         self.client.post(reverse('tryouts:kiosk_walkin'), {
             'first_name': 'Ana',
@@ -476,6 +476,7 @@ class KioskViewTests(TestCase):
         })
         wi = WalkIn.objects.get(first_name='Ana', last_name='Silva')
         self.assertEqual(wi.session, self.session)
+        self.assertEqual(wi.division, self.session.division)
 
     def test_kiosk_walkin_without_session_still_visible(self):
         """Walk-ins without a session linkage still appear in the feed (season FK fix)."""

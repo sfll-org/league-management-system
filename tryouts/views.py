@@ -1005,7 +1005,11 @@ def kiosk_walkin(request):
 
     session = None
     if session_id:
-        session = Session.objects.filter(pk=session_id, season=active_season).first()
+        session = Session.objects.filter(
+            pk=session_id, season=active_season,
+        ).select_related('division').first()
+        if session and division is None:
+            division = session.division
 
     WalkIn.objects.create(
         first_name=first_name,
