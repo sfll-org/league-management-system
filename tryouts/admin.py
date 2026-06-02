@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import CheckIn, Session, SessionAssignment
+from .models import CheckIn, Session, SessionAssignment, WalkIn
 
 
 class SessionAssignmentInline(admin.TabularInline):
@@ -32,3 +32,11 @@ class SessionAssignmentAdmin(admin.ModelAdmin):
 class CheckInAdmin(admin.ModelAdmin):
     list_display = ('session_assignment', 'checked_in_at', 'checked_in_by')
     list_filter = ('checked_in_at',)
+
+
+@admin.register(WalkIn)
+class WalkInAdmin(admin.ModelAdmin):
+    list_display = ('last_name', 'first_name', 'division', 'session', 'logged_at', 'logged_by')
+    list_filter = ('division', 'logged_at')
+    search_fields = ('first_name', 'last_name', 'notes')
+    readonly_fields = ('logged_at',)

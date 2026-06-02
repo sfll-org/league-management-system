@@ -27,9 +27,12 @@
   </span>
 </button>
 
-{# 2. Feed wrapper — JS reads .innerHTML and assigns it back. #}
+{# 2. Feed wrapper #}
 <div id="kiosk-feed">{% include "tryouts/partials/kiosk_feed.html" %}</div>
 
-{# 3 + 4. Counters — JS reads .textContent. #}
+{# 3. Walk-in list wrapper #}
+<div id="kiosk-walkin-list">{% include "tryouts/partials/kiosk_walkin_list.html" %}</div>
+
+{# 4 + 5. Counters — JS reads .textContent. #}
 <span id="kiosk-checked-in-count">{{ checked_in_count }}</span>
 <span id="kiosk-total-count">{{ total_count }}</span>

@@ -136,6 +136,11 @@ class PlayerSeason(TimeStampedModel):
     rsvp_token = models.UUIDField(default=uuid.uuid4, unique=True)
     checkin_token = models.UUIDField(default=uuid.uuid4, unique=True)
 
+    # Compliance fields — manually entered by office until SportsConnect API audit (SFLL-120)
+    photo_release = models.BooleanField(null=True, blank=True)
+    medical_form = models.BooleanField(null=True, blank=True)
+    balance_outstanding = models.DecimalField(max_digits=7, decimal_places=2, null=True, blank=True)
+
     class Meta:
         unique_together = ['player', 'season']
         ordering = ['player__last_name', 'player__first_name']

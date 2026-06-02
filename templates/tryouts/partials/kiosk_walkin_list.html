@@ -1,0 +1,22 @@
+{# SFLL-120 — walk-in log for the kiosk feed sidebar. #}
+
+{% if walk_ins %}
+<div class="kiosk-feed__head kiosk-feed__head--walkin">
+  <span class="kiosk-feed__dot kiosk-feed__dot--walkin" aria-hidden="true"></span>
+  Walk-ins today
+</div>
+<ul class="kiosk-feed__list">
+  {% for wi in walk_ins %}
+  <li class="kiosk-feed__item kiosk-feed__item--walkin">
+    <div>
+      <span class="kiosk-feed__name">{{ wi.last_name }}, {{ wi.first_name }}</span>
+      <span class="kiosk-feed__sub">
+        {% if wi.division %}{{ wi.division.name }}{% else %}Division unknown{% endif %}
+        <span class="kiosk-walkin-badge">Walk-in</span>
+      </span>
+    </div>
+    <span class="kiosk-feed__time">{{ wi.logged_at|time:"g:i A" }}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

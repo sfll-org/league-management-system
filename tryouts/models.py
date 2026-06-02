@@ -57,3 +57,28 @@ class CheckIn(TimeStampedModel):
 
     def __str__(self):
         return f"Check-in: {self.session_assignment} at {self.checked_in_at}"
+
+
+class WalkIn(TimeStampedModel):
+    """Walk-in player without a PlayerSeason record; logged for office reconciliation."""
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    division = models.ForeignKey(
+        'players.Division', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='walk_ins',
+    )
+    session = models.ForeignKey(
+        Session, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='walk_ins',
+    )
+    logged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+    )
+    logged_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-logged_at']
+
+    def __str__(self):
+        return f"Walk-in: {self.first_name} {self.last_name}"

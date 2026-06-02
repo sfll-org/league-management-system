@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from accounts.models import User, UserRole
 from players.models import Division, League, Player, PlayerSeason, Season, Station
-from tryouts.models import CheckIn, Session, SessionAssignment
+from tryouts.models import CheckIn, Session, SessionAssignment, WalkIn
 
 
 def _setup_base():
@@ -434,6 +434,58 @@ class KioskViewTests(TestCase):
         resp = self.client.get(reverse('tryouts:kiosk'), {'session': self.session.pk})
         self.assertContains(resp, 'Rodriguez')
         self.assertNotContains(resp, 'Park')
+
+    def test_kiosk_walkin_creates_record(self):
+        """POSTing a walk-in creates a WalkIn record and returns feed+walkin-list HTML."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco',
+            'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(WalkIn.objects.filter(first_name='Marco', last_name='Reyes').exists())
+        self.assertContains(resp, 'kiosk-feed')
+        self.assertContains(resp, 'kiosk-walkin-list')
+
+    def test_kiosk_walkin_requires_name(self):
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {'first_name': '', 'last_name': ''})
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(WalkIn.objects.exists())
+
+    def test_kiosk_walkin_requires_login(self):
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco', 'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 302)
+
+    def test_kiosk_walkin_requires_checkin_permission(self):
+        _create_user(email='noperm@sfll.org')
+        self.client.login(username='noperm@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Marco', 'last_name': 'Reyes',
+        })
+        self.assertEqual(resp.status_code, 403)
+
+    def test_kiosk_walkin_with_session(self):
+        """Walk-in can optionally be linked to a session."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Ana',
+            'last_name': 'Silva',
+            'session': self.session.pk,
+        })
+        wi = WalkIn.objects.get(first_name='Ana', last_name='Silva')
+        self.assertEqual(wi.session, self.session)
+
+    def test_kiosk_checkin_includes_walkin_list(self):
+        """Check-in response now includes both feed and walk-in list wrappers."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(
+            reverse('tryouts:kiosk_checkin', args=[self.assignment.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'kiosk-walkin-list')
 
 
 class SessionCreatePostTests(TestCase):
