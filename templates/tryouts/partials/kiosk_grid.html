@@ -12,6 +12,7 @@
     {% if not tile.checked_in %}
     @click="openTile({
       id: {{ tile.assignment.pk }},
+      url: '{% url "tryouts:kiosk_checkin" tile.assignment.pk %}',
       name: '{{ tile.player.last_name|escapejs }}, {{ tile.player.first_name|escapejs }}',
       session: '{{ tile.session.name|escapejs }}',
       division: '{{ tile.division.name|escapejs }}',
