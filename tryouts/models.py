@@ -63,6 +63,9 @@ class WalkIn(TimeStampedModel):
     """Walk-in player without a PlayerSeason record; logged for office reconciliation."""
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    season = models.ForeignKey(
+        'players.Season', on_delete=models.CASCADE, related_name='walk_ins',
+    )
     division = models.ForeignKey(
         'players.Division', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='walk_ins',

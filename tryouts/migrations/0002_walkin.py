@@ -26,6 +26,7 @@ class Migration(migrations.Migration):
                 ('notes', models.TextField(blank=True)),
                 ('division', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='walk_ins', to='players.division')),
                 ('logged_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                ('season', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='walk_ins', to='players.season')),
                 ('session', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='walk_ins', to='tryouts.session')),
             ],
             options={

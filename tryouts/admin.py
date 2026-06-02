@@ -36,7 +36,7 @@ class CheckInAdmin(admin.ModelAdmin):
 
 @admin.register(WalkIn)
 class WalkInAdmin(admin.ModelAdmin):
-    list_display = ('last_name', 'first_name', 'division', 'session', 'logged_at', 'logged_by')
-    list_filter = ('division', 'logged_at')
+    list_display = ('last_name', 'first_name', 'season', 'division', 'session', 'logged_at', 'logged_by')
+    list_filter = ('season', 'division', 'logged_at')
     search_fields = ('first_name', 'last_name', 'notes')
     readonly_fields = ('logged_at',)

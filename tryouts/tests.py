@@ -478,6 +478,20 @@ class KioskViewTests(TestCase):
         wi = WalkIn.objects.get(first_name='Ana', last_name='Silva')
         self.assertEqual(wi.session, self.session)
 
+    def test_kiosk_walkin_without_session_still_visible(self):
+        """Walk-ins without a session linkage still appear in the feed (season FK fix)."""
+        self.client.login(username='user@sfll.org', password='testpass123')
+        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
+            'first_name': 'Joe',
+            'last_name': 'NoSession',
+        })
+        self.assertEqual(resp.status_code, 200)
+        wi = WalkIn.objects.get(first_name='Joe', last_name='NoSession')
+        self.assertIsNone(wi.session)
+        self.assertEqual(wi.season, self.base['season'])
+        # Walk-in list HTML should include the name
+        self.assertContains(resp, 'NoSession')
+
     def test_kiosk_checkin_includes_walkin_list(self):
         """Check-in response now includes both feed and walk-in list wrappers."""
         self.client.login(username='user@sfll.org', password='testpass123')

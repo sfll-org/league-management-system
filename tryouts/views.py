@@ -839,11 +839,11 @@ def _kiosk_recent_feed(season):
 
 
 def _kiosk_today_walk_ins(season):
-    """Walk-ins logged today for any session in this season."""
+    """Walk-ins logged today for this season (regardless of session linkage)."""
     today = date.today()
     return list(
         WalkIn.objects.select_related('division', 'session')
-        .filter(logged_at__date=today, session__season=season)
+        .filter(logged_at__date=today, season=season)
         .order_by('-logged_at')[:KIOSK_FEED_LIMIT]
     )
 
@@ -1012,6 +1012,7 @@ def kiosk_walkin(request):
     WalkIn.objects.create(
         first_name=first_name,
         last_name=last_name,
+        season=active_season,
         division=division,
         session=session,
         logged_by=request.user,
