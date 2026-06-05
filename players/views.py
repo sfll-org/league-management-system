@@ -1,26 +1,70 @@
 from collections import Counter
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
-from .models import Division, Player, PlayerSeason, Season, Team, TeamSeason
+from .models import Division, PlayerSeason, Season, TeamSeason
 
 
 @login_required
 def index(request):
-    """Player roster — filterable by division and season."""
+    """Roster — Pacific token-driven list with division chips, sub-league /
+    Top-4 / Unassigned view toggle, and name search."""
     active_season = Season.objects.filter(is_active=True).first()
-    player_seasons = PlayerSeason.objects.select_related(
-        'player', 'division', 'assigned_team__team',
-    ).filter(season=active_season) if active_season else PlayerSeason.objects.none()
+
+    qs = (
+        PlayerSeason.objects
+        .select_related('player', 'division', 'assigned_team__team')
+        .filter(season=active_season)
+        if active_season
+        else PlayerSeason.objects.none()
+    )
+
+    divisions = list(Division.objects.filter(is_active=True))
+
+    division_param = request.GET.get('division', '')
+    selected_division = next(
+        (d for d in divisions if str(d.id) == division_param), None,
+    )
+    if selected_division:
+        qs = qs.filter(division=selected_division)
+
+    sub_leagues = (
+        list(selected_division.league_names)
+        if selected_division and selected_division.has_leagues
+        else []
+    )
+    league_param = request.GET.get('league', '')
+    if league_param and league_param in sub_leagues:
+        qs = qs.filter(assigned_team__sub_league=league_param)
+
+    view_param = request.GET.get('view', 'all')
+    if view_param == 'top4':
+        qs = qs.filter(is_top_4=True)
+    elif view_param == 'unassigned':
+        qs = qs.filter(assigned_team__isnull=True)
+    else:
+        view_param = 'all'
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(
+            Q(player__first_name__icontains=q)
+            | Q(player__last_name__icontains=q)
+        )
 
     return render(request, 'players/index.html', {
-        'player_seasons': player_seasons,
+        'player_seasons': qs,
         'season': active_season,
-        'divisions': Division.objects.filter(is_active=True),
+        'divisions': divisions,
+        'sub_leagues': sub_leagues,
+        'selected_division': selected_division,
+        'selected_league': league_param if league_param in sub_leagues else '',
+        'view': view_param,
+        'q': q,
     })
 
 
