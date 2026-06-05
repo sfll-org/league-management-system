@@ -291,6 +291,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ teams_data|json_script:"draft-teams" }}
+{{ picks_data|json_script:"draft-picks" }}
+{{ available_data|json_script:"draft-available" }}
 <script>
 function draftBoard() {
   return {
@@ -303,9 +306,9 @@ function draftBoard() {
     currentUserId: {{ current_user_id }},
     isAdmin: {{ is_admin|yesno:"true,false" }},
     drafterTeamId: {{ drafter_team_id|default:"null" }},
-    teams: {{ teams_json|safe }},
-    picks: {{ picks_json|safe }},
-    available: {{ available_json|safe }},
+    teams: JSON.parse(document.getElementById('draft-teams').textContent),
+    picks: JSON.parse(document.getElementById('draft-picks').textContent),
+    available: JSON.parse(document.getElementById('draft-available').textContent),
 
     // ── Derived/UI state ───────────────────────────────────────────────
     currentTeamId: null,
@@ -371,8 +374,11 @@ function draftBoard() {
       return Array.from({length: target}, (_, i) => i + 1);
     },
 
-    // Pre-compute each cell row: round + ordered cells (one per team in pick
-    // order for that round), each tagged with the pick if drafted.
+    // Pre-compute each cell row: round + one cell per team in column order
+    // (matching the fixed column headers above). Snake reversal affects which
+    // pick_number falls in each column — it does NOT reorder the columns.
+    // Bug in the original: using teamsInRoundOrder() reversed the cells array
+    // for even rounds, placing them left-to-right under the wrong headers.
     get cellRows() {
       const numTeams = this.teams.length;
       if (numTeams === 0) return [];
@@ -381,9 +387,13 @@ function draftBoard() {
         pickByRoundTeam[`${p.round_number}:${p.team_id}`] = p;
       }
       return this.roundsRendered.map(r => {
-        const ordered = this.teamsInRoundOrder(r);
-        const cells = ordered.map((team, idx) => {
-          const pickNum = (r - 1) * numTeams + idx + 1;
+        const isEvenSnake = this.snakeDraft && r % 2 === 0;
+        // Cells always in this.teams order so they align with column headers.
+        const cells = this.teams.map((team, colIdx) => {
+          // In a snake even round the rightmost column picks first; compute
+          // each team's position-within-round from their column index.
+          const posInRound = isEvenSnake ? (numTeams - 1 - colIdx) : colIdx;
+          const pickNum = (r - 1) * numTeams + posInRound + 1;
           const pick = pickByRoundTeam[`${r}:${team.id}`];
           const isOnClock = this.status === 'drafting'
             && r === this.currentRound
