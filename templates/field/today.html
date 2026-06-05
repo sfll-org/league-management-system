@@ -1,0 +1,164 @@
+{% extends "field/base.html" %}
+
+{# SFLL-113 — Today screen.
+   Coach's first-tap surface: next event up front, compliance ping if the
+   coach is missing a cert, live RSVP grid for the next session, and a
+   week-at-a-glance schedule. Designed for one-handed use at the field. #}
+
+{% block field_title %}Today{% endblock %}
+
+{% block field_header %}
+<div class="field-screen__eyebrow">
+  {% if team_label %}{{ team_label }}{% else %}Field Mode{% endif %}
+</div>
+<h1 class="field-screen__title">{% if greeting %}{{ greeting }}, {% endif %}{{ user.first_name|default:user.get_username }}</h1>
+<div class="field-screen__sub">{{ today_label|default:'Today' }}</div>
+{% endblock %}
+
+{% block field_body %}
+
+  {% if compliance_ping %}
+  {% include "field/_partials/compliance_ping.html" with ping=compliance_ping %}
+  {% endif %}
+
+  {# ── Next event hero ── #}
+  {% if next_event %}
+  <div class="field-hero">
+    <div class="field-hero__eyebrow">{{ next_event.kind|default:'Next up' }}</div>
+    <div class="field-hero__title">{{ next_event.title }}</div>
+    <div class="field-hero__meta">
+      <span>{{ next_event.when }}</span>
+      {% if next_event.location %}<span>{{ next_event.location }}</span>{% endif %}
+      {% if next_event.rsvp_summary %}<span>{{ next_event.rsvp_summary }}</span>{% endif %}
+    </div>
+    <div class="field-hero__actions">
+      <a class="field-hero__btn field-hero__btn--solid" href="#rsvp">Take attendance</a>
+      {% if next_event.directions_url %}
+      <a class="field-hero__btn" href="{{ next_event.directions_url }}">Directions</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="field-card">
+    <div class="field-empty">
+      <strong>Nothing on deck.</strong>
+      The next scheduled session will show here.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Live RSVP grid for the next event ── #}
+  {% if rsvp_rows %}
+  <div class="field-card" id="rsvp">
+    <div class="field-card__head">
+      <div class="field-card__title">RSVP</div>
+      <div class="field-card__title-sub">{{ rsvp_total }} players</div>
+    </div>
+
+    <div class="field-rsvp-summary" aria-label="RSVP totals">
+      <span class="field-rsvp-summary__stat">
+        <span class="field-rsvp-summary__dot field-rsvp-summary__dot--attending"></span>
+        {{ rsvp_counts.attending }} in
+      </span>
+      <span class="field-rsvp-summary__stat">
+        <span class="field-rsvp-summary__dot field-rsvp-summary__dot--maybe"></span>
+        {{ rsvp_counts.maybe }} maybe
+      </span>
+      <span class="field-rsvp-summary__stat">
+        <span class="field-rsvp-summary__dot field-rsvp-summary__dot--declined"></span>
+        {{ rsvp_counts.declined }} out
+      </span>
+      <span class="field-rsvp-summary__stat" style="margin-left:auto;">
+        <span class="field-rsvp-summary__dot field-rsvp-summary__dot--none"></span>
+        {{ rsvp_counts.none }} pending
+      </span>
+    </div>
+
+    <div class="field-card__list" role="list">
+      {% for row in rsvp_rows %}
+      <div class="field-row" role="listitem">
+        <span class="field-row__icon" aria-hidden="true">{{ row.initials }}</span>
+        <span class="field-row__body">
+          <span class="field-row__title">{{ row.name }}</span>
+          {% if row.detail %}<span class="field-row__sub">{{ row.detail }}</span>{% endif %}
+        </span>
+        <span class="field-rsvp" role="group" aria-label="RSVP for {{ row.name }}">
+          <button type="button"
+                  class="field-rsvp__btn field-rsvp__btn--attending{% if row.status == 'attending' %} is-active{% endif %}"
+                  data-rsvp-id="{{ row.id }}" data-rsvp-status="attending"
+                  aria-pressed="{% if row.status == 'attending' %}true{% else %}false{% endif %}">In</button>
+          <button type="button"
+                  class="field-rsvp__btn field-rsvp__btn--maybe{% if row.status == 'maybe' %} is-active{% endif %}"
+                  data-rsvp-id="{{ row.id }}" data-rsvp-status="maybe"
+                  aria-pressed="{% if row.status == 'maybe' %}true{% else %}false{% endif %}">?</button>
+          <button type="button"
+                  class="field-rsvp__btn field-rsvp__btn--declined{% if row.status == 'not_attending' %} is-active{% endif %}"
+                  data-rsvp-id="{{ row.id }}" data-rsvp-status="not_attending"
+                  aria-pressed="{% if row.status == 'not_attending' %}true{% else %}false{% endif %}">Out</button>
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="field-note" id="rsvp-note" aria-live="polite">
+      Tap a chip to set a coach-recorded RSVP. Players can still update via their own link.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Week schedule ── #}
+  <div class="field-card">
+    <div class="field-card__head">
+      <div class="field-card__title">This week</div>
+      {% if week_label %}<div class="field-card__title-sub">{{ week_label }}</div>{% endif %}
+    </div>
+    {% if week_rows %}
+    <div class="field-card__list">
+      {% for d in week_rows %}
+      <div class="field-schedule-day{% if d.is_rest %} field-schedule-day--rest{% endif %}">
+        <div class="field-schedule-day__date">
+          <strong>{{ d.day }}</strong>
+          <span>{{ d.dow }}</span>
+        </div>
+        <div class="field-schedule-day__body">
+          <div class="field-schedule-day__title">{{ d.title }}</div>
+          {% if d.sub %}<div class="field-schedule-day__sub">{{ d.sub }}</div>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="field-empty">
+      <strong>No events this week.</strong>
+      Practices and games will appear once scheduled.
+    </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Visual-only toggle for the RSVP grid in Phase 8. Real persistence is
+  // an HTMX swap in a later phase (Plane: SFLL-113 follow-up). Updating
+  // the aria-pressed + active class locally keeps the UI honest for
+  // demo / preview purposes without touching the server.
+  (function() {
+    document.querySelectorAll('.field-rsvp').forEach(function(group) {
+      group.addEventListener('click', function(e) {
+        var btn = e.target.closest('.field-rsvp__btn');
+        if (!btn) return;
+        var alreadyActive = btn.classList.contains('is-active');
+        group.querySelectorAll('.field-rsvp__btn').forEach(function(b) {
+          b.classList.remove('is-active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        if (!alreadyActive) {
+          btn.classList.add('is-active');
+          btn.setAttribute('aria-pressed', 'true');
+        }
+      });
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% comment %}
+SFLL-113 — Bottom tab bar for Coach Field Mode. Three tabs (Today /
+Roster / Lineup). The view sets field_active so the tab bar lights up
+the right tab; absent variable means nothing is highlighted, which is
+fine for a stray render outside the field/* views.
+{% endcomment %}
+
+<nav class="field-tabbar" aria-label="Field Mode sections">
+  <a href="{% url 'field_today' %}"
+     class="field-tab{% if field_active == 'today' %} field-tab--active{% endif %}"
+     {% if field_active == 'today' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">◐</span>
+    <span>Today</span>
+  </a>
+  <a href="{% url 'field_roster' %}"
+     class="field-tab{% if field_active == 'roster' %} field-tab--active{% endif %}"
+     {% if field_active == 'roster' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">☷</span>
+    <span>Roster</span>
+  </a>
+  <a href="{% url 'field_lineup' %}"
+     class="field-tab{% if field_active == 'lineup' %} field-tab--active{% endif %}"
+     {% if field_active == 'lineup' %}aria-current="page"{% endif %}>
+    <span class="field-tab__icon" aria-hidden="true">◇</span>
+    <span>Lineup</span>
+  </a>
+</nav>

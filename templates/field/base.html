@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% comment %}
+SFLL-113 — Coach Field Mode shell.
+iPhone-first surface: phone frame centered on desktop, full-bleed on a real
+phone. Inner column is a sticky header + scrolling body + fixed bottom tab
+bar. Sub-templates fill field_header / field_body and pass field_active in
+the view context so the tab bar lights up the right tab. All chrome comes
+from .field-* primitives in lms-components.css (added in this phase) on
+top of the Pacific tokens from Phase 1.
+{% endcomment %}
+
+{% block title %}{% block field_title %}Field Mode{% endblock %} — SFLL{% endblock %}
+
+{% block content %}
+<div class="field-mode">
+  <div class="field-frame" role="region" aria-label="Coach Field Mode">
+
+    <div class="field-screen">
+      <header class="field-screen__header">
+        {% block field_header %}{% endblock %}
+      </header>
+
+      <div class="field-screen__body">
+        {% block field_body %}{% endblock %}
+      </div>
+    </div>
+
+    {% include "field/_partials/tabbar.html" %}
+
+  </div>
+</div>
+{% endblock %}

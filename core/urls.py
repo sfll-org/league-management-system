@@ -2,9 +2,15 @@
 
 from django.urls import path
 
-from core import admin_views, import_views
+from core import admin_views, field_views, import_views
 
 urlpatterns = [
+    # Coach Field Mode (SFLL-113, Phase 8)
+    path('field/', field_views.field_index, name='field_index'),
+    path('field/today/', field_views.field_today, name='field_today'),
+    path('field/roster/', field_views.field_roster, name='field_roster'),
+    path('field/lineup/', field_views.field_lineup, name='field_lineup'),
+
     # Imports (existing)
     path('admin/imports/', import_views.import_history, name='import_history'),
     path('admin/imports/upload/', import_views.import_upload, name='import_upload'),

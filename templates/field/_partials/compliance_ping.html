@@ -1,0 +1,16 @@
+{# SFLL-113 — Compliance ping banner.
+   Surfaces missing or expiring coach certifications (background check,
+   concussion training, etc.) so a coach can fix gating items before they
+   block the season. Compliance model isn't built yet (placeholder noted
+   in Phase 2 PR); the view passes a `compliance_ping` dict when one
+   needs surfacing. Tap target spans the full row to make it forgiving
+   on the field. #}
+
+<a class="field-ping" href="{{ ping.url|default:'#' }}">
+  <span class="field-ping__icon" aria-hidden="true">!</span>
+  <span class="field-ping__body">
+    <span class="field-ping__title">{{ ping.title }}</span>
+    {% if ping.sub %}<span class="field-ping__sub">{{ ping.sub }}</span>{% endif %}
+  </span>
+  <span class="field-ping__chev" aria-hidden="true">›</span>
+</a>
