@@ -4,6 +4,7 @@ import json
 
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Coach, CoachSeason, User, UserRole
 from draft.models import DraftPick, DraftSession
@@ -451,3 +452,64 @@ class DraftRoomViewTests(TestCase):
         self.client.login(username="hc@sfll.org", password="testpass123")
         resp = self.client.get(reverse("draft:draft_room", args=[99999]))
         self.assertEqual(resp.status_code, 404)
+
+
+class DraftBoardViewTests(TestCase):
+    """Phase 7: live draft board renders on Pacific tokens."""
+
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.client = Client()
+        self.ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+            status='drafting',
+            current_round=1,
+            current_pick=1,
+            team_order=[self.d['ts1'].pk, self.d['ts2'].pk],
+            started_at=timezone.now(),
+        )
+
+    def test_draft_board_renders_for_head_coach(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('draft:draft_board', args=[self.ds.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Pacific shell markers — would be missing if we regressed to dark Tailwind.
+        self.assertContains(resp, 'class="page page--wide"')
+        self.assertContains(resp, 'draft-shell')
+        self.assertContains(resp, 'draft-grid')
+        self.assertContains(resp, 'queue')
+
+    def test_draft_board_renders_top_4_row_when_seeded(self):
+        DraftPick.objects.create(
+            draft_session=self.ds, team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=0, pick_number=1, is_top_4=True,
+            is_coaches_child=True,
+            picked_by=self.d['coach_user'],
+        )
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('draft:draft_board', args=[self.ds.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        # is_top_4 + is_coaches_child both flow into picks_json, where the
+        # template/Alpine drive Seed and CC marker rendering.
+        self.assertContains(resp, '"is_top_4": true')
+        self.assertContains(resp, '"is_coaches_child": true')
+
+    def test_draft_board_drops_legacy_tailwind_chrome(self):
+        """SFLL-112 acceptance — no dark Tailwind classes from the legacy template."""
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('draft:draft_board', args=[self.ds.pk])
+        )
+        body = resp.content.decode()
+        for legacy in ('bg-gray-800', 'bg-gray-700', 'text-emerald-400',
+                       'rounded-xl', 'border-gray-700', 'bg-emerald-900'):
+            self.assertNotIn(
+                legacy, body,
+                f'Legacy Tailwind class `{legacy}` leaked back into the draft board.',
+            )
