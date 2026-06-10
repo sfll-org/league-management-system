@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{# SFLL-114 — Print roster card index (Phase 9).
+   Lists every team in the active season with a link to the half-sheet
+   dugout card. Teams are grouped by division + sub-league so a manager
+   can scan quickly before games. #}
+
+{% block title %}Print roster cards — SFLL{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Print roster cards</h1>
+      <p class="page-sub">
+        {% if season %}
+        {{ team_seasons|length }} team{{ team_seasons|length|pluralize }} in {{ season.name }}.
+        Select a team to open its half-sheet dugout card, then use your
+        browser&rsquo;s print dialog.
+        {% else %}
+        No active season — set one in Config to see teams here.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if team_seasons %}
+  <div class="card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Team</th>
+          <th>Division</th>
+          <th>Sub-league</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ts in team_seasons %}
+        <tr>
+          <td><strong>{{ ts.team.name }}</strong></td>
+          <td class="text-muted">{{ ts.division.name }}</td>
+          <td class="text-muted">{{ ts.sub_league|default:"—" }}</td>
+          <td style="text-align:right">
+            <a
+              href="{% url 'players:print_dugout_card' ts.pk %}"
+              class="btn btn--sm btn--ghost"
+            >Print card →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:40px">
+    <p class="text-muted">No teams found for the active season.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

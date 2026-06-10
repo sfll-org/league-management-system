@@ -4,7 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
+from django.utils import timezone
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+
+from accounts.models import CoachSeason
+from tryouts.models import Session
 
 from .models import Division, PlayerSeason, Season, TeamSeason
 
@@ -105,6 +109,87 @@ def dugout_card(request, pk):
         'team_season': team_season,
         'roster': roster,
         'schedule_slots': range(5),
+    })
+
+
+# ── Print surfaces — SFLL-114 (Phase 9) ────────────────────────────────────
+
+
+@login_required
+def print_index(request):
+    """Index listing every team in the active season with a Print card link.
+
+    Grouped by division + sub-league so a manager can scan quickly before
+    a game day. Lives at /players/print/ alongside the other roster surfaces.
+    """
+    active_season = Season.objects.filter(is_active=True).first()
+    team_seasons = (
+        TeamSeason.objects
+        .select_related('team', 'division')
+        .filter(season=active_season)
+        .order_by('division__display_order', 'sub_league', 'team__name')
+        if active_season
+        else TeamSeason.objects.none()
+    )
+    return render(request, 'players/print_index.html', {
+        'team_seasons': team_seasons,
+        'season': active_season,
+    })
+
+
+@login_required
+def print_dugout_card(request, team_season_id):
+    """Half-sheet dugout roster card — standalone print surface.
+
+    Renders a print-only page (no app shell) with two identical half-sheet
+    cards stacked on one letter sheet. The browser print dialog fires on
+    load; pass ?print=0 to suppress when proofing layout on screen.
+
+    Each card carries:
+    - Team strip: team name + division + head/assistant coaches with phone
+    - Next 5 sessions in the team's division (stand-in for a Game model)
+    - Roster with parent/guardian name + emergency contact emails
+    """
+    team_season = get_object_or_404(
+        TeamSeason.objects.select_related('team__league', 'season__league', 'division'),
+        pk=team_season_id,
+    )
+
+    coach_seasons = list(
+        CoachSeason.objects
+        .filter(team_season=team_season)
+        .select_related('coach__user')
+        .order_by('role', 'coach__user__last_name')
+    )
+    head_coach = next((cs for cs in coach_seasons if cs.role == 'head_coach'), None)
+    assistant_coaches = [cs for cs in coach_seasons if cs.role == 'assistant_coach']
+
+    roster = list(
+        PlayerSeason.objects
+        .filter(assigned_team=team_season)
+        .select_related('player')
+        .order_by('player__last_name', 'player__first_name')
+    )
+
+    # Sessions stand in for a Game model until that lands — same placeholder
+    # pattern Phase 8 used. Filter to the team's division, future-only,
+    # limit to the next 5.
+    today = timezone.localdate()
+    games = list(
+        Session.objects
+        .filter(division=team_season.division, date__gte=today)
+        .order_by('date', 'start_time')[:5]
+    )
+
+    auto_print = request.GET.get('print', '1') != '0'
+
+    return render(request, 'players/print_dugout_card.html', {
+        'team_season': team_season,
+        'head_coach': head_coach,
+        'assistant_coaches': assistant_coaches,
+        'roster': roster,
+        'games': games,
+        'auto_print': auto_print,
     })
 
 

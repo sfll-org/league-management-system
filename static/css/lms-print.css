@@ -1,28 +1,369 @@
 /* ─────────────────────────────────────────────────────────────
-   SFLL — Print stylesheet (SFLL-100, Phase 9).
-   Loaded site-wide via base.html. Screen rules are no-ops; the
-   `@media print` block is the entire payload.
+   SFLL — Print stylesheet.
 
-   Strategy:
-     - Drop sidebar, topbar, flash, footer.
-     - Collapse the body grid to a single column so .lms-main
-       gets the full page width.
-     - Anything tagged .no-print is hidden; anything tagged
-       .print-only is shown (it's display:none otherwise).
-     - Page margins live in @page so coaches' browsers don't
-       fight us with their own defaults.
+   Two jobs:
+     1. (SFLL-100, site-wide) Loaded via base.html — strips the app
+        shell when any screen page goes to print.
+     2. (SFLL-114, Phase 9) Component classes for the standalone
+        half-sheet dugout card print surface (print_dugout_card.html
+        loads lms-tokens.css + this file directly, no base.html).
    ───────────────────────────────────────────────────────────── */
+
+/* ─── 1. Site-wide print utilities ─────────────────────────── */
 
 .print-only {
   display: none;
 }
 
+/* ─── 2. Dugout-card print surface (SFLL-114, Phase 9) ─────── */
+
+/* Screen shell ─ wraps the standalone page body */
+.print-body {
+  background: var(--bg-2);
+  color: var(--ink);
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+}
+
+/* Sticky screen-only toolbar with team meta + print / back actions */
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.print-toolbar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+
+.print-toolbar__meta strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.print-toolbar__meta span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.print-toolbar__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Ghost button variant used in toolbar */
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--ink-2);
+}
+
+.btn--ghost:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+/* Centered "paper" column — on screen shows the two-card stack */
+.print-sheet {
+  width: 8.5in;
+  max-width: 100%;
+  margin: 24px auto;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ─── Dugout card ─────────────────────────────────────────── */
+
+.dugout-card {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  width: 100%;
+  min-height: 5.25in;
+  padding: 18px 22px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.dugout-card__strip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--primary);
+}
+
+.dugout-card__team {
+  min-width: 0;
+}
+
+.dugout-card__eyebrow {
+  margin: 0 0 2px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dugout-card__team-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: var(--ink);
+  word-wrap: break-word;
+}
+
+.dugout-card__team-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.dugout-card__coaches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.dugout-card__coach {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.dugout-card__coach-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.dugout-card__coach-name {
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dugout-card__coach-phone {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dugout-card__coach--empty {
+  grid-template-columns: 1fr;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+.dugout-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dugout-card__section--roster {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dugout-card__section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-transform: uppercase;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dugout-card__section-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--ink-3);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.dugout-card__empty {
+  margin: 0;
+  padding: 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* ─── Data tables inside the card ─────────────────────────── */
+
+.dugout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10.5px;
+}
+
+.dugout-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.dugout-table td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  vertical-align: top;
+}
+
+.dugout-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.dugout-col-date {
+  width: 64px;
+  white-space: nowrap;
+}
+
+.dugout-col-time {
+  width: 72px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.dugout-col-loc {
+  width: 32%;
+  color: var(--ink-2);
+}
+
+.dugout-col-num {
+  width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  color: var(--ink-3);
+}
+
+.dugout-col-contact {
+  width: 38%;
+}
+
+.dugout-cell-day {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.dugout-cell-date {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dugout-cell-player {
+  font-weight: 600;
+}
+
+.dugout-cell-email {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--ink-2);
+  word-break: break-all;
+}
+
+.dugout-cell-email--alt {
+  color: var(--ink-3);
+}
+
+/* ─── Card footer ─────────────────────────────────────────── */
+
+.dugout-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--ink-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dugout-card__footer-meta {
+  text-align: right;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   @media print — applies to ALL pages that load this stylesheet.
+   Rules in this block are ordered by specificity group so they
+   layer cleanly whether the page is the base.html shell or the
+   standalone print surface.
+   ───────────────────────────────────────────────────────────── */
+
 @media print {
   @page {
-    size: letter;
-    margin: 0.5in;
+    size: letter portrait;
+    margin: 0.35in;
   }
 
+  /* ── base.html shell: hide chrome so the content fills the page ── */
   html,
   body.lms-shell {
     background: #fff !important;
@@ -60,33 +401,45 @@
     display: block;
   }
 
-  /* Don't split a row across pages — keeps roster lines whole. */
+  /* ── standalone print surface: strip toolbar + reset sheet layout ── */
+  .print-toolbar {
+    display: none;
+  }
+
+  .print-body {
+    background: #ffffff;
+  }
+
+  .print-sheet {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+  }
+
+  /* Each card claims its own half-sheet (letter ÷ 2 minus margins).
+     page-break-after splits the two duplicate cards onto separate
+     halves so a coach can fold along the midline and tuck both into
+     a binder sleeve. */
+  .dugout-card {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 5.0in;
+    padding: 0.3in 0.35in 0.25in;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .dugout-card:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  /* Don't orphan a row mid-page inside a card */
   tr,
   .dugout-card__row {
     page-break-inside: avoid;
-  }
-
-  /* Each dugout card occupies the top half of a US Letter sheet.
-     Coaches fold or cut along the dashed rule below. Two cards on
-     one page is a future optimisation; today one card per print job
-     is what's actually requested. */
-  .dugout-card {
-    height: 4.5in;
-    overflow: hidden;
-    border: 1px solid #000;
-    border-radius: 6px;
-    padding: 0.2in 0.25in;
-  }
-
-  .dugout-card__cut {
-    margin-top: 0.15in;
-    border-top: 1px dashed #999;
-    text-align: center;
-    font-size: 8pt;
-    color: #555;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding-top: 4px;
   }
 
   a {

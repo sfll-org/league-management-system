@@ -1,16 +1,18 @@
-"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95)."""
+"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95) and Print surfaces (SFLL-114)."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.utils import timezone
 
-from accounts.models import User, UserRole
+from accounts.models import Coach, CoachSeason, User, UserRole
 from communications.models import EmailLog
 from players.models import (
     Division, League, Player, PlayerSeason, Season, Station, Team, TeamSeason,
 )
 from players.views import encode_family_key
+from tryouts.models import Session
 
 
 def _create_league():
@@ -334,6 +336,164 @@ class DugoutCardViewTests(TestCase):
         self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse('players:dugout_card', args=[empty_ts.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No players assigned')
+
+
+# ---------------------------------------------------------------------------
+# SFLL-114 — Print surfaces (Phase 9)
+# ---------------------------------------------------------------------------
+
+
+class PrintSurfaceTests(TestCase):
+    """print_index + print_dugout_card views: login gates, rendering,
+    coach / game / emergency-contact data, auto-print toggle."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026,
+            season_type='spring', is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+        self.team = Team.objects.create(league=self.league, name='Giants')
+        self.team_season = TeamSeason.objects.create(
+            team=self.team, season=self.season, division=self.division,
+        )
+        self.player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='sc-p1',
+            first_name='Babe', last_name='Ruth',
+        )
+        self.ps = PlayerSeason.objects.create(
+            player=self.player, season=self.season, division=self.division,
+            assigned_team=self.team_season,
+            account_name='George Ruth Sr',
+            account_email='george.sr@example.com',
+            additional_email='claire@example.com',
+        )
+        # Coach setup
+        self.coach_user = User.objects.create_user(
+            username='coach@sfll.org', email='coach@sfll.org',
+            first_name='Casey', last_name='Stengel',
+            password='coachpass',
+        )
+        self.coach = Coach.objects.create(
+            user=self.coach_user, league=self.league, phone='415-555-0100',
+        )
+        self.coach_season = CoachSeason.objects.create(
+            coach=self.coach, team_season=self.team_season,
+            season=self.season, role='head_coach',
+        )
+        # Future session for game schedule
+        tomorrow = timezone.localdate() + timedelta(days=1)
+        self.session = Session.objects.create(
+            season=self.season, division=self.division,
+            name='Opening Day', date=tomorrow, start_time='10:00',
+            location='Kimbell Park Field 1',
+        )
+
+    # ── print_index ──────────────────────────────────────────────────────
+
+    def test_print_index_requires_login(self):
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_print_index_lists_teams(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Giants')
+        self.assertContains(resp, 'Print card')
+
+    def test_print_index_no_active_season(self):
+        self.season.is_active = False
+        self.season.save()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:print_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No active season')
+
+    # ── print_dugout_card ─────────────────────────────────────────────────
+
+    def test_print_dugout_card_requires_login(self):
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_print_dugout_card_renders_team_strip(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Giants')
+        self.assertContains(resp, 'Majors')
+        self.assertContains(resp, 'Spring 2026')
+
+    def test_print_dugout_card_shows_head_coach(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertContains(resp, 'Casey Stengel')
+        self.assertContains(resp, '415-555-0100')
+
+    def test_print_dugout_card_shows_roster_and_contacts(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertContains(resp, 'Babe Ruth')
+        self.assertContains(resp, 'George Ruth Sr')
+        self.assertContains(resp, 'george.sr@example.com')
+        self.assertContains(resp, 'claire@example.com')
+
+    def test_print_dugout_card_shows_schedule(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertContains(resp, 'Opening Day')
+        self.assertContains(resp, 'Kimbell Park Field 1')
+
+    def test_print_dugout_card_auto_print_on_by_default(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+        )
+        # The on-load script is emitted; the toolbar "Print again" button
+        # is always present regardless of the ?print flag.
+        self.assertContains(resp, 'window.addEventListener')
+
+    def test_print_dugout_card_auto_print_suppressed(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[self.team_season.pk]),
+            {'print': '0'},
+        )
+        self.assertNotContains(resp, 'window.addEventListener')
+
+    def test_print_dugout_card_404_for_missing_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[9999]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_print_dugout_card_empty_roster(self):
+        empty_team = Team.objects.create(league=self.league, name='Cubs')
+        empty_ts = TeamSeason.objects.create(
+            team=empty_team, season=self.season, division=self.division,
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:print_dugout_card', args=[empty_ts.pk]),
         )
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'No players assigned')
