@@ -1,0 +1,178 @@
+name: Branch cleanup
+
+on:
+  schedule:
+    - cron: '0 14 * * MON'  # weekly Mon 07:00 PT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+jobs:
+  branch-cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit and clean stale branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const WARN_DAYS = 30;
+            const DELETE_DAYS = 60;
+            const PROTECTED = new Set(['main', 'master', 'develop', 'HEAD']);
+            const PROTECTED_PATTERNS = [/^release\//, /^hotfix\//, /^archive\//];
+            const now = Date.now();
+
+            function daysSince(dateStr) {
+              return (now - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24);
+            }
+
+            function isProtected(name) {
+              return PROTECTED.has(name) || PROTECTED_PATTERNS.some(p => p.test(name));
+            }
+
+            // All non-protected branches
+            const branches = await github.paginate(github.rest.repos.listBranches, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              protected: false,
+            });
+
+            // Branches with an open PR are kept
+            const openPRs = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+            const openPRBranches = new Set(openPRs.map(pr => pr.head.ref));
+
+            // Branches whose last closed PR carries do-not-delete are kept
+            const recentClosedPRs = await github.paginate(
+              github.rest.pulls.list,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'closed',
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 100,
+              },
+              (response, done) => {
+                const cutoff = now - 180 * 24 * 60 * 60 * 1000;
+                if (response.data.some(pr => new Date(pr.updated_at).getTime() < cutoff)) done();
+                return response.data;
+              }
+            );
+            const doNotDelete = new Set(
+              recentClosedPRs
+                .filter(pr => pr.labels.some(l => l.name === 'do-not-delete'))
+                .map(pr => pr.head.ref)
+            );
+
+            const warn = [];
+            const toDelete = [];
+
+            for (const branch of branches) {
+              const name = branch.name;
+              if (isProtected(name)) continue;
+              if (openPRBranches.has(name)) continue;
+              if (doNotDelete.has(name)) continue;
+
+              const commitData = await github.rest.repos.getCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: branch.commit.sha,
+              });
+              const age = daysSince(commitData.data.commit.committer.date);
+
+              if (age >= DELETE_DAYS) {
+                toDelete.push({ name, age: Math.floor(age), sha: branch.commit.sha.slice(0, 7) });
+              } else if (age >= WARN_DAYS) {
+                warn.push({ name, age: Math.floor(age), sha: branch.commit.sha.slice(0, 7) });
+              }
+            }
+
+            // Delete stale-grace branches (≥60d)
+            let deleted = 0;
+            for (const b of toDelete) {
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `heads/${b.name}`,
+                });
+                core.info(`Deleted: ${b.name} (${b.age}d)`);
+                deleted++;
+              } catch (e) {
+                core.warning(`Could not delete ${b.name}: ${e.message}`);
+              }
+            }
+
+            // Build report
+            const ts = new Date().toISOString().slice(0, 10);
+            const fmtList = items =>
+              items.length
+                ? items.map(b => `- \`${b.name}\` — ${b.age}d, last commit \`${b.sha}\``).join('\n')
+                : '_None_';
+
+            const body = [
+              `## Branch cleanup report — ${ts}`,
+              '',
+              `### Deleted (≥${DELETE_DAYS}d, no open PR)`,
+              fmtList(toDelete),
+              '',
+              `### Stale warning (≥${WARN_DAYS}d, no open PR)`,
+              fmtList(warn),
+              '',
+              '_Excluded: `main`, `master`, `develop`, `release/*`, `hotfix/*`, `archive/*`, branches with an open PR, branches whose last PR carries `do-not-delete`._',
+            ].join('\n');
+
+            // Ensure branch-cleanup label exists
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'branch-cleanup',
+                color: 'e4e669',
+                description: 'Branch hygiene tracking',
+              });
+            } catch (_) { /* already exists */ }
+
+            // Find or create tracking issue
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'branch-cleanup',
+              per_page: 1,
+            });
+
+            if (existing.data.length > 0) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.data[0].number,
+                body,
+              });
+              core.info(`Reported to issue #${existing.data[0].number}`);
+            } else {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'Branch cleanup tracker',
+                body,
+                labels: ['branch-cleanup'],
+              });
+              core.info(`Created tracking issue #${issue.data.number}`);
+            }
+
+            core.summary
+              .addHeading('Branch cleanup', 2)
+              .addTable([
+                [{ data: 'Category', header: true }, { data: 'Count', header: true }],
+                ['Deleted (≥60d)', String(deleted)],
+                ['Stale warning (30–59d)', String(warn.length)],
+                ['Active / protected / skipped', String(branches.length - toDelete.length - warn.length)],
+              ])
+              .write();
