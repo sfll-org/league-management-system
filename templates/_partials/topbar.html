@@ -1,6 +1,8 @@
-{# SFLL-92 — Pacific topbar.
-   Holds the mobile menu toggle, page title slot, and a placeholder ⌘K hint
-   (the actual command palette lands in Phase 10). #}
+{# SFLL-92 / SFLL-117 — Pacific topbar.
+   Holds the mobile menu toggle, page title slot, and the SFLL-117 actions
+   (⌘K + Tweaks) when the requesting user has power_user_mode enabled.
+   Non-power-users still see a static ⌘K kbd as a visual cue but it
+   doesn't open anything. #}
 <header class="lms-topbar">
   <button
     type="button"
@@ -20,7 +22,27 @@
   </div>
 
   <div class="lms-topbar__actions">
-    {# Placeholder shortcut hint — palette itself lands in Phase 10 (SFLL-101). #}
-    <kbd class="lms-topbar__cmdk" title="Command palette (Phase 10)">⌘K</kbd>
+    {% if user.is_authenticated and user.power_user_mode %}
+      <button
+        type="button"
+        id="lms-cmdk-trigger"
+        class="lms-topbar__cmdk-btn"
+        aria-label="Open command palette"
+        title="Command palette (⌘K)"
+      >
+        Search… <kbd>⌘K</kbd>
+      </button>
+      <button
+        type="button"
+        id="lms-tweaks-trigger"
+        class="lms-topbar__cmdk-btn"
+        aria-label="Open design tweaks"
+        title="Tweaks (⇧⌘.)"
+      >
+        Tweaks <kbd>⇧⌘.</kbd>
+      </button>
+    {% else %}
+      <kbd class="lms-topbar__cmdk" title="Command palette — ask an admin to enable Power-user mode">⌘K</kbd>
+    {% endif %}
   </div>
 </header>

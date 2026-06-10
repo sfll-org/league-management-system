@@ -1,0 +1,36 @@
+{# SFLL-117 — ⌘K command palette.
+   Only included by base.html when user.power_user_mode is True.
+   The JS module (lms-cmdk.js) reads the data-url attribute and
+   wires up open/close, search, keyboard navigation. #}
+<div id="lms-cmdk-scrim" class="lms-modal-scrim" hidden>
+  <div
+    id="lms-cmdk"
+    class="lms-cmdk"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Command palette"
+    data-url="{% url 'cmdk_search' %}"
+    hidden
+  >
+    <div class="lms-cmdk__input-row">
+      <svg class="lms-cmdk__icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="9" cy="9" r="6" />
+        <line x1="17" y1="17" x2="13.5" y2="13.5" />
+      </svg>
+      <input
+        type="text"
+        class="lms-cmdk__input"
+        placeholder="Search pages, players, families…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <span class="lms-cmdk__hint">esc</span>
+    </div>
+    <div class="lms-cmdk__results" role="listbox"></div>
+    <div class="lms-cmdk__footer">
+      <span><kbd>↑</kbd> <kbd>↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>

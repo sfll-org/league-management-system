@@ -1,0 +1,429 @@
+/* ─────────────────────────────────────────────────────────────
+   SFLL — Tweaks panel + ⌘K command palette (Phase 12 / SFLL-117)
+   Both surfaces sit behind User.power_user_mode and consume the
+   Pacific tokens defined in lms-tokens.css plus the primitives
+   from lms-components.css. Nothing here hardcodes a colour.
+   ───────────────────────────────────────────────────────────── */
+
+/* ─── Shared modal scrim ───────────────────────────────────── */
+
+.lms-modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: oklch(0.20 0.03 252 / 0.32);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh 16px 16px;
+}
+
+html[data-palette="twilight"] .lms-modal-scrim {
+  background: oklch(0.05 0.01 256 / 0.55);
+}
+
+/* ─── ⌘K command palette ───────────────────────────────────── */
+
+.lms-cmdk {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: min(560px, 70vh);
+}
+
+.lms-cmdk__input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lms-cmdk__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.lms-cmdk__input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  outline: none;
+}
+
+.lms-cmdk__input::placeholder {
+  color: var(--ink-3);
+}
+
+.lms-cmdk__hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 2px 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.lms-cmdk__results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.lms-cmdk__group {
+  padding: 6px 0;
+}
+
+.lms-cmdk__group-label {
+  padding: 6px 16px 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.lms-cmdk__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+}
+
+.lms-cmdk__item:hover,
+.lms-cmdk__item[data-active="true"] {
+  background: var(--bg-2);
+}
+
+.lms-cmdk__item[data-active="true"] {
+  background: var(--primary-soft);
+  color: var(--primary-soft-ink);
+}
+
+.lms-cmdk__item-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lms-cmdk__item-name {
+  font-weight: 500;
+  color: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lms-cmdk__item-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lms-cmdk__item[data-active="true"] .lms-cmdk__item-sub {
+  color: var(--primary-soft-ink);
+  opacity: 0.75;
+}
+
+.lms-cmdk__item-kind {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.lms-cmdk__empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+.lms-cmdk__empty strong {
+  color: var(--ink);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.lms-cmdk__footer {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.lms-cmdk__footer kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--bg-3);
+  color: var(--ink-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+/* ─── Tweaks panel (right-edge drawer) ─────────────────────── */
+
+.lms-tweaks {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  max-width: 92vw;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.lms-tweaks[data-open="true"] {
+  transform: translateX(0);
+}
+
+.lms-tweaks__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.lms-tweaks__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.lms-tweaks__close {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.lms-tweaks__close:hover {
+  background: var(--bg-3);
+  color: var(--ink);
+}
+
+.lms-tweaks__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lms-tweaks__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lms-tweaks__group-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.lms-tweaks__row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.lms-tweaks__opt {
+  border: 1px solid var(--border-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.lms-tweaks__opt:hover {
+  border-color: var(--ink-4);
+}
+
+.lms-tweaks__opt[data-active="true"] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-soft-ink);
+}
+
+.lms-tweaks__opt-sub {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+.lms-tweaks__opt[data-active="true"] .lms-tweaks__opt-sub {
+  color: var(--primary-soft-ink);
+  opacity: 0.75;
+}
+
+.lms-tweaks__footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.lms-tweaks__reset {
+  background: transparent;
+  border: 1px solid var(--border-2);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.lms-tweaks__reset:hover {
+  background: var(--bg-2);
+  color: var(--ink);
+}
+
+.lms-tweaks__hint {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
+
+/* ─── Topbar ⌘K trigger (replaces placeholder kbd) ─────────── */
+
+.lms-topbar__cmdk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lms-topbar__cmdk-btn:hover {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-2);
+}
+
+.lms-topbar__cmdk-btn kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ─── Top-nav layout variant ───────────────────────────────── */
+/* Tweaks panel exposes a "nav" toggle: side (default) vs top.
+   When the user selects top, the shell flips columns→rows so the
+   sidebar collapses into a horizontal bar across the top. Existing
+   per-screen styling still consumes the same tokens. */
+
+html[data-nav="top"] body.lms-shell {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+}
+
+html[data-nav="top"] .lms-sidebar {
+  position: static;
+  height: auto;
+  border-right: 0;
+  border-bottom: 1px solid var(--border);
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+}
+
+html[data-nav="top"] .lms-sidebar__brand {
+  border-bottom: 0;
+  padding: 10px 8px;
+  flex-shrink: 0;
+}
+
+html[data-nav="top"] .lms-sidebar__nav {
+  flex-direction: row;
+  flex: 1;
+  padding: 8px 4px;
+  gap: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+html[data-nav="top"] .lms-sidebar__section {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+html[data-nav="top"] .lms-sidebar__section-label {
+  margin: 0 4px 0 0;
+}
+
+html[data-nav="top"] .lms-sidebar__footer {
+  border-top: 0;
+  border-left: 1px solid var(--border);
+  padding: 10px 12px;
+  flex-shrink: 0;
+}

@@ -358,3 +358,60 @@ class HealthCheckTests(TestCase):
         resp = self.client.get(reverse('health-check'))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'ok')
+
+
+class CmdkUrlEncodingTests(TestCase):
+    """Regression: command-palette URLs must percent-encode reserved characters."""
+
+    def setUp(self):
+        from core.views import _cmdk_players, _cmdk_families
+        self._cmdk_players = _cmdk_players
+        self._cmdk_families = _cmdk_families
+
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026,
+            season_type='spring', is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+
+    def _make_player_season(self, first, last, account_name='Test Family'):
+        player = Player.objects.create(
+            league=self.league, first_name=first, last_name=last,
+        )
+        return PlayerSeason.objects.create(
+            player=player, season=self.season,
+            division=self.division, account_name=account_name,
+        )
+
+    def test_player_url_encodes_reserved_chars(self):
+        """A player name with '&' must not appear raw in the deep-link URL."""
+        self._make_player_season('A & B', 'Smith')
+        items = self._cmdk_players('Smith')
+        self.assertEqual(len(items), 1)
+        url = items[0]['url']
+        self.assertNotIn('&', url.split('?')[1])
+        self.assertIn('%26', url)
+
+    def test_player_url_encodes_plus(self):
+        self._make_player_season('C+D', 'Jones')
+        items = self._cmdk_players('Jones')
+        self.assertEqual(len(items), 1)
+        url = items[0]['url']
+        self.assertNotIn('+', url.split('?')[1])
+
+    def test_family_url_encodes_reserved_chars(self):
+        """An account name with '&' must not appear raw in the deep-link URL."""
+        self._make_player_season('Alice', 'Smith', account_name='Smith & Jones')
+        items = self._cmdk_families('Smith')
+        self.assertEqual(len(items), 1)
+        url = items[0]['url']
+        self.assertNotIn('&', url.split('?')[1])
+        self.assertIn('%26', url)
+
+    def test_family_url_encodes_plus(self):
+        self._make_player_season('Bob', 'Lee', account_name='A+B Family')
+        items = self._cmdk_families('A+B')
+        self.assertEqual(len(items), 1)
+        url = items[0]['url']
+        self.assertNotIn('+', url.split('?')[1])

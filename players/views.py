@@ -16,7 +16,11 @@ from .models import Division, PlayerSeason, Season, TeamSeason
 @login_required
 def index(request):
     """Roster — Pacific token-driven list with division chips, sub-league /
-    Top-4 / Unassigned view toggle, and name search."""
+    Top-4 / Unassigned view toggle, and name search.
+
+    Honours `?q=<name>` (plain or 'Last, First' format) and `?account=<account_name>`
+    so the SFLL-117 ⌘K palette can deep-link into a filtered view.
+    """
     active_season = Season.objects.filter(is_active=True).first()
 
     qs = (
@@ -53,12 +57,23 @@ def index(request):
     else:
         view_param = 'all'
 
-    q = request.GET.get('q', '').strip()
+    q = (request.GET.get('q') or '').strip()
+    account = (request.GET.get('account') or '').strip()
     if q:
-        qs = qs.filter(
-            Q(player__first_name__icontains=q)
-            | Q(player__last_name__icontains=q)
-        )
+        if ',' in q:
+            # "Last, First" format produced by the command-palette deep-links.
+            last_part, _, first_part = q.partition(',')
+            qs = qs.filter(
+                Q(player__last_name__icontains=last_part.strip())
+                & Q(player__first_name__icontains=first_part.strip())
+            )
+        else:
+            qs = qs.filter(
+                Q(player__first_name__icontains=q)
+                | Q(player__last_name__icontains=q)
+            )
+    if account:
+        qs = qs.filter(account_name=account)
 
     return render(request, 'players/index.html', {
         'player_seasons': qs,
@@ -69,6 +84,8 @@ def index(request):
         'selected_league': league_param if league_param in sub_leagues else '',
         'view': view_param,
         'q': q,
+        'roster_query': q,
+        'roster_account': account,
     })
 
 

@@ -1,16 +1,17 @@
 {% load static %}<!DOCTYPE html>
-{# SFLL-92 — Pacific shell.
-   The dark Tailwind chrome is gone; this is the light-theme sidebar+main
-   layout the Claude Design handoff delivered. CSS custom properties on
-   <html> (data-palette / data-type / data-density) drive the visual
-   system. Tailwind via CDN stays loaded for now because individual screens
-   still reference Tailwind classes — Phases 2+ rebuild each one against
-   the new tokens. #}
+{# SFLL-92 — Pacific shell. SFLL-117 wires the Tweaks panel + ⌘K palette
+   behind User.power_user_mode. CSS custom properties on <html>
+   (data-palette / data-type / data-density / data-nav) drive the visual
+   system; the preload script below applies any user-saved tweaks before
+   first paint to avoid FOUC. Tailwind via CDN stays loaded for now
+   because individual screens still reference Tailwind classes —
+   Phases 2+ rebuild each one against the new tokens. #}
 <html
   lang="en"
   data-palette="pacific"
   data-type="humanist-display"
   data-density="balanced"
+  data-nav="side"
 >
 <head>
   <meta charset="UTF-8" />
@@ -18,6 +19,28 @@
   <meta name="description" content="San Francisco Little League — League Management System" />
 
   <title>{% block title %}SFLL — League Management System{% endblock %}</title>
+
+  {% if user.is_authenticated and user.power_user_mode %}
+  {# SFLL-117 — Tweaks preload. Reads the saved palette/type/density/nav
+     from localStorage and applies them to <html> synchronously, so the
+     first frame paints with the user's chosen variant rather than the
+     default. Must stay tiny + blocking; do not move below the stylesheet
+     links or there will be a flash of default-themed content. #}
+  <script>
+    (function () {
+      try {
+        var raw = window.localStorage.getItem('sfll.tweaks.v1');
+        if (!raw) return;
+        var s = JSON.parse(raw);
+        var html = document.documentElement;
+        if (s && s.palette) html.setAttribute('data-palette', s.palette);
+        if (s && s.type)    html.setAttribute('data-type', s.type);
+        if (s && s.density) html.setAttribute('data-density', s.density);
+        if (s && s.nav)     html.setAttribute('data-nav', s.nav);
+      } catch (e) { /* localStorage unavailable — fall back to defaults. */ }
+    })();
+  </script>
+  {% endif %}
 
   {# Pacific design tokens (from the Claude Design handoff bundle).
      Loaded BEFORE Tailwind so token-driven cards/buttons aren't overridden
@@ -27,16 +50,21 @@
   <link rel="stylesheet" href="{% static 'css/lms-shell.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-components.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-print.css' %}" media="all" />
+  <link rel="stylesheet" href="{% static 'css/lms-components.css' %}" />
+  {% if user.is_authenticated and user.power_user_mode %}
+  <link rel="stylesheet" href="{% static 'css/lms-tweaks-cmdk.css' %}" />
+  {% endif %}
 
   {# Google fonts — three families per the handoff:
        Instrument Sans  — body / UI
        Bricolage Grotesque — display
        JetBrains Mono   — numbers + data
      Newsreader is loaded too so the editorial-type tweak (data-type="editorial")
-     can switch in without re-fetching. #}
+     can switch in without re-fetching. Geist is added for the
+     SFLL-117 geometric type variant. #}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:wght@400;500;600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" />
 
   {# Tailwind CDN stays — Phases 2+ rebuild each screen onto the new tokens
      and tear out Tailwind references screen-by-screen. Keeping it loaded
@@ -77,6 +105,13 @@
       San Francisco Little League — League Management System
     </footer>
   </div>
+
+  {% if user.is_authenticated and user.power_user_mode %}
+  {% include "_partials/tweaks_panel.html" %}
+  {% include "_partials/cmdk_palette.html" %}
+  <script src="{% static 'js/lms-tweaks-panel.js' %}" defer></script>
+  <script src="{% static 'js/lms-cmdk.js' %}" defer></script>
+  {% endif %}
 
   {% block extra_js %}{% endblock %}
 </body>
