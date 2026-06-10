@@ -10,67 +10,143 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('players', '0001_initial'),
-        ('tryouts', '0001_initial'),
+        ("players", "0001_initial"),
+        ("tryouts", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='EmailTemplate',
+            name="EmailTemplate",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=100)),
-                ('subject_template', models.CharField(max_length=500)),
-                ('body_template', models.TextField()),
-                ('reply_to', models.EmailField(blank=True, max_length=254)),
-                ('from_name', models.CharField(blank=True, max_length=100)),
-                ('is_active', models.BooleanField(default=True)),
-                ('league', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='email_templates', to='players.league')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=100)),
+                ("subject_template", models.CharField(max_length=500)),
+                ("body_template", models.TextField()),
+                ("reply_to", models.EmailField(blank=True, max_length=254)),
+                ("from_name", models.CharField(blank=True, max_length=100)),
+                ("is_active", models.BooleanField(default=True)),
+                (
+                    "league",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="email_templates",
+                        to="players.league",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='EmailLog',
+            name="EmailLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('to_address', models.EmailField(max_length=254)),
-                ('cc_addresses', models.JSONField(blank=True, default=list)),
-                ('subject', models.CharField(max_length=500)),
-                ('body_snapshot', models.TextField()),
-                ('sent_at', models.DateTimeField(auto_now_add=True)),
-                ('delivered_at', models.DateTimeField(blank=True, null=True)),
-                ('opened_at', models.DateTimeField(blank=True, null=True)),
-                ('bounced', models.BooleanField(default=False)),
-                ('bounce_reason', models.TextField(blank=True)),
-                ('player_season', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='emails', to='players.playerseason')),
-                ('sent_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('template', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='communications.emailtemplate')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("to_address", models.EmailField(max_length=254)),
+                ("cc_addresses", models.JSONField(blank=True, default=list)),
+                ("subject", models.CharField(max_length=500)),
+                ("body_snapshot", models.TextField()),
+                ("sent_at", models.DateTimeField(auto_now_add=True)),
+                ("delivered_at", models.DateTimeField(blank=True, null=True)),
+                ("opened_at", models.DateTimeField(blank=True, null=True)),
+                ("bounced", models.BooleanField(default=False)),
+                ("bounce_reason", models.TextField(blank=True)),
+                (
+                    "player_season",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="emails",
+                        to="players.playerseason",
+                    ),
+                ),
+                (
+                    "sent_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "template",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to="communications.emailtemplate",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-sent_at'],
+                "ordering": ["-sent_at"],
             },
         ),
         migrations.CreateModel(
-            name='RSVP',
+            name="RSVP",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('status', models.CharField(choices=[('attending', 'Attending'), ('not_attending', 'Not Attending'), ('maybe', 'Maybe')], max_length=20)),
-                ('response_method', models.CharField(default='web', max_length=20)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('player_season', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='rsvps', to='players.playerseason')),
-                ('session', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='rsvps', to='tryouts.session')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("attending", "Attending"),
+                            ("not_attending", "Not Attending"),
+                            ("maybe", "Maybe"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("response_method", models.CharField(default="web", max_length=20)),
+                ("ip_address", models.GenericIPAddressField(blank=True, null=True)),
+                (
+                    "player_season",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="rsvps",
+                        to="players.playerseason",
+                    ),
+                ),
+                (
+                    "session",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="rsvps",
+                        to="tryouts.session",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

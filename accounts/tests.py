@@ -1,6 +1,6 @@
 """Tests for the accounts app — User, UserRole, Coach, CoachSeason models and auth views."""
 
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
 from accounts.models import Coach, CoachSeason, User, UserRole
@@ -13,22 +13,22 @@ class UserModelFactory:
     @staticmethod
     def create_league():
         return League.objects.create(
-            name='San Francisco Little League',
-            short_name='SFLL',
+            name="San Francisco Little League",
+            short_name="SFLL",
         )
 
     @staticmethod
     def create_season(league, is_active=True):
         return Season.objects.create(
             league=league,
-            name='Spring 2026',
+            name="Spring 2026",
             year=2026,
-            season_type='spring',
+            season_type="spring",
             is_active=is_active,
         )
 
     @staticmethod
-    def create_division(league, name='Majors', display_order=0):
+    def create_division(league, name="Majors", display_order=0):
         return Division.objects.create(
             league=league,
             name=name,
@@ -36,7 +36,12 @@ class UserModelFactory:
         )
 
     @staticmethod
-    def create_user(email='coach@sfll.org', first_name='Test', last_name='User', password='testpass123'):
+    def create_user(
+        email="coach@sfll.org",
+        first_name="Test",
+        last_name="User",
+        password="testpass123",
+    ):
         return User.objects.create_user(
             username=email,
             email=email,
@@ -51,30 +56,30 @@ class UserModelTests(TestCase):
 
     def test_create_user_email_based(self):
         user = User.objects.create_user(
-            username='user@test.com',
-            email='user@test.com',
-            first_name='Jane',
-            last_name='Doe',
-            password='testpass123',
+            username="user@test.com",
+            email="user@test.com",
+            first_name="Jane",
+            last_name="Doe",
+            password="testpass123",
         )
-        self.assertEqual(user.email, 'user@test.com')
-        self.assertTrue(user.check_password('testpass123'))
+        self.assertEqual(user.email, "user@test.com")
+        self.assertTrue(user.check_password("testpass123"))
 
     def test_str_returns_email(self):
         user = UserModelFactory.create_user()
-        self.assertEqual(str(user), 'coach@sfll.org')
+        self.assertEqual(str(user), "coach@sfll.org")
 
     def test_email_unique(self):
-        UserModelFactory.create_user(email='dupe@sfll.org')
+        UserModelFactory.create_user(email="dupe@sfll.org")
         with self.assertRaises(Exception):
-            UserModelFactory.create_user(email='dupe@sfll.org')
+            UserModelFactory.create_user(email="dupe@sfll.org")
 
     def test_username_field_is_email(self):
-        self.assertEqual(User.USERNAME_FIELD, 'email')
+        self.assertEqual(User.USERNAME_FIELD, "email")
 
     def test_required_fields(self):
-        self.assertIn('first_name', User.REQUIRED_FIELDS)
-        self.assertIn('last_name', User.REQUIRED_FIELDS)
+        self.assertIn("first_name", User.REQUIRED_FIELDS)
+        self.assertIn("last_name", User.REQUIRED_FIELDS)
 
 
 class UserRoleModelTests(TestCase):
@@ -89,24 +94,24 @@ class UserRoleModelTests(TestCase):
         role = UserRole.objects.create(
             user=self.user,
             league=self.league,
-            role='head_coach',
+            role="head_coach",
             division=self.division,
         )
-        self.assertEqual(role.role, 'head_coach')
+        self.assertEqual(role.role, "head_coach")
         self.assertTrue(role.is_active)
 
     def test_unique_together_user_role_division(self):
         UserRole.objects.create(
             user=self.user,
             league=self.league,
-            role='head_coach',
+            role="head_coach",
             division=self.division,
         )
         with self.assertRaises(Exception):
             UserRole.objects.create(
                 user=self.user,
                 league=self.league,
-                role='head_coach',
+                role="head_coach",
                 division=self.division,
             )
 
@@ -114,7 +119,7 @@ class UserRoleModelTests(TestCase):
         role = UserRole.objects.create(
             user=self.user,
             league=self.league,
-            role='cto',
+            role="cto",
             division=None,
         )
         self.assertIsNone(role.division)
@@ -123,26 +128,26 @@ class UserRoleModelTests(TestCase):
         role = UserRole.objects.create(
             user=self.user,
             league=self.league,
-            role='head_coach',
+            role="head_coach",
             division=self.division,
         )
-        self.assertIn('Majors', str(role))
-        self.assertIn('coach@sfll.org', str(role))
+        self.assertIn("Majors", str(role))
+        self.assertIn("coach@sfll.org", str(role))
 
     def test_str_global(self):
         role = UserRole.objects.create(
             user=self.user,
             league=self.league,
-            role='cto',
+            role="cto",
             division=None,
         )
-        self.assertIn('Global', str(role))
+        self.assertIn("Global", str(role))
 
     def test_role_choices_count(self):
         self.assertEqual(len(UserRole.ROLE_CHOICES), 9)
 
     def test_global_roles_list(self):
-        expected = ['cto', 'ses_manager', 'vp_player_agents', 'president']
+        expected = ["cto", "ses_manager", "vp_player_agents", "president"]
         self.assertEqual(UserRole.GLOBAL_ROLES, expected)
 
 
@@ -158,7 +163,7 @@ class CoachModelTests(TestCase):
             user=self.user,
             league=self.league,
         )
-        self.team = Team.objects.create(league=self.league, name='Marlins')
+        self.team = Team.objects.create(league=self.league, name="Marlins")
         self.team_season = TeamSeason.objects.create(
             team=self.team,
             season=self.season,
@@ -166,14 +171,14 @@ class CoachModelTests(TestCase):
         )
 
     def test_coach_str_full_name(self):
-        self.assertIn('Test User', str(self.coach))
+        self.assertIn("Test User", str(self.coach))
 
     def test_coach_str_email_fallback(self):
         user2 = UserModelFactory.create_user(
-            email='noname@sfll.org', first_name='', last_name=''
+            email="noname@sfll.org", first_name="", last_name=""
         )
         coach2 = Coach.objects.create(user=user2, league=self.league)
-        self.assertIn('noname@sfll.org', str(coach2))
+        self.assertIn("noname@sfll.org", str(coach2))
 
     def test_coach_one_to_one(self):
         self.assertEqual(self.user.coach_profile, self.coach)
@@ -183,9 +188,9 @@ class CoachModelTests(TestCase):
             coach=self.coach,
             team_season=self.team_season,
             season=self.season,
-            role='head_coach',
+            role="head_coach",
         )
-        self.assertEqual(cs.role, 'head_coach')
+        self.assertEqual(cs.role, "head_coach")
         self.assertFalse(cs.is_drafter)
 
     def test_coach_season_unique_together(self):
@@ -193,14 +198,14 @@ class CoachModelTests(TestCase):
             coach=self.coach,
             team_season=self.team_season,
             season=self.season,
-            role='head_coach',
+            role="head_coach",
         )
         with self.assertRaises(Exception):
             CoachSeason.objects.create(
                 coach=self.coach,
                 team_season=self.team_season,
                 season=self.season,
-                role='assistant_coach',
+                role="assistant_coach",
             )
 
     def test_coach_season_str(self):
@@ -208,10 +213,10 @@ class CoachModelTests(TestCase):
             coach=self.coach,
             team_season=self.team_season,
             season=self.season,
-            role='head_coach',
+            role="head_coach",
         )
         result = str(cs)
-        self.assertIn('Head Coach', result)
+        self.assertIn("Head Coach", result)
 
 
 class LoginViewTests(TestCase):
@@ -220,48 +225,57 @@ class LoginViewTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = UserModelFactory.create_user(
-            email='login@sfll.org', password='testpass123'
+            email="login@sfll.org", password="testpass123"
         )
 
     def test_login_page_renders(self):
-        resp = self.client.get(reverse('accounts:login'))
+        resp = self.client.get(reverse("accounts:login"))
         self.assertEqual(resp.status_code, 200)
 
     def test_login_success_redirects(self):
-        resp = self.client.post(reverse('accounts:login'), {
-            'email': 'login@sfll.org',
-            'password': 'testpass123',
-        })
+        resp = self.client.post(
+            reverse("accounts:login"),
+            {
+                "email": "login@sfll.org",
+                "password": "testpass123",
+            },
+        )
         self.assertEqual(resp.status_code, 302)
 
     def test_login_bad_password(self):
-        resp = self.client.post(reverse('accounts:login'), {
-            'email': 'login@sfll.org',
-            'password': 'wrongpassword',
-        })
+        resp = self.client.post(
+            reverse("accounts:login"),
+            {
+                "email": "login@sfll.org",
+                "password": "wrongpassword",
+            },
+        )
         self.assertEqual(resp.status_code, 200)  # re-renders form
 
     def test_authenticated_user_redirected_from_login(self):
-        self.client.login(username='login@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('accounts:login'))
+        self.client.login(username="login@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("accounts:login"))
         self.assertEqual(resp.status_code, 302)
 
     def test_register_page_renders(self):
-        resp = self.client.get(reverse('accounts:register'))
+        resp = self.client.get(reverse("accounts:register"))
         self.assertEqual(resp.status_code, 200)
 
     def test_register_success(self):
-        resp = self.client.post(reverse('accounts:register'), {
-            'email': 'newuser@sfll.org',
-            'first_name': 'New',
-            'last_name': 'User',
-            'password1': 'Str0ngP@ss!',
-            'password2': 'Str0ngP@ss!',
-        })
+        resp = self.client.post(
+            reverse("accounts:register"),
+            {
+                "email": "newuser@sfll.org",
+                "first_name": "New",
+                "last_name": "User",
+                "password1": "Str0ngP@ss!",
+                "password2": "Str0ngP@ss!",
+            },
+        )
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(User.objects.filter(email='newuser@sfll.org').exists())
+        self.assertTrue(User.objects.filter(email="newuser@sfll.org").exists())
 
     def test_logout_redirects(self):
-        self.client.login(username='login@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('accounts:logout'))
+        self.client.login(username="login@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("accounts:logout"))
         self.assertEqual(resp.status_code, 302)

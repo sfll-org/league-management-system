@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 88
+# E203: whitespace before ':' — black's slice formatting conflicts with flake8
+# E501: line-length — black handles this; remaining over-length lines are
+#       string literals that black deliberately leaves alone.
+extend-ignore = E203, E501

@@ -1,0 +1,194 @@
+{# SFLL-117 — ⌘K command palette (Phase 12). Power-user only.
+   Renders a full-screen backdrop + dialog. Keyboard-driven:
+     ⌘K / Ctrl+K  → open
+     Escape        → close
+     ↑ / ↓         → navigate results
+     Enter         → follow active result
+   Search debounces 160 ms then hits /api/cmdk/search/?q= (JSON).
+   Alpine x-data is declared on the backdrop so the scope is self-contained. #}
+
+<div
+  id="cmdk-backdrop"
+  class="cmdk-backdrop"
+  hidden
+  role="dialog"
+  aria-modal="true"
+  aria-label="Command palette"
+  x-data="cmdkState()"
+  x-init="init()"
+  @keydown.escape.prevent="close()"
+  @click.self="close()"
+>
+  <div class="cmdk-dialog" @keydown.arrow-down.prevent="moveDown()" @keydown.arrow-up.prevent="moveUp()" @keydown.enter.prevent="go()">
+
+    <div class="cmdk-search" role="search">
+      {# magnifier icon #}
+      <span class="cmdk-search__icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </span>
+      <input
+        type="text"
+        class="cmdk-search__input"
+        id="cmdk-input"
+        placeholder="Jump to page, player, or family…"
+        autocomplete="off"
+        spellcheck="false"
+        x-model="query"
+        @input.debounce.160ms="search()"
+        @keydown.escape.prevent="close()"
+        aria-autocomplete="list"
+        aria-controls="cmdk-results-list"
+        :aria-activedescendant="activeIndex >= 0 ? 'cmdk-item-' + activeIndex : null"
+      />
+      <kbd class="cmdk-search__kbd">Esc</kbd>
+    </div>
+
+    <div class="cmdk-results" id="cmdk-results-list" role="listbox">
+      <template x-if="results.length === 0 && query.length > 0">
+        <div class="cmdk-empty">No results for "<span x-text="query"></span>"</div>
+      </template>
+      <template x-if="results.length === 0 && query.length === 0">
+        <div class="cmdk-empty" style="padding:12px 16px;text-align:left;">
+          <span style="color:var(--ink-3);font-size:13px;">Type to search pages, players, and families…</span>
+        </div>
+      </template>
+      <template x-for="(item, idx) in results" :key="idx">
+        <a
+          :id="'cmdk-item-' + idx"
+          :href="item.url"
+          class="cmdk-item"
+          :class="{'is-active': idx === activeIndex}"
+          role="option"
+          :aria-selected="idx === activeIndex"
+          @mouseenter="activeIndex = idx"
+          @click.prevent="navigate(item)"
+        >
+          <span class="cmdk-item__icon" x-html="iconSvg(item.icon)"></span>
+          <span class="cmdk-item__label" x-text="item.label"></span>
+          <span class="cmdk-item__meta" x-text="kindLabel(item)"></span>
+        </a>
+      </template>
+    </div>
+
+    <div class="cmdk-footer" aria-hidden="true">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span><kbd>↵</kbd> open</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  window.cmdkState = function () {
+    return {
+      query: '',
+      results: [],
+      activeIndex: -1,
+      _debounceTimer: null,
+
+      init: function () {
+        var self = this;
+        document.addEventListener('keydown', function (e) {
+          var isK = e.key === 'k' || e.key === 'K';
+          if (isK && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            self.open();
+          }
+        });
+        document.addEventListener('cmdk:open', function () {
+          self.open();
+        });
+      },
+
+      open: function () {
+        var el = document.getElementById('cmdk-backdrop');
+        if (!el) return;
+        el.removeAttribute('hidden');
+        this.query = '';
+        this.results = [];
+        this.activeIndex = -1;
+        this.$nextTick(function () {
+          var inp = document.getElementById('cmdk-input');
+          if (inp) inp.focus();
+        });
+        this.search();
+      },
+
+      close: function () {
+        var el = document.getElementById('cmdk-backdrop');
+        if (el) el.setAttribute('hidden', '');
+        this.query = '';
+        this.results = [];
+        this.activeIndex = -1;
+      },
+
+      search: function () {
+        var self = this;
+        var url = '/api/cmdk/search/?q=' + encodeURIComponent(self.query);
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            self.results = data.results || [];
+            self.activeIndex = self.results.length > 0 ? 0 : -1;
+          })
+          .catch(function () {});
+      },
+
+      moveDown: function () {
+        if (this.results.length === 0) return;
+        this.activeIndex = (this.activeIndex + 1) % this.results.length;
+        this.scrollActiveIntoView();
+      },
+
+      moveUp: function () {
+        if (this.results.length === 0) return;
+        this.activeIndex = (this.activeIndex - 1 + this.results.length) % this.results.length;
+        this.scrollActiveIntoView();
+      },
+
+      scrollActiveIntoView: function () {
+        var el = document.getElementById('cmdk-item-' + this.activeIndex);
+        if (el) el.scrollIntoView({ block: 'nearest' });
+      },
+
+      go: function () {
+        if (this.activeIndex >= 0 && this.results[this.activeIndex]) {
+          this.navigate(this.results[this.activeIndex]);
+        }
+      },
+
+      navigate: function (item) {
+        this.close();
+        window.location.href = item.url;
+      },
+
+      kindLabel: function (item) {
+        if (item.kind === 'page') return 'Page';
+        if (item.kind === 'player') return 'Player';
+        if (item.kind === 'family') return 'Family';
+        return item.meta || '';
+      },
+
+      iconSvg: function (icon) {
+        var svgs = {
+          home: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+          users: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+          user:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+          shield:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+          calendar:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
+          clipboard:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+          star:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+          mail:  '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+        };
+        return svgs[icon] || svgs['star'];
+      },
+    };
+  };
+
+})();
+</script>

@@ -5,7 +5,9 @@
    <html> (data-palette / data-type / data-density) drive the visual
    system. Tailwind via CDN stays loaded for now because individual screens
    still reference Tailwind classes — Phases 2+ rebuild each one against
-   the new tokens. #}
+   the new tokens.
+   SFLL-117 (Phase 12): adds lms-devtools.css + tweaks panel + ⌘K palette,
+   both rendered only when lms_power_user is True. #}
 <html
   lang="en"
   data-palette="pacific"
@@ -26,6 +28,9 @@
   <link rel="stylesheet" href="{% static 'css/lms-tokens.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-shell.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-print.css' %}" media="all" />
+  {% if lms_power_user %}
+  <link rel="stylesheet" href="{% static 'css/lms-devtools.css' %}" />
+  {% endif %}
 
   {# Google fonts — three families per the handoff:
        Instrument Sans  — body / UI
@@ -51,7 +56,7 @@
 <body
   class="lms-shell"
   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-  x-data="{ navOpen: false }"
+  x-data="{ navOpen: false, tweaksOpen: false }"
 >
   {% include "_partials/sidebar.html" %}
 
@@ -78,5 +83,12 @@
   </div>
 
   {% block extra_js %}{% endblock %}
+
+  {# SFLL-117 — Power-user devtools: tweaks panel + ⌘K palette.
+     Both gated on lms_power_user so they're invisible to regular users. #}
+  {% if lms_power_user %}
+  {% include "_partials/tweaks_panel.html" %}
+  {% include "_partials/cmdk.html" %}
+  {% endif %}
 </body>
 </html>

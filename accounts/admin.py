@@ -7,34 +7,63 @@ from .models import Coach, CoachSeason, User, UserRole
 class UserRoleInline(admin.TabularInline):
     model = UserRole
     extra = 0
-    fk_name = 'user'
+    fk_name = "user"
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'phone', 'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active')
-    search_fields = ('email', 'first_name', 'last_name')
-    ordering = ('email',)
+    list_display = (
+        "email",
+        "first_name",
+        "last_name",
+        "phone",
+        "is_staff",
+        "is_active",
+        "lms_power_user",
+    )
+    list_filter = ("is_staff", "is_active", "lms_power_user")
+    search_fields = ("email", "first_name", "last_name")
+    ordering = ("email",)
     fieldsets = (
-        (None, {'fields': ('email', 'password')}),
-        ('Personal', {'fields': ('first_name', 'last_name', 'phone')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        (None, {"fields": ("email", "password")}),
+        ("Personal", {"fields": ("first_name", "last_name", "phone")}),
+        (
+            "Permissions",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
+        ),
+        ("LMS Features", {"fields": ("lms_power_user",)}),
     )
     add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2'),
-        }),
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": (
+                    "email",
+                    "first_name",
+                    "last_name",
+                    "password1",
+                    "password2",
+                ),
+            },
+        ),
     )
     inlines = [UserRoleInline]
 
 
 @admin.register(UserRole)
 class UserRoleAdmin(admin.ModelAdmin):
-    list_display = ('user', 'role', 'league', 'division', 'is_active', 'assigned_at')
-    list_filter = ('role', 'is_active', 'league')
-    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    list_display = ("user", "role", "league", "division", "is_active", "assigned_at")
+    list_filter = ("role", "is_active", "league")
+    search_fields = ("user__email", "user__first_name", "user__last_name")
 
 
 class CoachSeasonInline(admin.TabularInline):
@@ -44,14 +73,18 @@ class CoachSeasonInline(admin.TabularInline):
 
 @admin.register(Coach)
 class CoachAdmin(admin.ModelAdmin):
-    list_display = ('user', 'league', 'phone')
-    list_filter = ('league',)
-    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    list_display = ("user", "league", "phone")
+    list_filter = ("league",)
+    search_fields = ("user__email", "user__first_name", "user__last_name")
     inlines = [CoachSeasonInline]
 
 
 @admin.register(CoachSeason)
 class CoachSeasonAdmin(admin.ModelAdmin):
-    list_display = ('coach', 'team_season', 'season', 'role', 'is_drafter')
-    list_filter = ('role', 'is_drafter', 'season')
-    search_fields = ('coach__user__email', 'coach__user__first_name', 'coach__user__last_name')
+    list_display = ("coach", "team_season", "season", "role", "is_drafter")
+    list_filter = ("role", "is_drafter", "season")
+    search_fields = (
+        "coach__user__email",
+        "coach__user__first_name",
+        "coach__user__last_name",
+    )

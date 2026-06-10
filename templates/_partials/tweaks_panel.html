@@ -1,0 +1,174 @@
+{# SFLL-117 — Tweaks panel (Phase 12). Power-user only.
+   Rendered inside base.html when lms_power_user is True.
+   Alpine.js drives the open/close state; vanilla JS inside the
+   init() function wires the swatch clicks to data-* attrs on <html>
+   and persists choices to localStorage. #}
+
+<button
+  type="button"
+  class="tweaks-trigger"
+  @click="tweaksOpen = !tweaksOpen"
+  :aria-expanded="tweaksOpen"
+  title="Design tweaks (power-user)"
+  aria-label="Toggle design tweaks panel"
+>
+  {# Sliders icon #}
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+    <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
+    <circle cx="9"  cy="6"  r="2" fill="currentColor" stroke="none"/>
+    <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+    <circle cx="9"  cy="18" r="2" fill="currentColor" stroke="none"/>
+  </svg>
+</button>
+
+<div
+  class="tweaks-panel"
+  x-show="tweaksOpen"
+  x-cloak
+  @click.outside="tweaksOpen = false"
+  @keydown.escape.window="tweaksOpen = false"
+  x-transition:enter="transition ease-out duration-100"
+  x-transition:enter-start="opacity-0 scale-95"
+  x-transition:enter-end="opacity-100 scale-100"
+  x-transition:leave="transition ease-in duration-75"
+  x-transition:leave-start="opacity-100 scale-100"
+  x-transition:leave-end="opacity-0 scale-95"
+  role="dialog"
+  aria-label="Design tweaks"
+>
+  <div class="tweaks-panel__header">
+    <span class="tweaks-panel__title">Design Tweaks</span>
+    <button type="button" class="tweaks-panel__close" @click="tweaksOpen = false" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" focusable="false">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+
+  {# — Palette — #}
+  <div class="tweaks-section">
+    <div class="tweaks-section__label">Palette</div>
+    <div class="tweaks-swatches" id="tweaks-palette">
+      <button class="tweaks-swatch" data-attr="data-palette" data-val="pacific">Pacific</button>
+      <button class="tweaks-swatch" data-attr="data-palette" data-val="civic">Civic</button>
+      <button class="tweaks-swatch" data-attr="data-palette" data-val="fog">Fog</button>
+      <button class="tweaks-swatch" data-attr="data-palette" data-val="twilight">Twilight</button>
+    </div>
+  </div>
+
+  {# — Type — #}
+  <div class="tweaks-section">
+    <div class="tweaks-section__label">Type</div>
+    <div class="tweaks-swatches" id="tweaks-type">
+      <button class="tweaks-swatch" data-attr="data-type" data-val="humanist-display">Humanist+Disp</button>
+      <button class="tweaks-swatch" data-attr="data-type" data-val="geometric">Geometric</button>
+      <button class="tweaks-swatch" data-attr="data-type" data-val="humanist-plain">Plain</button>
+      <button class="tweaks-swatch" data-attr="data-type" data-val="editorial">Editorial</button>
+    </div>
+  </div>
+
+  {# — Density — #}
+  <div class="tweaks-section">
+    <div class="tweaks-section__label">Density</div>
+    <div class="tweaks-swatches" id="tweaks-density">
+      <button class="tweaks-swatch" data-attr="data-density" data-val="compact">Compact</button>
+      <button class="tweaks-swatch" data-attr="data-density" data-val="balanced">Balanced</button>
+      <button class="tweaks-swatch" data-attr="data-density" data-val="comfortable">Comfortable</button>
+    </div>
+  </div>
+
+  {# — Nav chrome — #}
+  <div class="tweaks-section">
+    <div class="tweaks-section__label">Nav</div>
+    <div class="tweaks-swatches" id="tweaks-nav">
+      <button class="tweaks-swatch" data-attr="data-nav" data-val="full">Full</button>
+      <button class="tweaks-swatch" data-attr="data-nav" data-val="icon">Icon-only</button>
+    </div>
+  </div>
+
+  {# Reset button #}
+  <button
+    type="button"
+    class="tweaks-swatch"
+    style="width:100%;justify-content:center;color:var(--ink-3);"
+    id="tweaks-reset"
+  >
+    Reset to defaults
+  </button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const DEFAULTS = {
+    'data-palette': 'pacific',
+    'data-type':    'humanist-display',
+    'data-density': 'balanced',
+    'data-nav':     'full',
+  };
+  const LS_KEY = 'sfll-tweaks';
+
+  function applyAttr(attr, val) {
+    document.documentElement.setAttribute(attr, val);
+    if (attr === 'data-nav') {
+      const sidebar = document.querySelector('.lms-sidebar');
+      if (sidebar) {
+        sidebar.setAttribute('data-nav', val);
+      }
+    }
+  }
+
+  function syncSwatches() {
+    document.querySelectorAll('.tweaks-swatch[data-attr]').forEach(function (btn) {
+      const current = document.documentElement.getAttribute(btn.dataset.attr) || DEFAULTS[btn.dataset.attr];
+      btn.classList.toggle('is-active', current === btn.dataset.val);
+    });
+  }
+
+  function savePrefs() {
+    const prefs = {};
+    Object.keys(DEFAULTS).forEach(function (attr) {
+      prefs[attr] = document.documentElement.getAttribute(attr) || DEFAULTS[attr];
+    });
+    try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch (_) {}
+  }
+
+  function loadPrefs() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const prefs = JSON.parse(raw);
+      Object.entries(prefs).forEach(function ([attr, val]) {
+        if (DEFAULTS[attr] !== undefined) applyAttr(attr, val);
+      });
+    } catch (_) {}
+  }
+
+  // Apply persisted prefs immediately (before paint).
+  loadPrefs();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    syncSwatches();
+
+    document.querySelectorAll('.tweaks-swatch[data-attr]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        applyAttr(btn.dataset.attr, btn.dataset.val);
+        savePrefs();
+        syncSwatches();
+      });
+    });
+
+    const resetBtn = document.getElementById('tweaks-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function () {
+        Object.entries(DEFAULTS).forEach(function ([attr, val]) {
+          applyAttr(attr, val);
+        });
+        try { localStorage.removeItem(LS_KEY); } catch (_) {}
+        syncSwatches();
+      });
+    }
+  });
+})();
+</script>

@@ -20,7 +20,18 @@
   </div>
 
   <div class="lms-topbar__actions">
-    {# Placeholder shortcut hint — palette itself lands in Phase 10 (SFLL-101). #}
-    <kbd class="lms-topbar__cmdk" title="Command palette (Phase 10)">⌘K</kbd>
+    {% if lms_power_user %}
+    {# SFLL-117 — ⌘K palette button (power users only). #}
+    <button
+      type="button"
+      id="cmdk-topbar-btn"
+      class="lms-topbar__cmdk lms-topbar__cmdk--active"
+      title="Command palette (⌘K)"
+      aria-label="Open command palette"
+      onclick="document.dispatchEvent(new CustomEvent('cmdk:open'))"
+    >⌘K</button>
+    {% else %}
+    <kbd class="lms-topbar__cmdk" title="Command palette">⌘K</kbd>
+    {% endif %}
   </div>
 </header>
