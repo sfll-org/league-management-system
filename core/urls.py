@@ -1,8 +1,8 @@
-"""URL configuration for the core app (imports, admin views)."""
+"""URL configuration for the core app (imports, admin views, dashboard partials)."""
 
 from django.urls import path
 
-from core import admin_views, import_views
+from core import admin_views, import_views, views
 
 urlpatterns = [
     # Imports (existing)
@@ -29,4 +29,7 @@ urlpatterns = [
 
     # Audit Log (SFLL-84)
     path('admin/audit/', admin_views.audit_log, name='audit_log'),
+
+    # Dashboard HTMX partials (SFLL-93)
+    path('dashboard/inbox/', views.dashboard_inbox, name='dashboard_inbox'),
 ]
