@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% load static %}
+
+{# SFLL-115 — iPad-landscape Draft Room.
+   Sister surface to draft_board.html: same WebSocket, same data, reshaped
+   for a tablet propped between 2-3 coaches at the table. Left pane is the
+   available pool (bigger rows so two coaches can scan at once); right pane
+   stacks the pick log on top of a permanent on-deck queue. The on-the-clock
+   banner sits center-stage in the header. #}
+
+{% block title %}Draft Room — {{ division.name }} — SFLL{% endblock %}
+{% block body_class %}tablet-mode{% endblock %}
+
+{% block content %}
+<section
+  class="draft-room"
+  x-data="draftRoom()"
+  x-init="init()"
+>
+  <header class="draft-room__header">
+    <div class="draft-room__heading">
+      <h1 class="draft-room__title">{{ division.name }} Draft</h1>
+      <div class="draft-room__sub">
+        {{ season.name }} ·
+        <span class="tabular">Round <span x-text="currentRound"></span></span> ·
+        <span class="tabular">Pick <span x-text="currentPick"></span></span>
+      </div>
+    </div>
+
+    <div class="draft-room__clock" x-show="status === 'drafting' && currentTeamName">
+      <span class="draft-room__pulse" aria-hidden="true"></span>
+      <div>
+        <div class="draft-room__clock-pos">On the clock</div>
+        <div class="draft-room__clock-team" x-text="currentTeamName"></div>
+      </div>
+    </div>
+
+    <div class="draft-room__status">
+      <span
+        class="pill"
+        :class="{
+          'pill--success': status === 'completed',
+          'pill--primary': status === 'drafting',
+          'pill--warn': status === 'seeding',
+          'pill--neutral': status === 'pending',
+        }"
+      >
+        <span class="pill__dot" aria-hidden="true"></span>
+        <span x-text="statusLabel"></span>
+      </span>
+      <span
+        class="draft-room__conn"
+        :class="{'draft-room__conn--off': !wsConnected}"
+      >
+        <span class="draft-room__conn-dot" aria-hidden="true"></span>
+        <span x-text="wsConnected ? 'Live' : 'Reconnecting…'"></span>
+      </span>
+      <a class="kiosk__exit" href="{% url 'draft:draft_board' session_id=draft_session.pk %}">Exit room</a>
+    </div>
+  </header>
+
+  <div class="draft-room__body">
+    {# LEFT: available player pool — big tappable rows for shared reading #}
+    <section class="draft-room__pane" aria-label="Available players">
+      <div class="draft-room__pane-head">
+        <span class="draft-room__pane-title">Available</span>
+        <span class="draft-room__pane-sub tabular">
+          <span x-text="filteredAvailable.length"></span> remaining
+        </span>
+      </div>
+      <div style="padding: 10px 14px 6px;">
+        <label class="input">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" /><path d="m20 20-3-3" stroke-linecap="round" />
+          </svg>
+          <input
+            type="search"
+            x-model="search"
+            placeholder="Filter players…"
+            autocomplete="off"
+            aria-label="Filter available players"
+          />
+        </label>
+      </div>
+      <ul class="draft-room__available">
+        <template x-for="p in filteredAvailable" :key="p.id">
+          <li class="draft-room__player">
+            <div>
+              <div class="draft-room__player-name" x-text="p.name"></div>
+              <div class="draft-room__player-stats">
+                <template x-if="p.overall_avg !== null">
+                  <span>Avg <span x-text="p.overall_avg"></span> · <span x-text="p.eval_count"></span> evals</span>
+                </template>
+                <template x-if="p.overall_avg === null">
+                  <span>No evals yet</span>
+                </template>
+              </div>
+            </div>
+            <div class="draft-room__player-actions">
+              <button
+                type="button"
+                class="btn btn--primary draft-room__pick-btn"
+                @click="confirmPick(p)"
+                :disabled="!canPick"
+              >Pick</button>
+            </div>
+          </li>
+        </template>
+        <template x-if="filteredAvailable.length === 0">
+          <li class="empty">
+            <strong>No matches.</strong>
+            Clear the filter to see the pool.
+          </li>
+        </template>
+      </ul>
+    </section>
+
+    {# RIGHT: pick log + on-deck queue stacked #}
+    <div class="draft-room__col">
+      <section class="draft-room__pane" aria-label="Pick log">
+        <div class="draft-room__pane-head">
+          <span class="draft-room__pane-title">Pick log</span>
+          <span class="draft-room__pane-sub tabular">
+            <span x-text="draftPicks.length"></span> picks
+          </span>
+        </div>
+        <ul class="draft-room__picks" id="draft-room-picks">
+          <template x-for="(pick, idx) in draftPicks" :key="pick.id">
+            <li
+              class="draft-room__pick"
+              :class="{'draft-room__pick--latest': idx === draftPicks.length - 1}"
+            >
+              <div class="draft-room__pick-num tabular">
+                <span x-text="'R' + pick.round_number"></span> ·
+                <span x-text="'#' + pick.pick_number"></span>
+              </div>
+              <div>
+                <div class="draft-room__pick-player" x-text="pick.player_name"></div>
+                <div class="draft-room__pick-team" x-text="pick.team_name"></div>
+              </div>
+              <template x-if="pick.is_coaches_child">
+                <span class="draft-room__pick-flag">CC</span>
+              </template>
+            </li>
+          </template>
+          <template x-if="draftPicks.length === 0">
+            <li class="empty">
+              <strong>Draft hasn't started.</strong>
+              Open the main board to start.
+            </li>
+          </template>
+        </ul>
+      </section>
+
+      <section class="draft-room__pane" aria-label="On-deck queue">
+        <div class="draft-room__pane-head">
+          <span class="draft-room__pane-title">On deck</span>
+          <span class="draft-room__pane-sub">next 6 picks</span>
+        </div>
+        <ul class="draft-room__queue">
+          <template x-for="(slot, idx) in onDeck" :key="slot.pickNumber">
+            <li
+              class="draft-room__queue-item"
+              :class="{'draft-room__queue-item--up': idx === 0}"
+            >
+              <span class="draft-room__queue-pos tabular" x-text="'#' + slot.pickNumber"></span>
+              <span class="draft-room__queue-team" x-text="slot.teamName"></span>
+              <span class="draft-room__queue-meta" x-text="idx === 0 ? 'on clock' : 'R' + slot.roundNumber"></span>
+            </li>
+          </template>
+          <template x-if="onDeck.length === 0">
+            <li class="draft-room__queue-item">
+              <span></span>
+              <span class="text-muted">Queue idle.</span>
+              <span></span>
+            </li>
+          </template>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  {# Pick confirmation modal — same shape as the kiosk's. #}
+  <div
+    class="kiosk-modal__backdrop"
+    x-show="pendingPlayer"
+    x-transition.opacity.duration.120ms
+    @click.self="cancelPick()"
+    role="dialog"
+    aria-modal="true"
+    style="display:none"
+  >
+    <div class="kiosk-modal">
+      <h2 class="kiosk-modal__title">Confirm pick</h2>
+      <p class="kiosk-modal__player"><strong x-text="pendingPlayer?.name"></strong></p>
+      <div class="kiosk-modal__meta">
+        <div>To <strong x-text="currentTeamName"></strong></div>
+        <div>Round <span x-text="currentRound"></span> · Pick <span x-text="currentPick"></span></div>
+      </div>
+      <div class="kiosk-modal__actions">
+        <button type="button" class="btn" @click="cancelPick()" :disabled="pickInFlight">Cancel</button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          @click="submitPick()"
+          :disabled="pickInFlight"
+          x-text="pickInFlight ? 'Submitting…' : 'Confirm pick'"
+        ></button>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+{{ teams_data|json_script:"teams-data" }}
+{{ picks_data|json_script:"picks-data" }}
+{{ available_data|json_script:"available-data" }}
+<script>
+function draftRoom() {
+  const teams = JSON.parse(document.getElementById('teams-data').textContent);
+  const picks = JSON.parse(document.getElementById('picks-data').textContent);
+  const available = JSON.parse(document.getElementById('available-data').textContent);
+  return {
+    // State pulled from the server-rendered context.
+    sessionId: {{ draft_session.pk }},
+    status: '{{ draft_session.status }}',
+    currentRound: {{ draft_session.current_round }},
+    currentPick: {{ draft_session.current_pick }},
+    snakeDraft: {{ draft_session.snake_draft|yesno:"true,false" }},
+    currentUserId: {{ current_user_id }},
+    isAdmin: {{ is_admin|yesno:"true,false" }},
+
+    teams,
+    picks,
+    available,
+
+    currentTeamId: null,
+    search: '',
+    pendingPlayer: null,
+    pickInFlight: false,
+
+    ws: null,
+    wsConnected: false,
+    wsReconnectDelay: 1000,
+
+    get statusLabel() {
+      return ({pending: 'Pending', seeding: 'Seeding', drafting: 'Live', completed: 'Completed'})[this.status]
+        || this.status;
+    },
+
+    get draftPicks() { return this.picks.filter(p => !p.is_top_4); },
+
+    get filteredAvailable() {
+      if (!this.search.trim()) return this.available;
+      const q = this.search.toLowerCase();
+      return this.available.filter(p => p.name.toLowerCase().includes(q));
+    },
+
+    get currentTeamName() {
+      const t = this.teams.find(t => t.id === this.currentTeamId);
+      return t ? t.name : '';
+    },
+
+    // The room is a shared display, so only admins act through it. Per-coach
+    // picking still happens on draft_board.html where each user has their own
+    // identity. The room's Pick button is a convenience for the table's
+    // designated operator.
+    get canPick() {
+      return this.status === 'drafting' && this.isAdmin;
+    },
+
+    get onDeck() {
+      if (this.status !== 'drafting' || this.teams.length === 0) return [];
+      const out = [];
+      const numTeams = this.teams.length;
+      let pickNum = this.currentPick;
+      let round = this.currentRound;
+      for (let i = 0; i < 6; i++) {
+        const pickInRound = (pickNum - 1) % numTeams;
+        const idx = (this.snakeDraft && round % 2 === 0)
+          ? (numTeams - 1 - pickInRound)
+          : pickInRound;
+        const team = this.teams[idx];
+        if (!team) break;
+        out.push({pickNumber: pickNum, roundNumber: round, teamName: team.name});
+        pickNum += 1;
+        if ((pickNum - 1) % numTeams === 0) round += 1;
+      }
+      return out;
+    },
+
+    init() {
+      this.computeCurrentTeam();
+      this.connectWebSocket();
+    },
+
+    computeCurrentTeam() {
+      if (this.status !== 'drafting' || this.teams.length === 0) {
+        this.currentTeamId = null;
+        return;
+      }
+      const numTeams = this.teams.length;
+      const pickInRound = (this.currentPick - 1) % numTeams;
+      const idx = (this.snakeDraft && this.currentRound % 2 === 0)
+        ? (numTeams - 1 - pickInRound)
+        : pickInRound;
+      this.currentTeamId = this.teams[idx]?.id || null;
+    },
+
+    confirmPick(player) {
+      if (!this.canPick) return;
+      this.pendingPlayer = player;
+    },
+    cancelPick() {
+      if (this.pickInFlight) return;
+      this.pendingPlayer = null;
+    },
+    submitPick() {
+      if (!this.pendingPlayer || this.pickInFlight) return;
+      this.pickInFlight = true;
+      this.ws.send(JSON.stringify({
+        type: 'draft.pick',
+        player_id: this.pendingPlayer.id,
+      }));
+    },
+
+    connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${window.location.host}/ws/draft/${this.sessionId}/`;
+      this.ws = new WebSocket(url);
+      this.ws.onopen = () => {
+        this.wsConnected = true;
+        this.wsReconnectDelay = 1000;
+      };
+      this.ws.onclose = () => {
+        this.wsConnected = false;
+        setTimeout(() => {
+          this.wsReconnectDelay = Math.min(this.wsReconnectDelay * 2, 30000);
+          this.connectWebSocket();
+        }, this.wsReconnectDelay);
+      };
+      this.ws.onerror = () => { this.wsConnected = false; };
+      this.ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        this.handleMessage(data);
+      };
+    },
+
+    handleMessage(data) {
+      switch (data.type) {
+        case 'board_state':       return this.handleBoardState(data.data);
+        case 'draft.pick_made':   return this.handlePickMade(data.pick);
+        case 'draft.pick_undone': return this.handlePickUndone(data.data);
+        case 'draft.started':     return this.handleDraftStarted(data.data);
+        case 'draft.completed':   return this.handleDraftCompleted();
+        case 'error':             return this.handleError(data.message);
+      }
+    },
+
+    handleBoardState(state) {
+      if (state.error) return;
+      this.status = state.session.status;
+      this.currentRound = state.session.current_round;
+      this.currentPick = state.session.current_pick;
+      this.snakeDraft = state.session.snake_draft;
+      this.teams = state.teams;
+      this.picks = state.picks;
+      this.available = state.available;
+      this.currentTeamId = state.current_team_id || null;
+      if (!this.currentTeamId) this.computeCurrentTeam();
+    },
+
+    handlePickMade(pick) {
+      this.picks.push(pick);
+      this.available = this.available.filter(p => p.id !== pick.player_id);
+      this.currentRound = pick.current_round;
+      this.currentPick = pick.current_pick;
+      if (pick.next_team_id) this.currentTeamId = pick.next_team_id;
+      else this.computeCurrentTeam();
+
+      this.pendingPlayer = null;
+      this.pickInFlight = false;
+
+      this.$nextTick(() => {
+        const log = document.getElementById('draft-room-picks');
+        if (log) log.scrollTop = log.scrollHeight;
+      });
+    },
+
+    handlePickUndone(data) {
+      this.picks = this.picks.filter(p => p.pick_number !== data.pick_number || p.is_top_4);
+      this.available.push({
+        id: data.player_id,
+        name: data.player_name,
+        overall_avg: null,
+        eval_count: 0,
+      });
+      this.available.sort((a, b) => a.name.localeCompare(b.name));
+      this.currentRound = data.current_round;
+      this.currentPick = data.current_pick;
+      if (data.next_team_id) this.currentTeamId = data.next_team_id;
+      else this.computeCurrentTeam();
+    },
+
+    handleDraftStarted(data) {
+      this.status = 'drafting';
+      this.currentRound = data.current_round;
+      this.currentPick = data.current_pick;
+      this.computeCurrentTeam();
+    },
+
+    handleDraftCompleted() {
+      this.status = 'completed';
+      this.currentTeamId = null;
+    },
+
+    handleError(message) {
+      alert('Draft error: ' + message);
+      this.pickInFlight = false;
+    },
+  };
+}
+</script>
+{% endblock %}

@@ -78,7 +78,7 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body
-  class="lms-shell"
+  class="lms-shell {% block body_class %}{% endblock %}"
   hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
   x-data="{ navOpen: false }"
 >
