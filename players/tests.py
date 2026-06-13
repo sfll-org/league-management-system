@@ -338,6 +338,47 @@ class DugoutCardViewTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'No players assigned')
 
+    def test_dugout_card_shows_two_copies(self):
+        """SFLL-129: two identical half-sheet cards per letter sheet."""
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertEqual(html.count('class="dugout-card"'), 2,
+                         'Expected exactly two .dugout-card articles')
+        self.assertEqual(html.count('Ada Lovelace'), 2,
+                         'Roster player should appear in both cards')
+        self.assertEqual(html.count('Augusta Lovelace'), 2,
+                         'Guardian should appear in both cards')
+        self.assertIn('dugout-card-pair', html)
+        self.assertIn('dugout-card__cut', html)
+
+    def test_print_css_break_after_pair_not_card(self):
+        """SFLL-129 regression: page break must target .dugout-card-pair.
+
+        Forcing break-after on each .dugout-card was the SFLL-114 PR #10 bug
+        that put one card per page. The break must live on .dugout-card-pair.
+        """
+        import os
+        import re
+        css_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            'static', 'css', 'lms-print.css',
+        )
+        with open(css_path) as f:
+            css = f.read()
+
+        self.assertIn('.dugout-card-pair', css)
+        self.assertIn('break-after: page', css)
+
+        for block in re.findall(r'\.dugout-card\s*\{([^}]+)\}', css):
+            self.assertNotIn('page-break-after', block,
+                             '.dugout-card block must not set page-break-after')
+            self.assertNotIn('break-after', block,
+                             '.dugout-card block must not set break-after')
+
 
 # ---------------------------------------------------------------------------
 # SFLL-95 — Family Detail (Phase 4)

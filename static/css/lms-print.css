@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────
-   SFLL — Print stylesheet (SFLL-100, Phase 9).
-   Loaded site-wide via base.html. Screen rules are no-ops; the
-   `@media print` block is the entire payload.
+   SFLL — Print stylesheet (SFLL-100 / SFLL-129, Phase 9).
+   Loaded site-wide via base.html. Most rules live in @media
+   print; the few screen rules below are no-ops in the app shell.
 
    Strategy:
      - Drop sidebar, topbar, flash, footer.
@@ -11,10 +11,19 @@
        .print-only is shown (it's display:none otherwise).
      - Page margins live in @page so coaches' browsers don't
        fight us with their own defaults.
+     - Two identical half-sheet cards (.dugout-card) share one
+       letter sheet inside a .dugout-card-pair wrapper. The
+       page break fires after the pair — never on each card.
    ───────────────────────────────────────────────────────────── */
 
 .print-only {
   display: none;
+}
+
+/* Screen: separate the two stacked cards so they're distinct
+   in the preview before the print dialog opens. */
+.dugout-card + .dugout-card {
+  margin-top: 1rem;
 }
 
 @media print {
@@ -66,10 +75,25 @@
     page-break-inside: avoid;
   }
 
-  /* Each dugout card occupies the top half of a US Letter sheet.
-     Coaches fold or cut along the dashed rule below. Two cards on
-     one page is a future optimisation; today one card per print job
-     is what's actually requested. */
+  /* Two identical half-sheet cards share one letter sheet.
+     The page break fires after the .dugout-card-pair wrapper so
+     each team's pair occupies exactly one sheet. Never break
+     after an individual .dugout-card — that was the SFLL-114
+     bug that forced one card per page. */
+  .dugout-card-pair {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Reset the screen margin between cards — the .dugout-card__cut
+     line provides the visual gap in print. */
+  .dugout-card + .dugout-card {
+    margin-top: 0;
+  }
+
+  /* Each card claims one 4.5in half of a letter sheet (10in
+     printable with 0.5in margins top and bottom = 10in height;
+     two × 4.5in + the ~0.25in cut-line = 9.25in, fits cleanly). */
   .dugout-card {
     height: 4.5in;
     overflow: hidden;
