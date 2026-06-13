@@ -4,9 +4,10 @@
    Two jobs:
      1. (SFLL-100, site-wide) Loaded via base.html — strips the app
         shell when any screen page goes to print.
-     2. (SFLL-114, Phase 9) Component classes for the standalone
-        half-sheet dugout card print surface (print_dugout_card.html
-        loads lms-tokens.css + this file directly, no base.html).
+     2. (SFLL-114 / SFLL-129, Phase 9) Component classes for the standalone
+        half-sheet dugout card print surface (dugout_card.html).
+        Two cards share one letter sheet inside .dugout-card-pair;
+        the page break fires after the pair, never on each card.
    ───────────────────────────────────────────────────────────── */
 
 /* ─── 1. Site-wide print utilities ─────────────────────────── */
@@ -350,6 +351,12 @@
   text-align: right;
 }
 
+/* Screen: separate the two stacked cards so they're distinct
+   in the preview before the print dialog opens. */
+.dugout-card + .dugout-card {
+  margin-top: 1rem;
+}
+
 /* ─────────────────────────────────────────────────────────────
    @media print — applies to ALL pages that load this stylesheet.
    Rules in this block are ordered by specificity group so they
@@ -417,24 +424,48 @@
     gap: 0;
   }
 
-  /* Both cards occupy the top and bottom halves of one letter sheet.
-     A coach folds or cuts along the midline to keep one in the dugout
-     and hand the other to a parent helper or umpire.
-     Fixed height + overflow: hidden keeps each 5in card within the
-     10.3in printable area (@page margins = 0.35in top + bottom). */
+  /* Two identical half-sheet cards share one letter sheet inside
+     .dugout-card-pair. Each card claims 4.5in (two × 4.5in +
+     ~0.15in cut line = 9.15in, within the 10.3in printable area
+     at 0.35in margins). */
   .dugout-card {
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    height: 5.0in;
+    height: 4.5in;
     overflow: hidden;
-    padding: 0.3in 0.35in 0.25in;
+    border: 1px solid #000;
+    border-radius: 6px;
+    box-shadow: none;
+    padding: 0.2in 0.25in;
   }
 
   /* Don't orphan a row mid-page inside a card */
   tr,
   .dugout-card__row {
     page-break-inside: avoid;
+  }
+
+  /* Page break fires after the pair wrapper — never after each card.
+     This was the SFLL-114 bug: break-after on .dugout-card forced
+     one card per page instead of two per sheet. */
+  .dugout-card-pair {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Reset the screen margin between cards — the cut line provides
+     the visual gap in print. */
+  .dugout-card + .dugout-card {
+    margin-top: 0;
+  }
+
+  .dugout-card__cut {
+    margin-top: 0.15in;
+    border-top: 1px dashed #999;
+    text-align: center;
+    font-size: 8pt;
+    color: #555;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 4px;
   }
 
   a {

@@ -14,96 +14,180 @@
     <a href="{% url 'players:teams' %}"
        style="color: var(--ink-3); font-size: 13px; text-decoration: none;">← Back to teams</a>
     <span style="color: var(--ink-4); font-size: 12px; margin-left: auto;">
-      Half-sheet card. Use browser's print dialog (Ctrl/⌘+P) — output is letter-size with a fold/cut line.
+      Two half-sheet cards per letter sheet — fold or cut along the dashed line to separate.
     </span>
   </div>
 
-  <article class="dugout-card">
+  <div class="dugout-card-pair">
 
-    {# Team strip header — name + division + season + a fill-in for the
-       head coach's name (we don't reliably know it from the data yet). #}
-    <header class="dugout-card__strip"
-            style="display: flex; justify-content: space-between; align-items: flex-end;
-                   border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 8px;">
-      <div>
-        <div style="font-family: var(--font-display); font-weight: 700; font-size: 20pt;
-                    line-height: 1; letter-spacing: -0.01em;">{{ team_season.team.name }}</div>
-        <div style="font-size: 10pt; margin-top: 2px;">
-          {{ team_season.division.name }}{% if team_season.sub_league %} · {{ team_season.sub_league }}{% endif %}
-          · {{ team_season.season.name }}
+    {# ── Card 1 (top half) ─────────────────────────────────────────────── #}
+    <article class="dugout-card">
+
+      {# Team strip header — name + division + season + a fill-in for the
+         head coach's name (we don't reliably know it from the data yet). #}
+      <header class="dugout-card__strip"
+              style="display: flex; justify-content: space-between; align-items: flex-end;
+                     border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 8px;">
+        <div>
+          <div style="font-family: var(--font-display); font-weight: 700; font-size: 20pt;
+                      line-height: 1; letter-spacing: -0.01em;">{{ team_season.team.name }}</div>
+          <div style="font-size: 10pt; margin-top: 2px;">
+            {{ team_season.division.name }}{% if team_season.sub_league %} · {{ team_season.sub_league }}{% endif %}
+            · {{ team_season.season.name }}
+          </div>
         </div>
+        <div style="font-size: 9pt; text-align: right;">
+          <div>Coach: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
+          <div style="margin-top: 4px;">Phone: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
+        </div>
+      </header>
+
+      <div class="dugout-card__body" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
+
+        {# Roster + per-player emergency phone. SFLL doesn't store guardian
+           phones on PlayerSeason yet, so the phone column is a fill-in. The
+           account holder name (guardian) is what we have, so we surface it. #}
+        <section>
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Roster ({{ roster|length }})</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Player</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Guardian</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600; width: 1.4in;">Emergency phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ps in roster %}
+              <tr class="dugout-card__row" style="border-bottom: 1px dotted #999;">
+                <td style="padding: 3px 4px; font-weight: 500;">{{ ps.player.full_name }}</td>
+                <td style="padding: 3px 4px;">{{ ps.account_name|default:"—" }}</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" style="padding: 8px 4px; color: #555;">No players assigned to this team yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        {# 5-game schedule — blank-row layout. Game schedule isn't in the
+           data model yet (no Game/Schedule); the card prints the slots and
+           coaches fill them in from the league calendar. #}
+        <section>
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Next 5 games</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Date</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Time</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Opponent</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Field</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for _ in schedule_slots %}
+              <tr class="dugout-card__row" style="border-bottom: 1px solid #999; height: 0.3in;">
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 10px 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Notes</h2>
+          <div style="border: 1px solid #999; height: 0.7in;">&nbsp;</div>
+        </section>
       </div>
-      <div style="font-size: 9pt; text-align: right;">
-        <div>Coach: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
-        <div style="margin-top: 4px;">Phone: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
+    </article>
+
+    {# Fold / cut line between the two half-sheet copies #}
+    <div class="dugout-card__cut print-only">— fold or cut here —</div>
+
+    {# ── Card 2 (bottom half — identical copy) ────────────────────────── #}
+    <article class="dugout-card">
+
+      <header class="dugout-card__strip"
+              style="display: flex; justify-content: space-between; align-items: flex-end;
+                     border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 8px;">
+        <div>
+          <div style="font-family: var(--font-display); font-weight: 700; font-size: 20pt;
+                      line-height: 1; letter-spacing: -0.01em;">{{ team_season.team.name }}</div>
+          <div style="font-size: 10pt; margin-top: 2px;">
+            {{ team_season.division.name }}{% if team_season.sub_league %} · {{ team_season.sub_league }}{% endif %}
+            · {{ team_season.season.name }}
+          </div>
+        </div>
+        <div style="font-size: 9pt; text-align: right;">
+          <div>Coach: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
+          <div style="margin-top: 4px;">Phone: <span style="display: inline-block; min-width: 1.6in; border-bottom: 1px solid #000;">&nbsp;</span></div>
+        </div>
+      </header>
+
+      <div class="dugout-card__body" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
+
+        <section>
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Roster ({{ roster|length }})</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Player</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Guardian</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600; width: 1.4in;">Emergency phone</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ps in roster %}
+              <tr class="dugout-card__row" style="border-bottom: 1px dotted #999;">
+                <td style="padding: 3px 4px; font-weight: 500;">{{ ps.player.full_name }}</td>
+                <td style="padding: 3px 4px;">{{ ps.account_name|default:"—" }}</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="3" style="padding: 8px 4px; color: #555;">No players assigned to this team yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section>
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Next 5 games</h2>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Date</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Time</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Opponent</th>
+                <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Field</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for _ in schedule_slots %}
+              <tr class="dugout-card__row" style="border-bottom: 1px solid #999; height: 0.3in;">
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+                <td style="padding: 3px 4px;">&nbsp;</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 10px 0 4px;
+                     text-transform: uppercase; letter-spacing: 0.04em;">Notes</h2>
+          <div style="border: 1px solid #999; height: 0.7in;">&nbsp;</div>
+        </section>
       </div>
-    </header>
+    </article>
 
-    <div class="dugout-card__body" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
-
-      {# Roster + per-player emergency phone. SFLL doesn't store guardian
-         phones on PlayerSeason yet, so the phone column is a fill-in. The
-         account holder name (guardian) is what we have, so we surface it. #}
-      <section>
-        <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
-                   text-transform: uppercase; letter-spacing: 0.04em;">Roster ({{ roster|length }})</h2>
-        <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
-          <thead>
-            <tr style="border-bottom: 1px solid #000;">
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Player</th>
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Guardian</th>
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600; width: 1.4in;">Emergency phone</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for ps in roster %}
-            <tr class="dugout-card__row" style="border-bottom: 1px dotted #999;">
-              <td style="padding: 3px 4px; font-weight: 500;">{{ ps.player.full_name }}</td>
-              <td style="padding: 3px 4px;">{{ ps.account_name|default:"—" }}</td>
-              <td style="padding: 3px 4px;">&nbsp;</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" style="padding: 8px 4px; color: #555;">No players assigned to this team yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </section>
-
-      {# 5-game schedule — blank-row layout. Game schedule isn't in the
-         data model yet (no Game/Schedule); the card prints the slots and
-         coaches fill them in from the league calendar. #}
-      <section>
-        <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
-                   text-transform: uppercase; letter-spacing: 0.04em;">Next 5 games</h2>
-        <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
-          <thead>
-            <tr style="border-bottom: 1px solid #000;">
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Date</th>
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Time</th>
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Opponent</th>
-              <th style="text-align: left; padding: 3px 4px; font-weight: 600;">Field</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for _ in schedule_slots %}
-            <tr class="dugout-card__row" style="border-bottom: 1px solid #999; height: 0.3in;">
-              <td style="padding: 3px 4px;">&nbsp;</td>
-              <td style="padding: 3px 4px;">&nbsp;</td>
-              <td style="padding: 3px 4px;">&nbsp;</td>
-              <td style="padding: 3px 4px;">&nbsp;</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-
-        <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 10px 0 4px;
-                   text-transform: uppercase; letter-spacing: 0.04em;">Notes</h2>
-        <div style="border: 1px solid #999; height: 0.7in;">&nbsp;</div>
-      </section>
-    </div>
-  </article>
-
-  <div class="dugout-card__cut print-only">— fold or cut here —</div>
+  </div>{# /.dugout-card-pair #}
 
 </div>
 {% endblock %}
