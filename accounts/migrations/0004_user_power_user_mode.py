@@ -5,16 +5,16 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('accounts', '0002_initial'),
+        ("accounts", "0003_add_treasurer_role"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='power_user_mode',
+            model_name="user",
+            name="power_user_mode",
             field=models.BooleanField(
                 default=False,
-                help_text='Enable Tweaks panel + ⌘K command palette for this user.',
+                help_text="Enable Tweaks panel + ⌘K command palette for this user.",
             ),
         ),
     ]
