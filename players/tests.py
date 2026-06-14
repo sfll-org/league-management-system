@@ -1,14 +1,16 @@
-"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason."""
+"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95)."""
 
 from datetime import date
 
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from accounts.models import User
+from accounts.models import User, UserRole
+from communications.models import EmailLog
 from players.models import (
     Division, League, Player, PlayerSeason, Season, Station, Team, TeamSeason,
 )
+from players.views import encode_family_key
 
 
 def _create_league():
@@ -434,3 +436,387 @@ class CommandPaletteIntegrationTests(TestCase):
         resp = self.client.get(reverse('players:index'))
         self.assertContains(resp, 'lms-topbar__cmdk-btn')
         self.assertContains(resp, "$dispatch('open-cmd-palette')")
+
+
+class DugoutCardViewTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+        self.team = Team.objects.create(league=self.league, name='Marlins')
+        self.team_season = TeamSeason.objects.create(
+            team=self.team, season=self.season, division=self.division,
+        )
+        self.player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='sc-1',
+            first_name='Ada', last_name='Lovelace',
+        )
+        self.ps = PlayerSeason.objects.create(
+            player=self.player, season=self.season, division=self.division,
+            assigned_team=self.team_season, account_name='Augusta Lovelace',
+        )
+
+    def test_dugout_card_requires_login(self):
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_dugout_card_renders_for_valid_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Team strip header, roster row, guardian, schedule heading,
+        # and the window.print() Print button are all on the card.
+        self.assertContains(resp, 'Marlins')
+        self.assertContains(resp, 'Ada Lovelace')
+        self.assertContains(resp, 'Augusta Lovelace')
+        self.assertContains(resp, 'Next 5 games')
+        self.assertContains(resp, 'window.print()')
+
+    def test_dugout_card_404_for_missing_team(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[9999]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dugout_card_renders_empty_roster(self):
+        empty_team = Team.objects.create(league=self.league, name='Penguins')
+        empty_ts = TeamSeason.objects.create(
+            team=empty_team, season=self.season, division=self.division,
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:dugout_card', args=[empty_ts.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No players assigned')
+
+
+# ---------------------------------------------------------------------------
+# SFLL-95 — Family Detail (Phase 4)
+# ---------------------------------------------------------------------------
+
+FAMILY_EMAIL = 'rodriguez.family@example.com'
+OTHER_FAMILY_EMAIL = 'other@example.com'
+
+
+class FamilyDetailTests(TestCase):
+    """Family Detail page: groups PlayerSeasons by account_email and surfaces
+    players, contacts, balance shell, volunteer shell, and comms history."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = _create_user()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.division = Division.objects.create(league=self.league, name='Majors')
+
+        self.player1 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-FAM-1',
+            first_name='Jayden', last_name='Rodriguez',
+        )
+        self.player2 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-FAM-2',
+            first_name='Alex', last_name='Rodriguez',
+        )
+        self.ps1 = PlayerSeason.objects.create(
+            player=self.player1, season=self.season, division=self.division,
+            account_name='Maria Rodriguez',
+            account_email=FAMILY_EMAIL,
+            additional_email='papa@example.com',
+        )
+        self.ps2 = PlayerSeason.objects.create(
+            player=self.player2, season=self.season, division=self.division,
+            account_name='Maria Rodriguez',
+            account_email=FAMILY_EMAIL,
+        )
+        # An unrelated player on a different account.
+        other_player = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SC-OTHER',
+            first_name='Other', last_name='Kid',
+        )
+        PlayerSeason.objects.create(
+            player=other_player, season=self.season, division=self.division,
+            account_name='Other Parent', account_email=OTHER_FAMILY_EMAIL,
+        )
+
+        self.family_key = encode_family_key(FAMILY_EMAIL)
+
+    # ----- index -----
+
+    def test_family_index_requires_login(self):
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_family_index_lists_families(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Maria Rodriguez')
+        self.assertContains(resp, FAMILY_EMAIL)
+        self.assertContains(resp, 'Other Parent')
+
+    def test_family_index_no_active_season(self):
+        self.season.is_active = False
+        self.season.save()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'No active season')
+
+    # ----- detail -----
+
+    def test_family_detail_requires_login(self):
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('login', resp.url)
+
+    def test_family_detail_renders(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        # Header pulls account name + sibling count.
+        self.assertContains(resp, 'Maria Rodriguez')
+        self.assertContains(resp, '2 players')
+        # Both siblings appear.
+        self.assertContains(resp, 'Jayden Rodriguez')
+        self.assertContains(resp, 'Alex Rodriguez')
+        # Other family isn't accidentally pulled in.
+        self.assertNotContains(resp, 'Other Kid')
+        # Contacts grid shows primary + secondary; emergency is a placeholder.
+        self.assertContains(resp, 'Primary parent')
+        self.assertContains(resp, 'Secondary contact')
+        self.assertContains(resp, 'Emergency contact')
+        self.assertContains(resp, 'papa@example.com')
+        # Volunteer shell and division context.
+        self.assertContains(resp, 'Volunteer obligations')
+        self.assertContains(resp, 'Majors')
+        # Comms shell renders even with no email logs.
+        self.assertContains(resp, 'Recent communications')
+
+    def test_family_detail_404_for_unknown_family(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        bogus = encode_family_key('nobody@example.com')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[bogus]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_404_for_malformed_key(self):
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=['not-a-valid-key!!!']),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_404_when_no_active_season(self):
+        self.season.is_active = False
+        self.season.save()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_family_detail_includes_comms_history(self):
+        EmailLog.objects.create(
+            player_season=self.ps1,
+            to_address=FAMILY_EMAIL,
+            subject='SES reminder for Jayden',
+            body_snapshot='You have an SES session tomorrow.',
+        )
+        EmailLog.objects.create(
+            player_season=self.ps2,
+            to_address=FAMILY_EMAIL,
+            subject='SES reminder for Alex',
+            body_snapshot='You have an SES session tomorrow.',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'SES reminder for Jayden')
+        self.assertContains(resp, 'SES reminder for Alex')
+
+    # ----- treasurer + balance gating -----
+
+    def test_balance_section_hidden_for_regular_user(self):
+        # Plain logged-in user (no admin / treasurer role) sees no balance.
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertNotContains(resp, '>Balance<')
+        self.assertNotContains(resp, 'Treasurer view')
+
+    def test_treasurer_sees_balance_in_readonly_mode(self):
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='treasurer',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertContains(resp, 'Treasurer view')
+        self.assertContains(resp, 'read-only')
+
+    def test_admin_sees_balance_without_readonly_badge(self):
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='cto',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertNotContains(resp, 'Treasurer view')
+
+    def test_treasurer_plus_admin_loses_readonly_badge(self):
+        # Multi-role: someone with both treasurer and admin caps shouldn't be
+        # locked into the read-only view.
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='treasurer',
+        )
+        UserRole.objects.create(
+            user=self.user, league=self.league, role='president',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Balance')
+        self.assertNotContains(resp, 'Treasurer view')
+
+    def test_balance_hidden_for_role_in_other_league(self):
+        # A treasurer or admin role on a *different* League must not grant
+        # visibility into this family's Balance section.
+        other_league = League.objects.create(
+            name='Oakland Little League', short_name='OLL',
+        )
+        UserRole.objects.create(
+            user=self.user, league=other_league, role='treasurer',
+        )
+        UserRole.objects.create(
+            user=self.user, league=other_league, role='president',
+        )
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'Balance')
+        self.assertNotContains(resp, 'Treasurer view')
+
+
+class RosterFilterTests(TestCase):
+    """Roster (SFLL-108) — querystring filters: q, division, league, view."""
+
+    def setUp(self):
+        self.client = Client()
+        _create_user()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
+            is_active=True,
+        )
+        self.majors = Division.objects.create(
+            league=self.league, name='Majors', display_order=0,
+            has_leagues=True, league_names=['American', 'National'],
+        )
+        self.aaa = Division.objects.create(
+            league=self.league, name='AAA', display_order=1,
+        )
+        team = Team.objects.create(league=self.league, name='Marlins')
+        self.team_american = TeamSeason.objects.create(
+            team=team, season=self.season, division=self.majors,
+            sub_league='American',
+        )
+        self.alpha = self._player('SC-A', 'Alpha', 'Adams', division=self.majors,
+                                  team=self.team_american, top4=True)
+        self.bravo = self._player('SC-B', 'Bravo', 'Brown', division=self.majors)
+        self.charlie = self._player('SC-C', 'Charlie', 'Clark', division=self.aaa)
+
+    def _player(self, sc_id, first, last, division=None, team=None, top4=False):
+        p = Player.objects.create(
+            league=self.league, sportsconnect_player_id=sc_id,
+            first_name=first, last_name=last,
+        )
+        return PlayerSeason.objects.create(
+            player=p, season=self.season, division=division,
+            assigned_team=team, is_top_4=top4,
+        )
+
+    def test_search_matches_last_name(self):
+        resp = self.client.get(reverse('players:index'), {'q': 'Brown'})
+        self.assertEqual(resp.status_code, 200)
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.bravo])
+
+    def test_division_filter(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.aaa.id)})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.charlie])
+        self.assertEqual(resp.context['selected_division'], self.aaa)
+
+    def test_unassigned_view_excludes_assigned(self):
+        resp = self.client.get(reverse('players:index'), {'view': 'unassigned'})
+        items = list(resp.context['player_seasons'])
+        self.assertIn(self.bravo, items)
+        self.assertIn(self.charlie, items)
+        self.assertNotIn(self.alpha, items)
+
+    def test_top4_view(self):
+        resp = self.client.get(reverse('players:index'), {'view': 'top4'})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+
+    def test_sub_league_only_active_for_multi_league_division(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.majors.id),
+                                'league': 'American'})
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+        self.assertEqual(resp.context['sub_leagues'], ['American', 'National'])
+
+    def test_sub_leagues_empty_for_single_league_division(self):
+        resp = self.client.get(reverse('players:index'),
+                               {'division': str(self.aaa.id)})
+        self.assertEqual(resp.context['sub_leagues'], [])
+
+    def test_search_preserves_active_filters(self):
+        # Regression: form submit must not drop active division/view filters.
+        # Template hidden inputs make this work; this test catches regressions.
+        resp = self.client.get(reverse('players:index'), {
+            'q': 'Adams', 'division': str(self.majors.id), 'view': 'top4',
+        })
+        self.assertEqual(resp.status_code, 200)
+        items = list(resp.context['player_seasons'])
+        self.assertEqual(items, [self.alpha])
+        content = resp.content.decode()
+        self.assertIn(f'name="division" value="{self.majors.id}"', content)
+        self.assertIn('name="view" value="top4"', content)

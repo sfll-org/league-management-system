@@ -1,0 +1,96 @@
+/* ─────────────────────────────────────────────────────────────
+   SFLL — Print stylesheet (SFLL-100, Phase 9).
+   Loaded site-wide via base.html. Screen rules are no-ops; the
+   `@media print` block is the entire payload.
+
+   Strategy:
+     - Drop sidebar, topbar, flash, footer.
+     - Collapse the body grid to a single column so .lms-main
+       gets the full page width.
+     - Anything tagged .no-print is hidden; anything tagged
+       .print-only is shown (it's display:none otherwise).
+     - Page margins live in @page so coaches' browsers don't
+       fight us with their own defaults.
+   ───────────────────────────────────────────────────────────── */
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+
+  html,
+  body.lms-shell {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+    line-height: 1.35;
+  }
+
+  body.lms-shell {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+
+  .lms-sidebar,
+  .lms-sidebar__scrim,
+  .lms-topbar,
+  .lms-flash,
+  .lms-footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .lms-main {
+    display: block !important;
+    min-height: 0 !important;
+  }
+
+  .lms-content {
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Don't split a row across pages — keeps roster lines whole. */
+  tr,
+  .dugout-card__row {
+    page-break-inside: avoid;
+  }
+
+  /* Each dugout card occupies the top half of a US Letter sheet.
+     Coaches fold or cut along the dashed rule below. Two cards on
+     one page is a future optimisation; today one card per print job
+     is what's actually requested. */
+  .dugout-card {
+    height: 4.5in;
+    overflow: hidden;
+    border: 1px solid #000;
+    border-radius: 6px;
+    padding: 0.2in 0.25in;
+  }
+
+  .dugout-card__cut {
+    margin-top: 0.15in;
+    border-top: 1px dashed #999;
+    text-align: center;
+    font-size: 8pt;
+    color: #555;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 4px;
+  }
+
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+}

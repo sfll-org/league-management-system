@@ -1,54 +1,183 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}SFLL — Players{% endblock %}
+{# SFLL-108 — Roster (Phase 3).
+   Rebuilds templates/players/index.html onto Pacific tokens from the
+   Claude Design handoff bundle (38nnfJ8G8l3n16PzuNoDQg, screens-roster.jsx).
+   Tailwind chrome from the pre-design scaffold is gone — every primitive
+   here is already shipped in lms-shell.css (.toolbar / .input / .chip /
+   .seg / .table / .player-cell / .avatar / .pill / .empty) by Phase 1+2;
+   this phase doesn't extend lms-components.css to avoid conflicts with
+   the still-open PR #5.
+
+   Filters are server-side via GET querystring (q, division, league, view)
+   so the screen is deep-linkable and works without JS — chips submit by
+   posting back to the same URL with updated params.
+#}
+
+{% block title %}SFLL — Roster{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-white">Player Roster</h1>
-            <p class="mt-1 text-gray-400">
-                {% if season %}{{ season.name }} — {% endif %}
-                {{ player_seasons.count }} player{{ player_seasons.count|pluralize }}
-            </p>
+<div class="page">
+
+  <form method="get" action="{% url 'players:index' %}" id="roster-filters">
+    {# Posting the form keeps current params; chip/seg buttons submit it
+       with a fresh value via the hidden inputs they overwrite. #}
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Roster</h1>
+        <div class="page-sub">
+          {% if season %}{{ season.name }} · {% endif %}
+          <span class="tabular">{{ player_seasons.count }}</span>
+          player{{ player_seasons.count|pluralize }}
+          {% if q or selected_division or view != 'all' or selected_league %}
+            <a href="{% url 'players:index' %}" class="text-muted" style="margin-left: 8px;">Clear filters</a>
+          {% endif %}
         </div>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--ghost" href="{% url 'players:teams' %}">Teams</a>
+      </div>
     </div>
 
-    {% if player_seasons %}
-    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-700/50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Name</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden sm:table-cell">Division</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden md:table-cell">Team</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    {% for ps in player_seasons %}
-                    <tr class="hover:bg-gray-700/30 transition">
-                        <td class="px-4 py-3 text-white">{{ ps.player.full_name }}</td>
-                        <td class="px-4 py-3 text-gray-300 hidden sm:table-cell">{{ ps.division|default:"—" }}</td>
-                        <td class="px-4 py-3 text-gray-300 hidden md:table-cell">{{ ps.assigned_team|default:"Unassigned" }}</td>
-                        <td class="px-4 py-3">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium
-                                {% if ps.status == 'registered' %}bg-emerald-900/50 text-emerald-300
-                                {% else %}bg-gray-700 text-gray-300{% endif %}">
-                                {{ ps.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <div class="toolbar">
+      <label class="input toolbar__search" aria-label="Search players">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+             aria-hidden="true" style="color: var(--ink-3);">
+          <circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <input type="search" name="q" value="{{ q }}" placeholder="Search players…"
+               autocomplete="off" />
+      </label>
+      {# Hidden inputs preserve active chip/seg state when the search form submits.
+         Without these, typing a query from a filtered view drops division/league/view. #}
+      {% if selected_division %}<input type="hidden" name="division" value="{{ selected_division.id }}">{% endif %}
+      {% if selected_league %}<input type="hidden" name="league" value="{{ selected_league }}">{% endif %}
+      {% if view != 'all' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+
+      {# Division chips. The "All" chip clears the division filter. #}
+      <a href="?{% if q %}q={{ q }}&amp;{% endif %}{% if view != 'all' %}view={{ view }}{% endif %}"
+         class="chip{% if not selected_division %} chip--active{% endif %}">All divisions</a>
+      {% for d in divisions %}
+        <a href="?{% if q %}q={{ q }}&amp;{% endif %}division={{ d.id }}{% if view != 'all' %}&amp;view={{ view }}{% endif %}"
+           class="chip{% if selected_division and selected_division.id == d.id %} chip--active{% endif %}">{{ d.name }}</a>
+      {% endfor %}
+
+      <div class="ml-auto seg" role="group" aria-label="Filter view">
+        <a class="seg__btn{% if view == 'all' %} seg__btn--active{% endif %}"
+           href="?{% if q %}q={{ q }}&amp;{% endif %}{% if selected_division %}division={{ selected_division.id }}{% if selected_league %}&amp;league={{ selected_league }}{% endif %}{% endif %}">All</a>
+        <a class="seg__btn{% if view == 'top4' %} seg__btn--active{% endif %}"
+           href="?{% if q %}q={{ q }}&amp;{% endif %}{% if selected_division %}division={{ selected_division.id }}{% if selected_league %}&amp;league={{ selected_league }}{% endif %}&amp;{% endif %}view=top4">Top-4</a>
+        <a class="seg__btn{% if view == 'unassigned' %} seg__btn--active{% endif %}"
+           href="?{% if q %}q={{ q }}&amp;{% endif %}{% if selected_division %}division={{ selected_division.id }}{% if selected_league %}&amp;league={{ selected_league }}{% endif %}&amp;{% endif %}view=unassigned">Unassigned</a>
+      </div>
     </div>
-    {% else %}
-    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
-        <p class="text-gray-400">No players registered for the current season.</p>
+
+    {# Sub-league chips appear only when the active division splits into
+       leagues (e.g. Majors → American / National). #}
+    {% if sub_leagues %}
+    <div class="toolbar" style="margin-top: -4px;">
+      <a href="?{% if q %}q={{ q }}&amp;{% endif %}division={{ selected_division.id }}{% if view != 'all' %}&amp;view={{ view }}{% endif %}"
+         class="chip{% if not selected_league %} chip--active{% endif %}">Both leagues</a>
+      {% for sub in sub_leagues %}
+        <a href="?{% if q %}q={{ q }}&amp;{% endif %}division={{ selected_division.id }}&amp;league={{ sub }}{% if view != 'all' %}&amp;view={{ view }}{% endif %}"
+           class="chip{% if selected_league == sub %} chip--active{% endif %}">{{ sub }}</a>
+      {% endfor %}
     </div>
     {% endif %}
-</div>
+
+    {# The submit input lets the search field commit on Enter without a
+       visible button — the chip/seg links above submit by URL params. #}
+    <noscript><button type="submit" class="btn">Apply</button></noscript>
+  </form>
+
+  <div class="card" style="margin-top: 14px;">
+    {% if player_seasons %}
+    <table class="table table--clickable">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Division</th>
+          <th>Team</th>
+          <th></th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ps in player_seasons %}
+        <tr>
+          <td>
+            <div class="player-cell">
+              <span class="avatar" aria-hidden="true">{{ ps.player.first_name|slice:":1" }}{{ ps.player.last_name|slice:":1" }}</span>
+              <div>
+                <div class="player-cell__name">{{ ps.player.full_name }}</div>
+                {% if ps.account_name %}
+                <div class="player-cell__sub">{{ ps.account_name }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>
+            {% if ps.division %}{{ ps.division.name }}{% else %}<span class="text-muted">—</span>{% endif %}
+            {% if ps.assigned_team and ps.assigned_team.sub_league %}
+              <span class="text-muted text-xs"> · {{ ps.assigned_team.sub_league }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if ps.assigned_team %}
+              {{ ps.assigned_team.team.name }}
+            {% else %}
+              <span class="pill pill--ghost">Unassigned</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if ps.is_top_4 %}<span class="pill pill--danger">Top-4</span>{% endif %}
+            {% if ps.is_protected %}<span class="pill pill--neutral">Protected</span>{% endif %}
+          </td>
+          <td>
+            <span class="pill pill--{% if ps.status == 'registered' %}success{% else %}neutral{% endif %}">
+              <span class="pill__dot"></span>{{ ps.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% elif not season %}
+    <div class="empty">
+      <strong>No active season.</strong>
+      Start one in Season setup to load this roster.
+    </div>
+    {% elif q or selected_division or view != 'all' or selected_league %}
+    <div class="empty">
+      <strong>No matches.</strong>
+      Loosen a filter or clear the search.
+    </div>
+    {% else %}
+    <div class="empty">
+      <strong>Roster's empty.</strong>
+      Players land here once the SportsConnect import runs.
+    </div>
+    {% endif %}
+  </div>
+
+</div>{# /page #}
+
+<script>
+// Search field debounce — submit ~250ms after the last keystroke so chips
+// + search compose naturally. Falls back to Enter / form-submit if JS is off.
+(function() {
+  var form = document.getElementById('roster-filters');
+  if (!form) return;
+  var search = form.querySelector('input[name="q"]');
+  if (!search) return;
+  var t;
+  search.addEventListener('input', function() {
+    clearTimeout(t);
+    t = setTimeout(function() { form.submit(); }, 250);
+  });
+})();
+</script>
 {% endblock %}

@@ -29,8 +29,9 @@ class UserRole(models.Model):
         ('assistant_coach', 'Assistant Coach'),
         ('front_desk', 'Front Desk'),
         ('comms_editor', 'Comms Editor'),
+        ('treasurer', 'Treasurer'),
     ]
-    GLOBAL_ROLES = ['cto', 'ses_manager', 'vp_player_agents', 'president']
+    GLOBAL_ROLES = ['cto', 'ses_manager', 'vp_player_agents', 'president', 'treasurer']
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='roles')
     league = models.ForeignKey('players.League', on_delete=models.CASCADE)

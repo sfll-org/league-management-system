@@ -9,6 +9,10 @@ from core.views import dashboard, health_check
 from tryouts import views as tryouts_views
 from communications import views as comms_views
 
+admin.site.site_header = 'SFLL — League Management System'
+admin.site.site_title = 'SFLL Admin'
+admin.site.index_title = 'Operations'
+
 urlpatterns = [
     path('', dashboard, name='home'),
     path('dashboard/', dashboard, name='dashboard'),

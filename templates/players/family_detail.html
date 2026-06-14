@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{# SFLL-95 — Family Detail (Phase 4).
+   Five sections per the design handoff: players, contacts, balance,
+   volunteer obligations, comms history. Sections without backing models
+   (balance, volunteer) render as structured empty shells so the surface is
+   stable when those models land. Treasurer role flips the page into
+   read-only mode — same surface, no edit affordances. #}
+
+{% block title %}{{ account_name }} — Family{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ───── Family header ───── #}
+  <div class="page-header">
+    <div class="family-head">
+      <div class="avatar avatar--xl" aria-hidden="true">
+        {{ account_name|slice:":1"|upper }}
+      </div>
+      <div>
+        <div class="player-head__crumbs">
+          <a href="{% url 'players:family_index' %}">Families</a>
+          <span class="crumbs__sep">/</span>
+          <span>{{ season.name }}</span>
+        </div>
+        <h1 class="page-title">{{ account_name }}</h1>
+        <div class="player-head__pills">
+          <span class="pill pill--ghost">
+            {{ player_seasons|length }} player{{ player_seasons|length|pluralize }}
+          </span>
+          {% for d in division_names %}
+          <span class="pill pill--neutral">{{ d }}</span>
+          {% endfor %}
+          {% if treasurer_only %}
+          <span class="pill pill--primary">
+            <span class="pill__dot"></span>Treasurer view · read-only
+          </span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="page-header__actions">
+      <a href="{% url 'players:family_index' %}" class="btn btn--ghost">← Back to families</a>
+      <a href="mailto:{{ email }}" class="btn">Email family</a>
+    </div>
+  </div>
+
+  {# ───── Players in family ───── #}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">Players
+        <span class="card__title-sub">{{ player_seasons|length }} in {{ season.name }}</span>
+      </span>
+    </div>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Division</th>
+          <th>Team</th>
+          <th>Status</th>
+          <th>Flags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ps in player_seasons %}
+        <tr>
+          <td>
+            {# Resolves to the player detail page when that route exists
+               (SFLL-94). On main that URL isn't registered yet, so {% url
+               %} returns empty and we render plain text instead. #}
+            {% url 'players:detail' ps.pk as player_url %}
+            {% if player_url %}
+            <a href="{{ player_url }}">{{ ps.player.full_name }}</a>
+            {% else %}
+            {{ ps.player.full_name }}
+            {% endif %}
+          </td>
+          <td>{{ ps.division.name|default:"—" }}</td>
+          <td>{{ ps.assigned_team.team.name|default:"Unassigned" }}</td>
+          <td>
+            <span class="pill pill--neutral">
+              {{ ps.get_status_display|default:ps.status }}
+            </span>
+          </td>
+          <td>
+            {% if ps.is_top_4 %}
+            <span class="pill pill--danger"><span class="pill__dot"></span>Top 4</span>
+            {% endif %}
+            {% if ps.is_protected %}
+            <span class="pill pill--primary">Protected</span>
+            {% endif %}
+            {% if ps.coaches_child_of %}
+            <span class="pill pill--ghost">Coach's child</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# ───── Contacts grid ───── #}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">Contacts
+        <span class="card__title-sub">From SportsConnect registration</span>
+      </span>
+    </div>
+    <div class="contacts-grid">
+      {% for c in contacts %}
+      <div class="contact-card{% if c.is_placeholder %} contact-card--empty{% endif %}">
+        <div class="contact-card__role">
+          <span class="pill pill--{{ c.role_badge|default:'neutral' }}">{{ c.role }}</span>
+        </div>
+        <div class="contact-card__name">
+          {{ c.name|default:"—" }}
+        </div>
+        <div class="contact-card__lines">
+          {% if c.email %}
+          <a class="contact-card__line" href="mailto:{{ c.email }}">{{ c.email }}</a>
+          {% else %}
+          <span class="contact-card__line text-muted">No email on file</span>
+          {% endif %}
+          {% if c.phone %}
+          <a class="contact-card__line" href="tel:{{ c.phone }}">{{ c.phone }}</a>
+          {% else %}
+          <span class="contact-card__line text-muted">No phone on file</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ───── Balance ───── #}
+  {% if can_see_balance %}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">Balance
+        <span class="card__title-sub">
+          {% if treasurer_only %}Treasurer view · read-only{% else %}Outstanding dues + history{% endif %}
+        </span>
+      </span>
+    </div>
+    <div class="card__body">
+      <div class="balance-row">
+        <div class="balance-row__current">
+          <div class="balance-row__label">Currently owed</div>
+          <div class="balance-row__amount tabular text-muted">$—</div>
+          <div class="balance-row__hint text-muted">
+            Balance ledger lands in a later phase. Today this surface is a
+            placeholder for treasurer + front-desk workflows.
+          </div>
+        </div>
+      </div>
+      <div class="empty">
+        <strong>No payment history yet.</strong>
+        Charges and payments will appear here once the ledger model ships.
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ───── Volunteer obligations ───── #}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">Volunteer obligations
+        <span class="card__title-sub">
+          {% if division_names %}
+          Division{{ division_names|length|pluralize }}: {{ division_names|join:", " }}
+          {% else %}
+          No division assigned
+          {% endif %}
+        </span>
+      </span>
+    </div>
+    <div class="card__body">
+      <div class="vol-row">
+        <div class="vol-row__cell">
+          <div class="vol-row__label">Hours pledged</div>
+          <div class="vol-row__value tabular text-muted">—</div>
+        </div>
+        <div class="vol-row__cell">
+          <div class="vol-row__label">Hours earned</div>
+          <div class="vol-row__value tabular text-muted">—</div>
+        </div>
+        <div class="vol-row__cell">
+          <div class="vol-row__label">Remaining</div>
+          <div class="vol-row__value tabular text-muted">—</div>
+        </div>
+      </div>
+      <div class="empty">
+        <strong>Obligation tracker coming soon.</strong>
+        Pledges + earned hours surface here once the volunteer model ships;
+        division policy will set the default pledge.
+      </div>
+    </div>
+  </div>
+
+  {# ───── Comms history ───── #}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">Recent communications
+        <span class="card__title-sub">
+          Last {{ comms_limit }} outbound · {{ comms_rows|length }} shown
+        </span>
+      </span>
+    </div>
+    {% if comms_rows %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Sent</th>
+          <th>Subject</th>
+          <th>To player</th>
+          <th>Delivered</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comms_rows %}
+        <tr>
+          <td class="tabular text-muted">{{ row.sent_at|date:'Y-m-d H:i' }}</td>
+          <td>{{ row.subject|default:"(no subject)" }}</td>
+          <td>{{ row.player_season.player.full_name }}</td>
+          <td>
+            {% if row.bounced %}
+            <span class="pill pill--danger"><span class="pill__dot"></span>Bounced</span>
+            {% elif row.delivered_at %}
+            <span class="pill pill--success"><span class="pill__dot"></span>Delivered</span>
+            {% else %}
+            <span class="pill pill--neutral">Sent</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <strong>No emails on file.</strong>
+      Outbound league emails to this family will appear here.
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
