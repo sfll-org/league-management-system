@@ -6,8 +6,8 @@ The fastest way to get running locally:
 
 ```bash
 # 1. Clone the repo
-git clone <repo-url> player-database
-cd player-database
+git clone <repo-url> league-management-system
+cd league-management-system
 
 # 2. Copy environment config
 cp .env.example .env
