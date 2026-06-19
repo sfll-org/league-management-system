@@ -385,8 +385,9 @@ class DraftBoardViewTests(TestCase):
         )
         body = resp.content.decode()
         for legacy in ('bg-gray-800', 'bg-gray-700', 'text-emerald-400',
-                       'rounded-xl', 'border-gray-700', 'bg-emerald-900'):
+                       'rounded-xl', 'border-gray-700', 'bg-emerald-900',
+                       'json|safe'):
             self.assertNotIn(
                 legacy, body,
-                f'Legacy Tailwind class `{legacy}` leaked back into the draft board.',
+                f'Legacy pattern `{legacy}` leaked back into the draft board.',
             )
