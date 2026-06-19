@@ -233,6 +233,87 @@ def dashboard(request):
     return render(request, "dashboard.html", context)
 
 
+def _build_attention_items(active_season):
+    """Build the attention-inbox item list for the given season.
+
+    Returns a list of dicts with keys: type (blocker|warning|today), label, url.
+    Each item maps directly to what the _partials/dashboard_inbox.html template expects.
+    """
+    from django.urls import reverse
+
+    items = []
+
+    # Flagged SportsConnect records
+    last_import = ImportRun.objects.order_by('-started_at').first()
+    if last_import and last_import.flagged_for_review:
+        n = last_import.flagged_for_review
+        items.append({
+            'type': 'blocker' if n > 5 else 'warning',
+            'label': f'{n} flagged SportsConnect record{"s" if n != 1 else ""} — review before next import',
+            'url': reverse('import_history'),
+        })
+
+    # RSVP participation rate
+    total_assignments = SessionAssignment.objects.filter(
+        session__season=active_season
+    ).count()
+    if total_assignments:
+        total_rsvps = RSVP.objects.filter(session__season=active_season).count()
+        rsvp_rate = round(total_rsvps / total_assignments * 100)
+        if rsvp_rate < 75:
+            items.append({
+                'type': 'warning',
+                'label': f'RSVP rate at {rsvp_rate}% — send reminders to lift participation',
+                'url': None,
+            })
+
+    # Active draft sessions
+    draft_sessions = DraftSession.objects.filter(
+        season=active_season, status='drafting'
+    ).select_related('division')
+    for ds in draft_sessions:
+        items.append({
+            'type': 'today',
+            'label': f'{ds.division.name} draft in progress — round {ds.current_round}, pick {ds.current_pick}',
+            'url': reverse('draft:index'),
+        })
+
+    return items
+
+
+@login_required
+def dashboard_inbox(request):
+    """HTMX partial: filtered 'Needs attention' inbox for admins."""
+    from django.http import HttpResponseForbidden
+    roles = _get_user_roles(request.user)
+    if not _is_admin(roles):
+        return HttpResponseForbidden()
+
+    active_season = Season.objects.filter(is_active=True).first()
+    if not active_season:
+        return render(request, '_partials/dashboard_inbox.html', {
+            'attention_items': [],
+            'attention_filter': 'all',
+        })
+
+    all_items = _build_attention_items(active_season)
+    active_filter = request.GET.get('filter', 'all')
+
+    if active_filter == 'blockers':
+        items = [i for i in all_items if i['type'] == 'blocker']
+    elif active_filter == 'warnings':
+        items = [i for i in all_items if i['type'] == 'warning']
+    elif active_filter == 'today':
+        items = [i for i in all_items if i['type'] == 'today']
+    else:
+        items = all_items
+
+    return render(request, '_partials/dashboard_inbox.html', {
+        'attention_items': items,
+        'attention_filter': active_filter,
+    })
+
+
 def health_check(request):
     """Health check endpoint for Docker / load balancers."""
     return JsonResponse({"status": "ok"})
