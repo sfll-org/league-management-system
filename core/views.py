@@ -1,4 +1,4 @@
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -388,7 +388,7 @@ def _cmdk_players(query, limit=20):
         items.append({
             'title': name or player.first_name or player.last_name or 'Unnamed player',
             'subtitle': ' · '.join(sub_bits),
-            'url': f'{roster_url}?{urlencode({"q": name})}',
+            'url': f'{roster_url}?{urlencode({"q": name}, quote_via=quote)}',
             'kind': 'player',
         })
     return items
@@ -428,7 +428,7 @@ def _cmdk_families(query, limit=15):
         items.append({
             'title': name,
             'subtitle': f'{count} {suffix}',
-            'url': f'{roster_url}?{urlencode({"account": name})}',
+            'url': f'{roster_url}?{urlencode({"account": name}, quote_via=quote)}',
             'kind': 'family',
         })
     return items
