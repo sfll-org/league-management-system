@@ -189,12 +189,13 @@ def print_dugout_card(request, team_season_id):
     )
 
     # Sessions stand in for a Game model until that lands — same placeholder
-    # pattern Phase 8 used. Filter to the team's division, future-only,
-    # limit to the next 5.
+    # pattern Phase 8 used. Filter to the team's division, current season,
+    # future-only, limit to the next 5. Season filter prevents sessions from
+    # other seasons sharing the same division from leaking onto the card.
     today = timezone.localdate()
     games = list(
         Session.objects
-        .filter(division=team_season.division, date__gte=today)
+        .filter(division=team_season.division, season=team_season.season, date__gte=today)
         .order_by('date', 'start_time')[:5]
     )
 

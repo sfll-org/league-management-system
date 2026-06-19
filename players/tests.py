@@ -621,6 +621,30 @@ class PrintSurfaceTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "No players assigned")
 
+    def test_print_dugout_card_session_filter_excludes_other_season(self):
+        """Sessions from a different season sharing the same division must not appear."""
+        from tryouts.models import Session as TryoutSession
+        import datetime
+        # Session in this division but a DIFFERENT season
+        other_season = Season.objects.create(
+            league=self.league, name="Fall 2026", year=2026,
+            season_type="fall", is_active=False,
+        )
+        TryoutSession.objects.create(
+            league=self.league,
+            season=other_season,
+            division=self.division,
+            name="Fall Session",
+            date=datetime.date.today() + datetime.timedelta(days=1),
+            start_time=datetime.time(9, 0),
+        )
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:print_dugout_card", args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Fall Session")
+
 
 # ---------------------------------------------------------------------------
 # SFLL-95 — Family Detail (Phase 4)
