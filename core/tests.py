@@ -415,3 +415,55 @@ class CmdkUrlEncodingTests(TestCase):
         self.assertEqual(len(items), 1)
         url = items[0]['url']
         self.assertNotIn('+', url.split('?')[1])
+
+
+class CmdkPageRoleFilterTests(TestCase):
+    """Palette pages gated on roles must not appear for plain power-users."""
+
+    def setUp(self):
+        from core.views import _cmdk_pages
+        self._cmdk_pages = _cmdk_pages
+        self.league = _create_league()
+
+    def _user_with_roles(self, email, roles=()):
+        user = _create_user(email=email)
+        for role in roles:
+            UserRole.objects.create(user=user, role=role, is_active=True)
+        return user
+
+    def _page_titles(self, user):
+        return {p['title'] for p in self._cmdk_pages(user)}
+
+    def test_plain_user_cannot_see_comms_or_evals(self):
+        user = self._user_with_roles('plain@sfll.org')
+        titles = self._page_titles(user)
+        self.assertNotIn('Communications', titles)
+        self.assertNotIn('Evaluations', titles)
+
+    def test_comms_editor_can_see_comms(self):
+        user = self._user_with_roles('comms@sfll.org', roles=['comms_editor'])
+        titles = self._page_titles(user)
+        self.assertIn('Communications', titles)
+
+    def test_head_coach_can_see_evals(self):
+        user = self._user_with_roles('coach@sfll.org', roles=['head_coach'])
+        titles = self._page_titles(user)
+        self.assertIn('Evaluations', titles)
+
+    def test_draft_visible_to_all_authenticated(self):
+        user = self._user_with_roles('reg@sfll.org')
+        titles = self._page_titles(user)
+        self.assertIn('Draft', titles)
+
+    def test_admin_pages_hidden_from_non_admin(self):
+        user = self._user_with_roles('plain@sfll.org')
+        titles = self._page_titles(user)
+        self.assertNotIn('Imports', titles)
+        self.assertNotIn('Configuration', titles)
+
+    def test_superuser_sees_everything(self):
+        user = _create_user(email='super@sfll.org', is_superuser=True)
+        titles = self._page_titles(user)
+        self.assertIn('Communications', titles)
+        self.assertIn('Evaluations', titles)
+        self.assertIn('Imports', titles)

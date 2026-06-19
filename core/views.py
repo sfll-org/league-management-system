@@ -323,29 +323,44 @@ def health_check(request):
 
 # --- SFLL-117: ⌘K command palette search endpoint -------------------------
 
-# Static page registry keyed by minimum role. The view filters by what the
-# current user can reach, then ranks against the query client-side.
+def _can_manage_comms(user):
+    from communications.views import _can_manage_comms as _comm_check
+    return _comm_check(user)
+
+
+def _is_eval_authorized(user):
+    from evaluations.views import _is_eval_authorized as _eval_check
+    return _eval_check(user)
+
+
+# Static page registry. Each entry is (title, url_name, kind, predicate).
+# predicate is None (any logged-in user), 'admin', or a callable(user)->bool.
 _CMDK_PAGES = (
-    # (title, url_name, kind, role_required)
-    ('Dashboard',      'dashboard',                'page',  None),
-    ('Roster',         'players:index',            'page',  None),
-    ('Teams',          'players:teams',            'page',  None),
-    ('Communications', 'communications:index',     'page',  None),
-    ('SES Sessions',   'tryouts:index',            'page',  None),
-    ('Evaluations',    'evaluations:index',        'page',  None),
-    ('Draft',          'draft:index',              'page',  None),
-    ('Imports',        'import_history',           'admin', 'admin'),
-    ('Configuration',  'config_home',              'admin', 'admin'),
-    ('Audit log',      'audit_log',                'admin', 'admin'),
-    ('User management', 'user_list',               'admin', 'admin'),
+    # (title, url_name, kind, predicate)
+    ('Dashboard',       'dashboard',                'page',  None),
+    ('Roster',          'players:index',            'page',  None),
+    ('Teams',           'players:teams',            'page',  None),
+    ('Communications',  'communications:index',     'page',  _can_manage_comms),
+    ('SES Sessions',    'tryouts:index',            'page',  None),
+    ('Evaluations',     'evaluations:index',        'page',  _is_eval_authorized),
+    ('Draft',           'draft:index',              'page',  None),
+    ('Imports',         'import_history',           'admin', 'admin'),
+    ('Configuration',   'config_home',              'admin', 'admin'),
+    ('Audit log',       'audit_log',                'admin', 'admin'),
+    ('User management', 'user_list',                'admin', 'admin'),
 )
 
 
-def _cmdk_pages(is_admin):
+def _cmdk_pages(user):
     from django.urls import NoReverseMatch, reverse
+    is_admin = getattr(user, 'is_superuser', False) or user.roles.filter(
+        is_active=True, role='cto'
+    ).exists()
     out = []
-    for title, name, kind, required in _CMDK_PAGES:
-        if required == 'admin' and not is_admin:
+    for title, name, kind, predicate in _CMDK_PAGES:
+        if predicate == 'admin' and not is_admin:
+            continue
+        if callable(predicate) and not predicate(user):
             continue
         try:
             url = reverse(name)
@@ -448,11 +463,8 @@ def cmdk_search(request):
         return JsonResponse({'detail': 'Not enabled.'}, status=403)
 
     query = (request.GET.get('q') or '').strip()
-    roles = _get_user_roles(request.user)
-    is_admin = _is_admin(roles)
-
     return JsonResponse({
-        'pages': _cmdk_pages(is_admin),
+        'pages': _cmdk_pages(request.user),
         'players': _cmdk_players(query),
         'families': _cmdk_families(query),
     })
