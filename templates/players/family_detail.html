@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{# SFLL Phase 5 — Family Detail.
+   Players list, primary/secondary contacts, balance, volunteer obligations,
+   and communications history for a family unit (grouped by account_email).
+   Sourced from screens-family.jsx in the Claude Design handoff bundle. #}
+
+{% block title %}{{ family_name }} — Family{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ───── Page header ───── #}
+  <div class="page-header">
+    <div class="player-head">
+      <div class="avatar avatar--xl" aria-hidden="true">
+        {{ family_name|slice:":1" }}
+      </div>
+      <div>
+        <div class="player-head__crumbs">
+          <a href="{% url 'players:index' %}">Roster</a>
+          <span class="crumbs__sep">/</span>
+          <span>Family</span>
+        </div>
+        <h1 class="page-title">{{ family_name }}</h1>
+        <div class="player-head__pills">
+          <span class="pill pill--neutral">{{ family_pss|length }} player{{ family_pss|length|pluralize }}</span>
+          <span class="pill pill--ghost">{{ season.name }}</span>
+          {% if total_balance and total_balance > 0 %}
+          <span class="pill pill--danger"><span class="pill__dot"></span>Balance due</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="page-header__actions">
+      <a href="{% url 'players:index' %}" class="btn btn--ghost">← Back to roster</a>
+    </div>
+  </div>
+
+  {# ───── 2-column layout: main content + sidebar ───── #}
+  <div class="family-grid">
+
+    {# ───── Main column ───── #}
+    <div class="family-main">
+
+      {# Players in this family #}
+      <div class="card" style="margin-bottom: var(--gap-lg);">
+        <div class="card__head">
+          <span class="card__title">Players
+            <span class="card__title-sub">{{ family_pss|length }} registered this season</span>
+          </span>
+        </div>
+        {% if family_pss %}
+        <table class="table table--clickable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Division</th>
+              <th>Team</th>
+              <th>Jersey</th>
+              <th>Status</th>
+              <th style="text-align:right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ps in family_pss %}
+            <tr onclick="window.location='{% url 'players:detail' ps.pk %}'">
+              <td>
+                <div class="player-cell">
+                  <div class="avatar" aria-hidden="true">
+                    {{ ps.player.first_name|slice:":1" }}{{ ps.player.last_name|slice:":1" }}
+                  </div>
+                  <div>
+                    <div class="player-cell__name">
+                      <a href="{% url 'players:detail' ps.pk %}">{{ ps.player.full_name }}</a>
+                    </div>
+                    {% if ps.is_top_4 %}
+                    <div class="player-cell__sub">Top 4</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              <td>{{ ps.division|default:'—' }}</td>
+              <td>
+                {% if ps.assigned_team %}{{ ps.assigned_team.team.name }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
+              </td>
+              <td class="col-num">
+                {% if ps.jersey_number is not None %}#{{ ps.jersey_number }}{% else %}<span class="text-muted">—</span>{% endif %}
+              </td>
+              <td>
+                <span class="pill pill--{% if ps.status == 'registered' %}success{% else %}neutral{% endif %}">
+                  {{ ps.status }}
+                </span>
+              </td>
+              <td style="text-align:right;">
+                {% if ps.balance_outstanding %}
+                  {% if ps.balance_outstanding > 0 %}
+                  <span class="tabular" style="color:var(--danger);">${{ ps.balance_outstanding }}</span>
+                  {% else %}
+                  <span class="text-muted tabular">$0</span>
+                  {% endif %}
+                {% else %}
+                <span class="text-muted tabular">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6">
+                <div class="empty">No players found for this family this season.</div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty">
+          <strong>No players found.</strong>
+          This family has no registered players in {{ season.name }}.
+        </div>
+        {% endif %}
+      </div>
+
+      {# Communications history #}
+      <div class="card">
+        <div class="card__head">
+          <span class="card__title">Communications
+            <span class="card__title-sub">{{ email_logs|length }} email{{ email_logs|length|pluralize }}</span>
+          </span>
+          <a href="{% url 'communications:index' %}" class="btn btn--sm btn--ghost">
+            Go to Comms →
+          </a>
+        </div>
+        {% if email_logs %}
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>To</th>
+              <th>Player</th>
+              <th>Template</th>
+              <th>Sent</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in email_logs %}
+            <tr>
+              <td style="max-width:260px;">
+                <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">
+                  {{ log.subject }}
+                </span>
+              </td>
+              <td class="text-muted" style="font-size:13px;">{{ log.to_address }}</td>
+              <td>
+                <a href="{% url 'players:detail' log.player_season.pk %}">
+                  {{ log.player_season.player.full_name }}
+                </a>
+              </td>
+              <td class="text-muted" style="font-size:13px;">{{ log.template.name|default:'—' }}</td>
+              <td class="tabular text-muted">{{ log.sent_at|date:'Y-m-d' }}</td>
+              <td>
+                {% if log.bounced %}
+                <span class="pill pill--danger">Bounced</span>
+                {% elif log.opened_at %}
+                <span class="pill pill--success">Opened</span>
+                {% elif log.delivered_at %}
+                <span class="pill pill--neutral">Delivered</span>
+                {% else %}
+                <span class="pill pill--ghost">Sent</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty">
+          <strong>No emails sent to this family yet.</strong>
+          Emails sent via the Comms module appear here.
+        </div>
+        {% endif %}
+      </div>
+
+    </div>{# /family-main #}
+
+    {# ───── Sidebar ───── #}
+    <div class="family-sidebar">
+
+      {# Contacts #}
+      <div class="card" style="margin-bottom: var(--gap);">
+        <div class="card__head">
+          <span class="card__title">Contacts</span>
+        </div>
+        <div class="card__body">
+          <div class="detail-row">
+            <div class="detail-row__label">Primary</div>
+            <div class="detail-row__value">
+              {% if primary_name %}
+              <div style="font-weight:600;">{{ primary_name }}</div>
+              {% endif %}
+              {% if primary_email %}
+              <a href="mailto:{{ primary_email }}" style="font-size:13px;color:var(--ink-2);">
+                {{ primary_email }}
+              </a>
+              {% else %}
+              <span class="text-muted">No email on file</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if additional_emails %}
+          <div class="detail-row">
+            <div class="detail-row__label">Secondary</div>
+            <div class="detail-row__value">
+              {% for email in additional_emails %}
+              <div>
+                <a href="mailto:{{ email }}" style="font-size:13px;color:var(--ink-2);">
+                  {{ email }}
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% else %}
+          <div class="detail-row">
+            <div class="detail-row__label">Secondary</div>
+            <div class="detail-row__value text-muted">Not set</div>
+          </div>
+          {% endif %}
+          <div class="detail-row">
+            <div class="detail-row__label">SportsConnect</div>
+            <div class="detail-row__value text-muted" style="font-size:13px;">
+              {% for ps in family_pss %}
+              {% if ps.order_id %}
+              <div class="mono">{{ ps.order_id }}</div>
+              {% endif %}
+              {% endfor %}
+              {% if not family_pss %}—{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Balance #}
+      <div class="card" style="margin-bottom: var(--gap);">
+        <div class="card__head">
+          <span class="card__title">Balance</span>
+        </div>
+        <div class="card__body">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:12px;">
+            <span class="stat__value tabular {% if total_balance > 0 %}text-danger{% endif %}">
+              ${{ total_balance|floatformat:2 }}
+            </span>
+            <span style="font-size:13px;color:var(--ink-3);">outstanding</span>
+          </div>
+          {% for ps in family_pss %}
+          {% if ps.balance_outstanding %}
+          <div class="detail-row" style="padding:8px 0;">
+            <div class="detail-row__label" style="font-size:12px;">{{ ps.player.full_name }}</div>
+            <div class="detail-row__value tabular {% if ps.balance_outstanding > 0 %}text-danger{% endif %}" style="font-size:13px;">
+              ${{ ps.balance_outstanding|floatformat:2 }}
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% if not total_balance %}
+          <p style="font-size:13px;color:var(--ink-3);margin:0;">
+            Nothing to fix. Touch some grass.
+          </p>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Volunteer obligations — no model yet, placeholder #}
+      <div class="card">
+        <div class="card__head">
+          <span class="card__title">Volunteer Obligations</span>
+        </div>
+        <div class="empty" style="padding:20px 16px;">
+          <strong>Not tracked yet.</strong>
+          Volunteer obligation tracking lands in a future sprint.
+        </div>
+      </div>
+
+    </div>{# /family-sidebar #}
+
+  </div>{# /family-grid #}
+
+</div>{# /page #}
+{% endblock %}

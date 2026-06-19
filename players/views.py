@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest, HttpResponseForbidden
@@ -7,14 +8,15 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from accounts.models import CoachSeason
+from communications.models import EmailLog
 from tryouts.models import Session
 
 from .models import Division, PlayerSeason, Season, Station, TeamSeason
 
-
 # ---------------------------------------------------------------------------
 # Roster
 # ---------------------------------------------------------------------------
+
 
 @login_required
 def index(request):
@@ -22,51 +24,66 @@ def index(request):
     active_season = Season.objects.filter(is_active=True).first()
 
     qs = PlayerSeason.objects.select_related(
-        'player', 'division', 'assigned_team__team',
+        "player",
+        "division",
+        "assigned_team__team",
     )
     if active_season:
         qs = qs.filter(season=active_season)
     else:
         qs = PlayerSeason.objects.none()
 
-    division_id = request.GET.get('division')
+    division_id = request.GET.get("division")
     if division_id:
         qs = qs.filter(division_id=division_id)
 
-    view = request.GET.get('view', 'all')
-    if view == 'top4':
+    view = request.GET.get("view", "all")
+    if view == "top4":
         qs = qs.filter(is_top_4=True)
-    elif view == 'unassigned':
+    elif view == "unassigned":
         qs = qs.filter(assigned_team__isnull=True)
 
-    search = (request.GET.get('q') or '').strip()
+    search = (request.GET.get("q") or "").strip()
     if search:
         qs = qs.filter(player__last_name__icontains=search) | qs.filter(
             player__first_name__icontains=search,
         )
 
-    return render(request, 'players/index.html', {
-        'player_seasons': qs.order_by('player__last_name', 'player__first_name'),
-        'season': active_season,
-        'divisions': Division.objects.filter(is_active=True),
-        'division_id': division_id,
-        'view': view,
-        'search': search,
-    })
+    return render(
+        request,
+        "players/index.html",
+        {
+            "player_seasons": qs.order_by("player__last_name", "player__first_name"),
+            "season": active_season,
+            "divisions": Division.objects.filter(is_active=True),
+            "division_id": division_id,
+            "view": view,
+            "search": search,
+        },
+    )
 
 
 @login_required
 def teams(request):
     """Team list for the active season."""
     active_season = Season.objects.filter(is_active=True).first()
-    team_seasons = TeamSeason.objects.select_related(
-        'team', 'division',
-    ).filter(season=active_season) if active_season else TeamSeason.objects.none()
+    team_seasons = (
+        TeamSeason.objects.select_related(
+            "team",
+            "division",
+        ).filter(season=active_season)
+        if active_season
+        else TeamSeason.objects.none()
+    )
 
-    return render(request, 'players/teams.html', {
-        'team_seasons': team_seasons,
-        'season': active_season,
-    })
+    return render(
+        request,
+        "players/teams.html",
+        {
+            "team_seasons": team_seasons,
+            "season": active_season,
+        },
+    )
 
 
 # ─── Print surfaces (SFLL-114, Phase 9) ───────────────────────────────────
@@ -83,15 +100,20 @@ def print_index(request):
     """
     active_season = Season.objects.filter(is_active=True).first()
     team_seasons = (
-        TeamSeason.objects.select_related('team', 'division')
+        TeamSeason.objects.select_related("team", "division")
         .filter(season=active_season)
-        .order_by('division__display_order', 'sub_league', 'team__name')
-        if active_season else TeamSeason.objects.none()
+        .order_by("division__display_order", "sub_league", "team__name")
+        if active_season
+        else TeamSeason.objects.none()
     )
-    return render(request, 'players/print_index.html', {
-        'team_seasons': team_seasons,
-        'season': active_season,
-    })
+    return render(
+        request,
+        "players/print_index.html",
+        {
+            "team_seasons": team_seasons,
+            "season": active_season,
+        },
+    )
 
 
 @login_required
@@ -107,22 +129,22 @@ def print_dugout_card(request, team_season_id):
     handoff (useful when proofing the layout on screen).
     """
     team_season = get_object_or_404(
-        TeamSeason.objects.select_related('team__league', 'season', 'division'),
+        TeamSeason.objects.select_related("team__league", "season", "division"),
         pk=team_season_id,
     )
 
     coach_seasons = (
         CoachSeason.objects.filter(team_season=team_season)
-        .select_related('coach__user')
-        .order_by('role', 'coach__user__last_name')
+        .select_related("coach__user")
+        .order_by("role", "coach__user__last_name")
     )
-    head_coach = next((cs for cs in coach_seasons if cs.role == 'head_coach'), None)
-    assistant_coaches = [cs for cs in coach_seasons if cs.role == 'assistant_coach']
+    head_coach = next((cs for cs in coach_seasons if cs.role == "head_coach"), None)
+    assistant_coaches = [cs for cs in coach_seasons if cs.role == "assistant_coach"]
 
     roster = (
         PlayerSeason.objects.filter(assigned_team=team_season)
-        .select_related('player')
-        .order_by('player__last_name', 'player__first_name')
+        .select_related("player")
+        .order_by("player__last_name", "player__first_name")
     )
 
     today = timezone.now().date()
@@ -131,18 +153,22 @@ def print_dugout_card(request, team_season_id):
             season=team_season.season,
             division=team_season.division,
             date__gte=today,
-        ).order_by('date', 'start_time')[:5]
+        ).order_by("date", "start_time")[:5]
     )
 
-    return render(request, 'players/print_dugout_card.html', {
-        'team_season': team_season,
-        'head_coach': head_coach,
-        'assistant_coaches': assistant_coaches,
-        'roster': roster,
-        'games': games,
-        'league': team_season.team.league,
-        'auto_print': request.GET.get('print') != '0',
-    })
+    return render(
+        request,
+        "players/print_dugout_card.html",
+        {
+            "team_season": team_season,
+            "head_coach": head_coach,
+            "assistant_coaches": assistant_coaches,
+            "roster": roster,
+            "games": games,
+            "league": team_season.team.league,
+            "auto_print": request.GET.get("print") != "0",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -150,8 +176,12 @@ def print_dugout_card(request, team_season_id):
 # ---------------------------------------------------------------------------
 
 EDITABLE_FIELDS = {
-    'first_name', 'last_name', 'date_of_birth',
-    'jersey_number', 'assigned_team', 'sub_league',
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "jersey_number",
+    "assigned_team",
+    "sub_league",
 }
 
 
@@ -167,10 +197,12 @@ def _user_can_edit_roster(user, player_season):
         return True
     league = player_season.season.league
     roles = user.roles.filter(is_active=True, league=league)
-    if roles.filter(role__in=['cto', 'ses_manager', 'vp_player_agents', 'president']).exists():
+    if roles.filter(
+        role__in=["cto", "ses_manager", "vp_player_agents", "president"]
+    ).exists():
         return True
     division = player_season.division
-    if division and roles.filter(role='player_agent', division=division).exists():
+    if division and roles.filter(role="player_agent", division=division).exists():
         return True
     return False
 
@@ -180,9 +212,11 @@ def _can_view_evals(user, division=None):
     if user.is_superuser:
         return True
     roles = user.roles.filter(is_active=True)
-    if roles.filter(role__in=['cto', 'ses_manager', 'vp_player_agents', 'president']).exists():
+    if roles.filter(
+        role__in=["cto", "ses_manager", "vp_player_agents", "president"]
+    ).exists():
         return True
-    if division and roles.filter(role='player_agent', division=division).exists():
+    if division and roles.filter(role="player_agent", division=division).exists():
         return True
     return False
 
@@ -198,11 +232,13 @@ def _composite_score(player_season):
     season = player_season.season
     stations = list(
         Station.objects.filter(league=season.league, is_active=True).order_by(
-            'display_order',
+            "display_order",
         ),
     )
     evals = Evaluation.objects.filter(player_season=player_season).select_related(
-        'station', 'session', 'coach_season',
+        "station",
+        "session",
+        "coach_season",
     )
 
     rows = []
@@ -214,20 +250,20 @@ def _composite_score(player_season):
 
         field_cells = []
         all_scores_for_station = []
-        for field_def in (station.eval_fields or []):
-            key = field_def['key']
+        for field_def in station.eval_fields or []:
+            key = field_def["key"]
             values = []
             for ev in station_evals:
                 val = (ev.scores or {}).get(key)
                 if isinstance(val, (int, float)):
                     values.append(val)
             cell = {
-                'label': field_def.get('label', key),
-                'key': key,
-                'avg': round(sum(values) / len(values), 1) if values else None,
-                'min': min(values) if values else None,
-                'max': max(values) if values else None,
-                'count': len(values),
+                "label": field_def.get("label", key),
+                "key": key,
+                "avg": round(sum(values) / len(values), 1) if values else None,
+                "min": min(values) if values else None,
+                "max": max(values) if values else None,
+                "count": len(values),
             }
             field_cells.append(cell)
             all_scores_for_station.extend(values)
@@ -237,13 +273,15 @@ def _composite_score(player_season):
             if all_scores_for_station
             else None
         )
-        rows.append({
-            'station': station,
-            'field_cells': field_cells,
-            'station_avg': station_avg,
-            'coach_count': coach_count,
-            'has_data': bool(station_evals),
-        })
+        rows.append(
+            {
+                "station": station,
+                "field_cells": field_cells,
+                "station_avg": station_avg,
+                "coach_count": coach_count,
+                "has_data": bool(station_evals),
+            }
+        )
         if station_avg is not None:
             station_total += station_avg
             station_count += 1
@@ -251,8 +289,8 @@ def _composite_score(player_season):
     overall = round(station_total / station_count, 1) if station_count else None
 
     return {
-        'stations': rows,
-        'overall': overall,
+        "stations": rows,
+        "overall": overall,
     }
 
 
@@ -261,24 +299,32 @@ def player_detail(request, player_season_id):
     """Player Detail — Overview / Season / Evals tabs."""
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related(
-            'player', 'division', 'season__league', 'assigned_team__team',
-            'assigned_team__division', 'coaches_child_of__coach__user',
+            "player",
+            "division",
+            "season__league",
+            "assigned_team__team",
+            "assigned_team__division",
+            "coaches_child_of__coach__user",
         ),
         pk=player_season_id,
     )
 
-    active_tab = request.GET.get('tab') or 'overview'
-    if active_tab not in {'overview', 'season', 'evals'}:
-        active_tab = 'overview'
+    active_tab = request.GET.get("tab") or "overview"
+    if active_tab not in {"overview", "season", "evals"}:
+        active_tab = "overview"
 
     can_edit = _user_can_edit_roster(request.user, player_season)
 
     # Teams the user can reassign this player to within the same division.
-    available_teams = TeamSeason.objects.filter(
-        season=player_season.season,
-        division=player_season.division,
-    ).select_related('team').order_by('team__name') if player_season.division else (
-        TeamSeason.objects.none()
+    available_teams = (
+        TeamSeason.objects.filter(
+            season=player_season.season,
+            division=player_season.division,
+        )
+        .select_related("team")
+        .order_by("team__name")
+        if player_season.division
+        else (TeamSeason.objects.none())
     )
 
     sub_league_choices = []
@@ -292,61 +338,151 @@ def player_detail(request, player_season_id):
 
     # Session attendance / objective metrics for the Season tab.
     session_assignments = player_season.session_assignments.select_related(
-        'session',
-    ).order_by('session__date')
+        "session",
+    ).order_by("session__date")
     sessions_rows = []
     for sa in session_assignments:
-        checkin = getattr(sa, 'checkin', None)
-        sessions_rows.append({
-            'session': sa.session,
-            'checked_in_at': checkin.checked_in_at if checkin else None,
-            'no_show': checkin is None and sa.session.date < date.today(),
-        })
+        checkin = getattr(sa, "checkin", None)
+        sessions_rows.append(
+            {
+                "session": sa.session,
+                "checked_in_at": checkin.checked_in_at if checkin else None,
+                "no_show": checkin is None and sa.session.date < date.today(),
+            }
+        )
 
-    return render(request, 'players/detail.html', {
-        'ps': player_season,
-        'active_tab': active_tab,
-        'can_edit': can_edit,
-        'can_see_evals': can_see_evals,
-        'composite': composite,
-        'sessions_rows': sessions_rows,
-        'available_teams': available_teams,
-        'sub_league_choices': sub_league_choices,
-    })
+    return render(
+        request,
+        "players/detail.html",
+        {
+            "ps": player_season,
+            "active_tab": active_tab,
+            "can_edit": can_edit,
+            "can_see_evals": can_see_evals,
+            "composite": composite,
+            "sessions_rows": sessions_rows,
+            "available_teams": available_teams,
+            "sub_league_choices": sub_league_choices,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Family Detail (SFLL Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def _family_display_name(family_pss, account_name):
+    """Return a human display name for the family.
+
+    Prefers the SportsConnect account_name if set.  Falls back to "<Last> Family"
+    when all registered players share a last name, or the first player's last name
+    otherwise.
+    """
+    if account_name:
+        return account_name
+    last_names = {ps.player.last_name for ps in family_pss if ps.player.last_name}
+    if len(last_names) == 1:
+        return f"{last_names.pop()} Family"
+    if last_names:
+        return f"{sorted(last_names)[0]} Family"
+    return "Family"
+
+
+@login_required
+def family_detail(request, player_season_id):
+    """Family Detail — players in the family, contacts, balance, comms history."""
+    anchor = get_object_or_404(
+        PlayerSeason.objects.select_related("player", "season__league"),
+        pk=player_season_id,
+    )
+
+    # Group siblings: all PlayerSeasons sharing the same account_email this season.
+    if anchor.account_email:
+        family_qs = (
+            PlayerSeason.objects.filter(
+                season=anchor.season, account_email=anchor.account_email
+            )
+            .select_related("player", "division", "assigned_team__team")
+            .order_by("player__last_name", "player__first_name")
+        )
+    else:
+        family_qs = PlayerSeason.objects.filter(pk=anchor.pk).select_related(
+            "player", "division", "assigned_team__team"
+        )
+
+    family_pss = list(family_qs)
+    family_ids = [ps.pk for ps in family_pss]
+
+    # Contacts: collect unique additional_email values across the family.
+    additional_emails = sorted(
+        {ps.additional_email for ps in family_pss if ps.additional_email}
+    )
+
+    # Balance: sum across all players; negative or None treated as zero.
+    total_balance = sum(ps.balance_outstanding or Decimal("0") for ps in family_pss)
+
+    # Communications history for the whole family.
+    email_logs = (
+        EmailLog.objects.filter(player_season_id__in=family_ids)
+        .select_related("template", "sent_by", "player_season__player")
+        .order_by("-sent_at")[:100]
+    )
+
+    return render(
+        request,
+        "players/family_detail.html",
+        {
+            "anchor": anchor,
+            "season": anchor.season,
+            "family_name": _family_display_name(family_pss, anchor.account_name),
+            "primary_name": anchor.account_name,
+            "primary_email": anchor.account_email,
+            "additional_emails": additional_emails,
+            "family_pss": family_pss,
+            "total_balance": total_balance,
+            "email_logs": email_logs,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # HTMX inline-edit endpoints
 # ---------------------------------------------------------------------------
 
+
 def _field_partial(request, ps, field):
     """Render the read-mode partial for a single field."""
     return render(
         request,
-        'players/_partials/detail_field.html',
-        {'ps': ps, 'field': field, 'can_edit': _user_can_edit_roster(request.user, ps)},
+        "players/_partials/detail_field.html",
+        {"ps": ps, "field": field, "can_edit": _user_can_edit_roster(request.user, ps)},
     )
 
 
 def _edit_partial(request, ps, field):
     """Render the edit-mode partial (input/select) for a single field."""
     extra = {}
-    if field == 'assigned_team':
-        extra['available_teams'] = TeamSeason.objects.filter(
-            season=ps.season,
-            division=ps.division,
-        ).select_related('team').order_by('team__name') if ps.division else (
-            TeamSeason.objects.none()
+    if field == "assigned_team":
+        extra["available_teams"] = (
+            TeamSeason.objects.filter(
+                season=ps.season,
+                division=ps.division,
+            )
+            .select_related("team")
+            .order_by("team__name")
+            if ps.division
+            else (TeamSeason.objects.none())
         )
-    elif field == 'sub_league':
+    elif field == "sub_league":
         choices = []
         if ps.division and ps.division.has_leagues:
             choices = list(ps.division.league_names or [])
-        extra['sub_league_choices'] = choices
+        extra["sub_league_choices"] = choices
     return render(
         request,
-        'players/_partials/detail_field_edit.html',
-        {'ps': ps, 'field': field, **extra},
+        "players/_partials/detail_field_edit.html",
+        {"ps": ps, "field": field, **extra},
     )
 
 
@@ -355,9 +491,11 @@ def _edit_partial(request, ps, field):
 def detail_field(request, player_season_id, field):
     """Return the read-mode cell (used to cancel an in-progress edit)."""
     if field not in EDITABLE_FIELDS:
-        return HttpResponseBadRequest('Unknown field.')
+        return HttpResponseBadRequest("Unknown field.")
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'season__league', 'assigned_team__team'),
+        PlayerSeason.objects.select_related(
+            "player", "season__league", "assigned_team__team"
+        ),
         pk=player_season_id,
     )
     return _field_partial(request, ps, field)
@@ -368,13 +506,15 @@ def detail_field(request, player_season_id, field):
 def detail_field_edit(request, player_season_id, field):
     """Return the edit-mode cell (input/select) on first click."""
     if field not in EDITABLE_FIELDS:
-        return HttpResponseBadRequest('Unknown field.')
+        return HttpResponseBadRequest("Unknown field.")
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'division', 'season__league', 'assigned_team__team'),
+        PlayerSeason.objects.select_related(
+            "player", "division", "season__league", "assigned_team__team"
+        ),
         pk=player_season_id,
     )
     if not _user_can_edit_roster(request.user, ps):
-        return HttpResponseForbidden('Editing roster fields requires admin role.')
+        return HttpResponseForbidden("Editing roster fields requires admin role.")
     return _edit_partial(request, ps, field)
 
 
@@ -383,79 +523,89 @@ def detail_field_edit(request, player_season_id, field):
 def detail_field_save(request, player_season_id, field):
     """Persist an inline edit and return the read-mode cell."""
     if field not in EDITABLE_FIELDS:
-        return HttpResponseBadRequest('Unknown field.')
+        return HttpResponseBadRequest("Unknown field.")
 
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'division', 'season__league', 'assigned_team__team'),
+        PlayerSeason.objects.select_related(
+            "player", "division", "season__league", "assigned_team__team"
+        ),
         pk=player_season_id,
     )
     if not _user_can_edit_roster(request.user, ps):
-        return HttpResponseForbidden('Editing roster fields requires admin role.')
-    raw = (request.POST.get('value') or '').strip()
+        return HttpResponseForbidden("Editing roster fields requires admin role.")
+    raw = (request.POST.get("value") or "").strip()
 
     try:
-        if field == 'first_name':
+        if field == "first_name":
             if not raw:
-                return HttpResponseBadRequest('First name cannot be empty.')
+                return HttpResponseBadRequest("First name cannot be empty.")
             ps.player.first_name = raw
-            ps.player.save(update_fields=['first_name', 'updated_at'])
-        elif field == 'last_name':
+            ps.player.save(update_fields=["first_name", "updated_at"])
+        elif field == "last_name":
             if not raw:
-                return HttpResponseBadRequest('Last name cannot be empty.')
+                return HttpResponseBadRequest("Last name cannot be empty.")
             ps.player.last_name = raw
-            ps.player.save(update_fields=['last_name', 'updated_at'])
-        elif field == 'date_of_birth':
+            ps.player.save(update_fields=["last_name", "updated_at"])
+        elif field == "date_of_birth":
             if raw:
                 try:
-                    ps.player.date_of_birth = datetime.strptime(raw, '%Y-%m-%d').date()
+                    ps.player.date_of_birth = datetime.strptime(raw, "%Y-%m-%d").date()
                 except ValueError:
-                    return HttpResponseBadRequest('DOB must be YYYY-MM-DD.')
+                    return HttpResponseBadRequest("DOB must be YYYY-MM-DD.")
             else:
                 ps.player.date_of_birth = None
-            ps.player.save(update_fields=['date_of_birth', 'updated_at'])
-        elif field == 'jersey_number':
+            ps.player.save(update_fields=["date_of_birth", "updated_at"])
+        elif field == "jersey_number":
             if raw:
                 try:
                     n = int(raw)
                 except ValueError:
-                    return HttpResponseBadRequest('Jersey number must be an integer.')
+                    return HttpResponseBadRequest("Jersey number must be an integer.")
                 if n < 0 or n > 999:
-                    return HttpResponseBadRequest('Jersey number out of range.')
+                    return HttpResponseBadRequest("Jersey number out of range.")
                 ps.jersey_number = n
             else:
                 ps.jersey_number = None
-            ps.save(update_fields=['jersey_number', 'updated_at'])
-        elif field == 'assigned_team':
+            ps.save(update_fields=["jersey_number", "updated_at"])
+        elif field == "assigned_team":
             if raw:
                 try:
-                    ts = TeamSeason.objects.select_related('team').get(
-                        pk=raw, season=ps.season,
+                    ts = TeamSeason.objects.select_related("team").get(
+                        pk=raw,
+                        season=ps.season,
                     )
                 except (TeamSeason.DoesNotExist, ValueError):
-                    return HttpResponseBadRequest('Unknown team for this season.')
+                    return HttpResponseBadRequest("Unknown team for this season.")
                 if ps.division_id and ts.division_id != ps.division_id:
-                    return HttpResponseBadRequest('Team is not in the player\'s division.')
+                    return HttpResponseBadRequest(
+                        "Team is not in the player's division."
+                    )
                 ps.assigned_team = ts
             else:
                 ps.assigned_team = None
-            ps.save(update_fields=['assigned_team', 'updated_at'])
+            ps.save(update_fields=["assigned_team", "updated_at"])
             # refresh related cache so the template renders the new team name
             ps = PlayerSeason.objects.select_related(
-                'player', 'assigned_team__team',
+                "player",
+                "assigned_team__team",
             ).get(pk=ps.pk)
-        elif field == 'sub_league':
+        elif field == "sub_league":
             ts = ps.assigned_team
             if ts is None:
                 return HttpResponseBadRequest(
-                    'Assign a team before setting a sub-league.',
+                    "Assign a team before setting a sub-league.",
                 )
-            allowed = list((ps.division.league_names or [])) if (
-                ps.division and ps.division.has_leagues
-            ) else []
+            allowed = (
+                list((ps.division.league_names or []))
+                if (ps.division and ps.division.has_leagues)
+                else []
+            )
             if raw and allowed and raw not in allowed:
-                return HttpResponseBadRequest('Sub-league not configured for this division.')
+                return HttpResponseBadRequest(
+                    "Sub-league not configured for this division."
+                )
             ts.sub_league = raw
-            ts.save(update_fields=['sub_league', 'updated_at'])
+            ts.save(update_fields=["sub_league", "updated_at"])
     except Exception as exc:  # noqa: BLE001 — surface message to HTMX
         return HttpResponseBadRequest(str(exc))
 

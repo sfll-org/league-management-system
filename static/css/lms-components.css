@@ -2385,3 +2385,23 @@ select.kiosk-walkin-input { cursor: pointer; }
   font-size: 11px;
   color: var(--ink-3);
 }
+
+/* ─── Family Detail (Phase 5 — SFLL Phase 5) ─── */
+
+.family-grid {
+  display: grid;
+  grid-template-columns: 1fr 296px;
+  gap: var(--gap-lg);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .family-grid {
+    grid-template-columns: 1fr;
+  }
+  .family-sidebar {
+    /* sidebar stacks below on narrow viewports */
+  }
+}
+
+.text-danger { color: var(--danger); }

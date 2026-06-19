@@ -42,6 +42,11 @@
     </div>
     <div class="page-header__actions">
       <a href="{% url 'players:index' %}" class="btn btn--ghost">← Back to roster</a>
+      {% if ps.account_email %}
+      <a href="{% url 'players:family_detail' ps.pk %}" class="btn">
+        View family
+      </a>
+      {% endif %}
       {% if can_see_evals %}
       <a href="{% url 'evaluations:player_report' ps.pk %}" class="btn">
         Full eval report
