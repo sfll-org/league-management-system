@@ -466,4 +466,5 @@ class CmdkPageRoleFilterTests(TestCase):
         titles = self._page_titles(user)
         self.assertIn('Communications', titles)
         self.assertIn('Evaluations', titles)
+        self.assertIn('Draft', titles)
         self.assertIn('Imports', titles)
