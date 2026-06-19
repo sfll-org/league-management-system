@@ -156,15 +156,17 @@ EDITABLE_FIELDS = {
 
 
 def _user_can_edit_roster(user, player_season):
-    """Edits on the detail page require admin-equivalent role.
+    """Edits on the detail page require admin-equivalent role scoped to the
+    player's league.
 
-    Global roles (cto, ses_manager, vp_player_agents, president) may edit any
-    player. player_agent is scoped to the target player's division — a Player
-    Agent assigned to AAA cannot edit Majors players.
+    Global roles (cto, ses_manager, vp_player_agents, president) are scoped to
+    the target player's league — an admin from another league cannot edit this
+    player. player_agent is additionally scoped to the target player's division.
     """
     if user.is_staff or user.is_superuser:
         return True
-    roles = user.roles.filter(is_active=True)
+    league = player_season.season.league
+    roles = user.roles.filter(is_active=True, league=league)
     if roles.filter(role__in=['cto', 'ses_manager', 'vp_player_agents', 'president']).exists():
         return True
     division = player_season.division
@@ -259,7 +261,7 @@ def player_detail(request, player_season_id):
     """Player Detail — Overview / Season / Evals tabs."""
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related(
-            'player', 'division', 'season', 'assigned_team__team',
+            'player', 'division', 'season__league', 'assigned_team__team',
             'assigned_team__division', 'coaches_child_of__coach__user',
         ),
         pk=player_season_id,
@@ -355,7 +357,7 @@ def detail_field(request, player_season_id, field):
     if field not in EDITABLE_FIELDS:
         return HttpResponseBadRequest('Unknown field.')
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'assigned_team__team'),
+        PlayerSeason.objects.select_related('player', 'season__league', 'assigned_team__team'),
         pk=player_season_id,
     )
     return _field_partial(request, ps, field)
@@ -368,7 +370,7 @@ def detail_field_edit(request, player_season_id, field):
     if field not in EDITABLE_FIELDS:
         return HttpResponseBadRequest('Unknown field.')
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'division', 'assigned_team__team'),
+        PlayerSeason.objects.select_related('player', 'division', 'season__league', 'assigned_team__team'),
         pk=player_season_id,
     )
     if not _user_can_edit_roster(request.user, ps):
@@ -384,7 +386,7 @@ def detail_field_save(request, player_season_id, field):
         return HttpResponseBadRequest('Unknown field.')
 
     ps = get_object_or_404(
-        PlayerSeason.objects.select_related('player', 'division', 'assigned_team__team'),
+        PlayerSeason.objects.select_related('player', 'division', 'season__league', 'assigned_team__team'),
         pk=player_season_id,
     )
     if not _user_can_edit_roster(request.user, ps):

@@ -727,6 +727,24 @@ class PlayerDetailViewTests(TestCase):
         self.ps.refresh_from_db()
         self.assertEqual(self.ps.jersey_number, original_jersey)
 
+    def test_field_save_global_role_wrong_league_denied(self):
+        """A global admin role (e.g. cto) from a different league is denied."""
+        from accounts.models import UserRole
+        other_league = League.objects.create(name='Other League', short_name='OL')
+        other_user = _create_user(email='other_cto@other.org')
+        UserRole.objects.create(
+            user=other_user, league=other_league, role='cto', is_active=True,
+        )
+        self.client.login(username='other_cto@other.org', password='testpass123')
+        original_jersey = self.ps.jersey_number
+        resp = self.client.post(
+            reverse('players:detail_field_save', args=[self.ps.pk, 'jersey_number']),
+            {'value': '77'},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, original_jersey)
+
 
 class RosterFiltersTests(TestCase):
     """The roster page also got rebuilt off Tailwind in this phase; verify the
