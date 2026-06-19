@@ -1,458 +1,360 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-97 — Live Draft Board (Pacific palette).
-
-   Translation of the Claude Design handoff's Draft Board screen into the
-   existing Django/HTMX/Alpine stack. The Alpine state machine + WebSocket
-   wiring is the SFLL-93 / pre-Pacific implementation, kept verbatim — only
-   the chrome and the central pick-history surface change.
-
-   Visual surfaces (all CSS lives in lms-tokens.css):
-     .draft-grid          three-column layout (teams · board · queue)
-     .draft-teams         left rail of team chips, .draft-team--on-clock for current
-     .draft-board-grid    snake grid: 60px row label + N team columns
-     .draft-cell          base cell; modifiers for header/rownum/filled/top4/child/current
-     .pill --primary / --warn / --neutral  status badge in header
-
-   Snake math: odd rounds advance team index left→right (column 0 → N-1),
-   even rounds advance right→left. The pick number rendered in each filled
-   cell already encodes the order, so the grid doesn't need to re-derive it
-   for display purposes — but the "current cell" highlight does need the
-   snake direction to know which column to outline.
-
-   "Suggest pick" affordance: client-side ranker over the available queue.
-   Priority order: (1) the current drafter's personal ranking (lowest
-   rank_order wins), (2) overall_avg desc as a tie-breaker / fallback,
-   (3) alphabetical. The button is in the on-the-clock banner; clicking it
-   highlights the suggested player and scrolls the queue to it. The drafter
-   still has to click Pick → Confirm — suggest never auto-picks. #}
+{# SFLL-112 — Draft Board (Phase 7).
+   Rebuilds the live draft surface onto Pacific tokens from the Claude
+   Design handoff bundle (38nnfJ8G8l3n16PzuNoDQg, screens-draft.jsx).
+   Three-pane layout: available queue (left) · snake grid (center) ·
+   team rosters (right). Top-4 row sits above round 1; coach's-child
+   cells carry a CC marker; on-the-clock cell glows green.
+   WebSocket plumbing is unchanged from the legacy template — the
+   real-time state machine is mature, only the chrome is new. #}
 
 {% block title %}SFLL — Live Draft — {{ division.name }}{% endblock %}
 
-{% block extra_head %}
-<style>
-  /* Draft board needs the full content column; the 1280px cap on
-     .lms-content squeezes the 12-team grid below readability. */
-  .lms-content.is-draft-board {
-    max-width: 100%;
-    padding: 22px 24px 60px;
-  }
-
-  /* Pulse on the on-the-clock team chip — used in left rail and
-     in the on-the-clock banner. */
-  @keyframes clock-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 30%, transparent); }
-    50%      { box-shadow: 0 0 0 6px transparent; }
-  }
-  .clock-pulse { animation: clock-pulse 2s infinite; }
-
-  /* "Suggested" treatment on a player row in the queue — temporary
-     accent ring + soft background that fades after a few seconds. */
-  .queue-row--suggested {
-    background: var(--primary-soft) !important;
-    box-shadow: inset 3px 0 0 var(--primary);
-  }
-
-  /* Confirm-pick modal scrim & card. */
-  .modal-backdrop {
-    position: fixed; inset: 0; z-index: 60;
-    background: oklch(0.18 0.02 252 / 0.45);
-    backdrop-filter: blur(3px);
-    display: grid; place-items: center;
-    padding: 24px;
-  }
-  html[data-palette="twilight"] .modal-backdrop { background: oklch(0.05 0 0 / 0.55); }
-  .modal-card {
-    width: 460px; max-width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    padding: 22px 22px 18px;
-  }
-
-  /* WebSocket status dot — bottom-right, unobtrusive. */
-  .ws-status {
-    position: fixed; right: 18px; bottom: 18px; z-index: 40;
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 5px 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    box-shadow: var(--shadow-sm);
-    font-size: 11.5px;
-    color: var(--ink-3);
-  }
-  .ws-status__dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--success);
-  }
-  .ws-status--down .ws-status__dot { background: var(--danger); animation: clock-pulse 1.4s infinite; }
-
-  /* Queue scroll regions sit inside cards. Keep height bounded so the
-     three columns line up — fall back to a per-card max-height that
-     accounts for the page chrome. */
-  .draft-queue__list,
-  .draft-teams { max-height: calc(100vh - 280px); overflow-y: auto; }
-  .draft-board__scroll { max-height: calc(100vh - 260px); overflow: auto; }
-
-  /* Filled cell content — keeps player name on one line, secondary meta
-     (pick # / round) on the next. */
-  .draft-cell__pick-meta {
-    font-family: var(--font-num);
-    font-size: 10px;
-    color: var(--ink-4);
-    letter-spacing: 0.02em;
-  }
-  .draft-cell__name {
-    font-weight: 600;
-    font-size: 11.5px;
-    line-height: 1.2;
-    color: var(--ink);
-    /* clamp to 2 lines so a 12-column grid doesn't blow up vertically */
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .draft-cell__badge {
-    font-family: var(--font-num);
-    font-size: 9px;
-    color: var(--accent-ink);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
-<div x-data="draftBoard()" x-init="init()">
+<div class="page page--wide" x-data="draftBoard()" x-init="init()">
 
-  {# ------------------------------------------------------------------ #}
-  {# Page header                                                         #}
-  {# ------------------------------------------------------------------ #}
+  {# ─── Header ─── #}
   <div class="page-header">
     <div>
       <h1 class="page-title">{{ division.name }} Draft</h1>
-      <p class="page-sub">{{ season.name }}{% if draft_session.sub_league %} &middot; {{ draft_session.sub_league }}{% endif %}</p>
+      <div class="page-sub">{{ season.name }}</div>
     </div>
 
-    <div class="page-header__actions">
-      <span class="pill"
-            :class="{
-              'pill--neutral': status === 'pending',
-              'pill--warn':    status === 'seeding',
-              'pill--primary': status === 'drafting',
-              'pill--success': status === 'completed',
-            }">
-        <span class="pill__dot"></span>
-        <span x-text="statusLabel"></span>
-      </span>
+    <div class="page-header__actions" style="align-items: center;">
+      <div class="draft-meta">
+        <template x-if="status === 'drafting'">
+          <div class="draft-meta__counter">
+            <span class="draft-meta__counter-label">Round</span>
+            <span class="draft-meta__counter-value" x-text="currentRound"></span>
+          </div>
+        </template>
+        <template x-if="status === 'drafting'">
+          <div class="draft-meta__counter">
+            <span class="draft-meta__counter-label">Pick</span>
+            <span class="draft-meta__counter-value" x-text="currentPick"></span>
+          </div>
+        </template>
+        <span class="pill"
+              :class="{
+                'pill--success': status === 'completed',
+                'pill--primary': status === 'drafting',
+                'pill--warn':    status === 'seeding',
+                'pill--neutral': status === 'pending',
+              }">
+          <span class="pill__dot"></span>
+          <span x-text="statusLabel"></span>
+        </span>
+      </div>
 
-      <template x-if="status === 'drafting'">
-        <div class="flex items-center gap-3" style="margin-left: 8px;">
-          <div>
-            <div class="text-xs text-muted" style="text-transform: uppercase; letter-spacing: .06em;">Round</div>
-            <div class="num" style="font-size: 22px; font-weight: 600;" x-text="currentRound"></div>
-          </div>
-          <div>
-            <div class="text-xs text-muted" style="text-transform: uppercase; letter-spacing: .06em;">Pick</div>
-            <div class="num" style="font-size: 22px; font-weight: 600;" x-text="currentPick"></div>
-          </div>
-        </div>
-      </template>
+      {% if is_admin %}
+      <div style="display:flex; gap:8px; margin-left:12px;">
+        {% if draft_session.status == 'seeding' %}
+        <form method="post" action="{% url 'draft:start_draft' session_id=draft_session.pk %}"
+              onsubmit="return confirm('Start the draft? This cannot be undone.');"
+              style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn btn--primary">Start draft</button>
+        </form>
+        {% endif %}
+        <template x-if="status === 'drafting'">
+          <button class="btn" @click="undoPick()">Undo last pick</button>
+        </template>
+        <template x-if="status === 'drafting'">
+          <form method="post" action="{% url 'draft:complete_draft' session_id=draft_session.pk %}"
+                onsubmit="return confirm('Mark this draft as completed?');"
+                style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn">Complete draft</button>
+          </form>
+        </template>
+      </div>
+      {% endif %}
     </div>
   </div>
 
-  {# ------------------------------------------------------------------ #}
-  {# On-the-clock banner                                                 #}
-  {# ------------------------------------------------------------------ #}
+  {# On-the-clock banner — only when a draft is live. #}
   <template x-if="status === 'drafting' && currentTeamName">
-    <div class="card mb-4 clock-pulse"
-         style="border-color: var(--primary); background: var(--primary-soft);">
-      <div class="card__body flex items-center" style="gap: 16px;">
-        <div style="flex: 1;">
-          <div class="text-xs" style="color: var(--primary-soft-ink); text-transform: uppercase; letter-spacing: .08em; font-weight: 600;">
-            On the clock
-          </div>
-          <div class="display" style="font-size: 22px; font-weight: 600; margin-top: 2px;" x-text="currentTeamName"></div>
-        </div>
-
-        <template x-if="isMyTurn">
-          <span class="pill pill--primary" style="font-weight: 600;">Your pick</span>
-        </template>
-
-        <template x-if="isMyTurn">
-          <button class="btn btn--primary" @click="suggestPick()" type="button">
-            Suggest pick
-          </button>
-        </template>
+    <div class="draft-clock">
+      <div>
+        <div class="draft-clock__label">On the clock</div>
+        <div class="draft-clock__team" x-text="currentTeamName"></div>
       </div>
+      <template x-if="isMyTurn">
+        <span class="draft-clock__yourpick">Your pick</span>
+      </template>
     </div>
   </template>
 
-  {# ------------------------------------------------------------------ #}
-  {# Admin controls (start / undo / complete)                            #}
-  {# ------------------------------------------------------------------ #}
-  {% if is_admin %}
-  <div class="flex gap-2 mb-4" style="flex-wrap: wrap;">
-    {% if draft_session.status == 'seeding' %}
-    <form method="post" action="{% url 'draft:start_draft' session_id=draft_session.pk %}"
-          onsubmit="return confirm('Start the draft? Pre-draft seeding will be locked after this.');">
-      {% csrf_token %}
-      <button type="submit" class="btn btn--primary">Start draft</button>
-    </form>
-    {% endif %}
+  {# ─── Three-pane shell ─── #}
+  <div class="draft-shell" style="margin-top: var(--gap-lg);">
 
-    <template x-if="status === 'drafting'">
-      <button class="btn" @click="undoPick()" type="button">Undo last pick</button>
-    </template>
-
-    <template x-if="status === 'drafting'">
-      <form method="post" action="{% url 'draft:complete_draft' session_id=draft_session.pk %}"
-            onsubmit="return confirm('Mark this draft as completed? Final rosters will be published.');">
-        {% csrf_token %}
-        <button type="submit" class="btn btn--danger">Complete draft</button>
-      </form>
-    </template>
-  </div>
-  {% endif %}
-
-  {# ------------------------------------------------------------------ #}
-  {# Main three-column grid: teams · snake board · available queue       #}
-  {# ------------------------------------------------------------------ #}
-  <div class="draft-grid">
-
-    {# ----- Left rail: teams ------------------------------------------ #}
-    <aside class="card">
-      <div class="card__head">
-        <div class="card__title">Teams</div>
-        <span class="card__title-sub num"
-              x-text="teams.length + (teams.length === 1 ? ' team' : ' teams')"></span>
+    {# LEFT: Available queue #}
+    <div class="queue">
+      <div class="queue__head">
+        <div class="queue__title">
+          <span class="queue__title-text">Available</span>
+          <span class="queue__count tabular">
+            <span x-text="filteredAvailable.length"></span> / <span x-text="available.length"></span>
+          </span>
+        </div>
+        <input type="text" class="queue__search"
+               x-model="playerSearch"
+               placeholder="Search players…">
       </div>
-      <div class="draft-teams" style="padding: 10px;">
-        <template x-for="(team, idx) in teams" :key="team.id">
-          <div class="draft-team"
-               :class="{ 'draft-team--on-clock clock-pulse': currentTeamId === team.id && status === 'drafting' }">
-            <span class="draft-team__pos num" x-text="idx + 1"></span>
-            <span class="draft-team__name" x-text="team.name"></span>
-            <span class="draft-team__picks num"
-                  x-text="getTeamPickCount(team.id)"></span>
+
+      <template x-if="status === 'drafting' && isMyTurn && suggestedPlayer">
+        <div class="suggest-bar">
+          <div style="min-width:0;">
+            <div class="suggest-bar__label">Suggest pick</div>
+            <div class="suggest-bar__name" x-text="suggestedPlayer.name"></div>
+            <div class="queue__row-meta">
+              <template x-if="suggestedPlayer.my_rank !== null">
+                <span>My #<strong x-text="suggestedPlayer.my_rank"></strong></span>
+              </template>
+              <template x-if="suggestedPlayer.overall_avg !== null">
+                <span>Avg <strong x-text="suggestedPlayer.overall_avg"></strong></span>
+              </template>
+            </div>
           </div>
-        </template>
-        <template x-if="teams.length === 0">
-          <div class="empty">
-            <strong>No teams configured</strong>
-            Add teams to the division to enable the draft.
-          </div>
-        </template>
-      </div>
-    </aside>
-
-    {# ----- Center: snake draft grid ---------------------------------- #}
-    <section class="card">
-      <div class="card__head">
-        <div class="card__title">Draft board</div>
-        <span class="card__title-sub" x-text="picks.length + ' picks'"></span>
-        {% if is_admin %}
-        <span class="pill pill--ghost ml-auto" x-show="snakeDraft">Snake order</span>
-        {% endif %}
-      </div>
-      <div class="draft-board__scroll">
-        <div class="draft-board-grid"
-             :style="`grid-template-columns: 60px repeat(${Math.max(teams.length, 1)}, minmax(96px, 1fr));`">
-
-          {# Header row: blank corner + team names. Body rows are written
-             imperatively by renderBoardCells() in $nextTick — Alpine's
-             nested x-for doesn't compose cleanly across a flat CSS grid
-             where row N needs 1 label cell + N team cells, and the
-             imperative path is faster for a 12-team × ~12-round board. #}
-          <div class="draft-cell draft-cell--header"></div>
-          <template x-for="team in teams" :key="'h-' + team.id">
-            <div class="draft-cell draft-cell--header" x-text="team.name"></div>
-          </template>
+          <button class="btn btn--primary btn--sm" @click="confirmPick(suggestedPlayer)">Pick</button>
         </div>
-      </div>
-    </section>
+      </template>
 
-    {# ----- Right: available queue ------------------------------------ #}
-    <aside class="card">
-      <div class="card__head" style="flex-direction: column; align-items: stretch; gap: 10px;">
-        <div class="flex items-center">
-          <div class="card__title">Available</div>
-          <span class="card__title-sub num"
-                x-text="filteredAvailable.length + ' / ' + available.length"></span>
-        </div>
-        <div class="input">
-          <input type="text"
-                 x-model="playerSearch"
-                 placeholder="Search players..."
-                 aria-label="Search available players">
-        </div>
-        <div class="seg" role="tablist" aria-label="Sort available players">
-          <button type="button" class="seg__btn"
-                  :class="{ 'seg__btn--active': sortMode === 'name' }"
-                  @click="sortMode = 'name'">A–Z</button>
-          <button type="button" class="seg__btn"
-                  :class="{ 'seg__btn--active': sortMode === 'avg' }"
-                  @click="sortMode = 'avg'">Avg</button>
-          <button type="button" class="seg__btn"
-                  :class="{ 'seg__btn--active': sortMode === 'rank' }"
-                  @click="sortMode = 'rank'"
-                  :disabled="!hasMyRankings"
-                  :title="hasMyRankings ? 'Sort by your ranking' : 'You have not submitted a personal ranking'">My rank</button>
-        </div>
-      </div>
-
-      <div class="draft-queue__list">
+      <div class="queue__list">
         <template x-for="player in filteredAvailable" :key="player.id">
-          <div class="alert queue-row"
-               :class="{ 'queue-row--suggested': suggestedPlayerId === player.id }"
-               :data-player-id="player.id"
-               style="padding: 10px 14px; cursor: default;">
-            <div class="alert__body">
-              <div class="alert__title" x-text="player.name"></div>
-              <div class="alert__sub flex gap-3" style="flex-wrap: wrap;">
+          <div class="queue__row"
+               :class="{'queue__row--suggested': suggestedPlayer && player.id === suggestedPlayer.id}">
+            <div class="queue__row-body">
+              <div class="queue__row-name" x-text="player.name"></div>
+              <div class="queue__row-meta">
                 <template x-if="player.overall_avg !== null">
-                  <span>Avg <span class="num text-strong" x-text="player.overall_avg"></span></span>
+                  <span>Avg <strong x-text="player.overall_avg"></strong></span>
                 </template>
                 <template x-if="player.my_rank !== null">
-                  <span>My <span class="num text-strong" x-text="'#' + player.my_rank"></span></span>
-                </template>
-                <template x-if="player.overall_avg === null && player.my_rank === null">
-                  <span class="text-muted">Unranked</span>
+                  <span>My #<strong x-text="player.my_rank"></strong></span>
                 </template>
               </div>
             </div>
             <template x-if="status === 'drafting' && isMyTurn">
-              <button class="btn btn--primary btn--sm"
-                      type="button"
-                      @click="confirmPick(player)"
-                      :disabled="pickInFlight">
-                Pick
-              </button>
+              <button class="btn btn--primary btn--sm" @click="confirmPick(player)">Pick</button>
             </template>
           </div>
         </template>
         <template x-if="filteredAvailable.length === 0">
-          <div class="empty">
-            <strong>No matches</strong>
-            <span x-show="playerSearch">Clear the search to see the rest of the queue.</span>
-            <span x-show="!playerSearch && available.length === 0">All players have been drafted.</span>
+          <div class="queue__empty">No players match your search.</div>
+        </template>
+      </div>
+    </div>
+
+    {# CENTER: Snake draft grid #}
+    <div>
+      <div class="draft-grid" :style="`--team-count: ${teams.length}`">
+        {# Corner + team column headers. Alpine x-for needs a single root per
+           iteration, so each x-for body uses `display: contents` to let
+           children flow as direct grid items. #}
+        <div class="draft-grid__corner"></div>
+        <template x-for="team in teams" :key="'h-' + team.id">
+          <div class="draft-grid__col-head"
+               :class="{'draft-cell--on-clock': currentTeamId === team.id && status === 'drafting'}">
+            <span class="draft-grid__col-head-name" x-text="team.name"></span>
+          </div>
+        </template>
+
+        {# Top-4 row — seeded pre-draft, sits above round 1. #}
+        <template x-if="hasTop4">
+          <div style="display: contents;">
+            <div class="draft-grid__row-head draft-grid__row-head--top4">Top-4</div>
+            <template x-for="team in teams" :key="'top4-' + team.id">
+              <div class="draft-cell draft-cell--top4">
+                <template x-for="(slot, idx) in getTop4Slots(team.id)" :key="'top4-cell-' + team.id + '-' + idx">
+                  <div style="margin-bottom: 4px;">
+                    <div class="draft-cell__name" x-text="slot.player_name"></div>
+                    <div class="draft-cell__markers" style="margin-top: 2px;">
+                      <span class="top4-marker">Seed</span>
+                      <template x-if="slot.is_coaches_child">
+                        <span class="cc-marker" title="Coach's child">CC</span>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+                <template x-if="getTop4Slots(team.id).length === 0">
+                  <div class="text-muted" style="font-size:11px;">—</div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        {# Snake rounds. Per-round wrapper uses `display: contents` so the
+           row-head + cells become direct grid children in source order. #}
+        <template x-for="row in cellRows" :key="'crow-' + row.round">
+          <div style="display: contents;">
+            <div class="draft-grid__row-head">R<span x-text="row.round"></span></div>
+            <template x-for="cell in row.cells" :key="'cc-' + row.round + '-' + cell.team_id">
+              <div class="draft-cell"
+                   :class="{
+                     'draft-cell--empty':    !cell.pick,
+                     'draft-cell--on-clock':  cell.is_on_clock,
+                     'draft-cell--last-pick': cell.pick && lastPick && cell.pick.id === lastPick.id,
+                   }">
+                <div class="draft-cell__pick">
+                  R<span x-text="row.round"></span> · P<span x-text="cell.pick_number"></span>
+                </div>
+                <template x-if="cell.pick">
+                  <div class="draft-cell__name" x-text="cell.pick.player_name"></div>
+                </template>
+                <template x-if="!cell.pick">
+                  <div class="draft-cell__name text-muted" style="opacity:0.5;">—</div>
+                </template>
+                <template x-if="cell.pick && cell.pick.is_coaches_child">
+                  <div class="draft-cell__markers">
+                    <span class="cc-marker" title="Coach's child">CC</span>
+                  </div>
+                </template>
+              </div>
+            </template>
           </div>
         </template>
       </div>
-    </aside>
-  </div>
+    </div>
 
-  {# ------------------------------------------------------------------ #}
-  {# Confirm-pick modal                                                  #}
-  {# ------------------------------------------------------------------ #}
-  <div class="modal-backdrop"
-       x-show="showConfirmModal"
-       x-transition.opacity
-       @keydown.escape.window="showConfirmModal = false">
-    <div class="modal-card" @click.outside="showConfirmModal = false">
-      <h3 class="display" style="font-size: 20px; font-weight: 600; margin: 0 0 6px;">Confirm pick</h3>
-      <p style="color: var(--ink-2); margin: 0 0 4px;">
-        Select <strong x-text="pendingPlayer?.name"></strong>?
-      </p>
-      <p style="color: var(--ink-3); font-size: 13px; margin: 0 0 18px;">
-        for <strong style="color: var(--ink);" x-text="currentTeamName"></strong>
-        &middot; Round <span class="num" x-text="currentRound"></span>,
-        Pick <span class="num" x-text="currentPick"></span>
-      </p>
-      <div class="flex gap-2" style="justify-content: flex-end;">
-        <button type="button" class="btn" @click="showConfirmModal = false">Cancel</button>
-        <button type="button" class="btn btn--primary"
-                @click="submitPick()"
-                :disabled="pickInFlight"
-                x-text="pickInFlight ? 'Picking…' : 'Confirm pick'"></button>
+    {# RIGHT: Team rosters #}
+    <div class="draft-rosters">
+      <div class="draft-rosters__head">Team rosters</div>
+      <div class="draft-rosters__list">
+        <template x-for="team in teams" :key="'roster-' + team.id">
+          <div class="roster"
+               :class="{'roster--on-clock': currentTeamId === team.id && status === 'drafting'}">
+            <button class="roster__head" @click="toggleTeamRoster(team.id)">
+              <div>
+                <span class="roster__name" x-text="team.name"></span>
+                <span class="roster__count" x-text="'(' + getTeamPlayerCount(team.id) + ')'"></span>
+              </div>
+              <span class="roster__caret"
+                    :class="{'roster__caret--open': openTeams[team.id]}">▾</span>
+            </button>
+            <div x-show="openTeams[team.id]" x-transition class="roster__body">
+              <template x-for="player in getTeamPlayers(team.id)" :key="'rp-' + (player.id || player.player_name)">
+                <div class="roster__player">
+                  <span class="roster__player-slot"
+                        x-text="player.is_top_4 ? 'Seed' : 'R' + player.round_number"></span>
+                  <span class="roster__player-name" x-text="player.player_name"></span>
+                  <template x-if="player.is_coaches_child">
+                    <span class="cc-marker" title="Coach's child">CC</span>
+                  </template>
+                </div>
+              </template>
+              <template x-if="getTeamPlayerCount(team.id) === 0">
+                <div class="roster__empty">No players yet</div>
+              </template>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
-  </div>
 
-  {# ------------------------------------------------------------------ #}
-  {# WebSocket connection status                                         #}
-  {# ------------------------------------------------------------------ #}
-  <div class="ws-status" :class="{ 'ws-status--down': !wsConnected }">
-    <span class="ws-status__dot"></span>
+  </div>{# /draft-shell #}
+
+  {# Pick-confirm modal #}
+  <template x-if="showConfirmModal">
+    <div class="modal-overlay" @keydown.escape.window="showConfirmModal = false">
+      <div class="modal" @click.outside="showConfirmModal = false">
+        <h3 class="modal__title">Confirm pick</h3>
+        <p class="modal__body">
+          Select <strong x-text="pendingPlayer?.name"></strong>?
+        </p>
+        <p class="modal__sub">
+          for <strong x-text="currentTeamName"></strong>
+          — Round <span x-text="currentRound"></span>, Pick <span x-text="currentPick"></span>
+        </p>
+        <div class="modal__actions">
+          <button class="btn" @click="showConfirmModal = false">Cancel</button>
+          <button class="btn btn--primary"
+                  @click="submitPick()"
+                  :disabled="pickInFlight"
+                  x-text="pickInFlight ? 'Picking…' : 'Confirm pick'"></button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  {# Connection chip #}
+  <div class="conn-chip">
+    <span class="conn-chip__dot"
+          :class="wsConnected ? 'conn-chip__dot--live' : 'conn-chip__dot--offline'"></span>
     <span x-text="wsConnected ? 'Live' : 'Reconnecting…'"></span>
   </div>
 
-</div>
-
-{# Mark the content column as draft-board so the override style above
-   widens it past the 1280px default cap. #}
-<script>
-  document.querySelector('.lms-content')?.classList.add('is-draft-board');
-</script>
+</div>{# /page #}
 {% endblock %}
 
 {% block extra_js %}
+{{ teams_json|json_script:"sfll-draft-teams" }}
+{{ picks_json|json_script:"sfll-draft-picks" }}
+{{ available_json|json_script:"sfll-draft-available" }}
 <script>
-/* draftBoard()
- * ----------------------------------------------------------------------
- * State machine for the live draft. Hydrated from server-rendered JSON
- * (teams_json, picks_json, available_json), then kept in sync via the
- * WebSocket consumer at /ws/draft/<session_id>/.
- *
- * Visual rendering of the snake grid is driven by `boardRows`
- * (computed) + `cellFor(row, teamId)` (lookup); see comments in
- * `buildCellIndex()` for the snake math.
- */
 function draftBoard() {
   return {
-    // --- session state (server-rendered seeds) ---
-    sessionId:     {{ draft_session.pk }},
-    status:        '{{ draft_session.status }}',
-    currentRound:  {{ draft_session.current_round }},
-    currentPick:   {{ draft_session.current_pick }},
-    snakeDraft:    {{ draft_session.snake_draft|yesno:"true,false" }},
+    // ── Server-rendered state ──────────────────────────────────────────
+    sessionId: {{ draft_session.pk }},
+    status: '{{ draft_session.status }}',
+    currentRound: {{ draft_session.current_round }},
+    currentPick: {{ draft_session.current_pick }},
+    snakeDraft: {{ draft_session.snake_draft|yesno:"true,false" }},
     currentUserId: {{ current_user_id }},
-    isAdmin:       {{ is_admin|yesno:"true,false" }},
+    isAdmin: {{ is_admin|yesno:"true,false" }},
     drafterTeamId: {{ drafter_team_id|default:"null" }},
+    teams: JSON.parse(document.getElementById('sfll-draft-teams').textContent),
+    picks: JSON.parse(document.getElementById('sfll-draft-picks').textContent),
+    available: JSON.parse(document.getElementById('sfll-draft-available').textContent),
 
-    // --- data ---
-    teams:     {{ teams_json|safe }},
-    picks:     {{ picks_json|safe }},
-    available: {{ available_json|safe }},
+    // ── Derived/UI state ───────────────────────────────────────────────
     currentTeamId: null,
-
-    // --- queue UI ---
     playerSearch: '',
-    sortMode: 'rank',      // 'name' | 'avg' | 'rank' (auto-falls-back if no rankings)
-    suggestedPlayerId: null,
-
-    // --- confirm modal ---
+    openTeams: {},
     showConfirmModal: false,
     pendingPlayer: null,
     pickInFlight: false,
 
-    // --- WebSocket ---
+    // ── WebSocket ──────────────────────────────────────────────────────
     ws: null,
     wsConnected: false,
     wsReconnectDelay: 1000,
 
-    // ----------------------------------------------------------------
-    // Computed
-    // ----------------------------------------------------------------
+    // ── Computed ───────────────────────────────────────────────────────
 
     get statusLabel() {
-      return ({pending: 'Pending', seeding: 'Seeding', drafting: 'Live', completed: 'Completed'})[this.status] || this.status;
+      return {pending: 'Pending', seeding: 'Seeding', drafting: 'Live', completed: 'Completed'}[this.status] || this.status;
     },
 
-    get seedPicks() { return this.picks.filter(p => p.is_top_4); },
-    get draftPicks() { return this.picks.filter(p => !p.is_top_4); },
+    get hasTop4() {
+      return this.picks.some(p => p.is_top_4);
+    },
 
-    get hasMyRankings() {
-      return this.available.some(p => p.my_rank !== null) || this.picks.some(p => p.my_rank !== null);
+    get seedPicks() {
+      return this.picks.filter(p => p.is_top_4);
+    },
+
+    get draftPicks() {
+      return this.picks.filter(p => !p.is_top_4);
+    },
+
+    get lastPick() {
+      const dp = this.draftPicks;
+      return dp.length > 0 ? dp[dp.length - 1] : null;
+    },
+
+    get filteredAvailable() {
+      if (!this.playerSearch.trim()) return this.available;
+      const q = this.playerSearch.toLowerCase();
+      return this.available.filter(p => p.name.toLowerCase().includes(q));
     },
 
     get currentTeamName() {
-      const t = this.teams.find(t => t.id === this.currentTeamId);
-      return t ? t.name : '';
+      const team = this.teams.find(t => t.id === this.currentTeamId);
+      return team ? team.name : '';
     },
 
     get isMyTurn() {
@@ -460,249 +362,104 @@ function draftBoard() {
       if (this.isAdmin) return true;
       if (this.drafterTeamId && this.currentTeamId === this.drafterTeamId) return true;
       const team = this.teams.find(t => t.id === this.currentTeamId);
-      return !!(team && team.drafter_user_id === this.currentUserId);
+      return team && team.drafter_user_id === this.currentUserId;
     },
 
-    /* boardRows: virtual rows for the snake grid.
-     *  - 4 seed rows (S1..S4) representing the pre-draft top-4 slots.
-     *  - One row per completed round, plus the in-progress round.
-     */
-    get boardRows() {
-      const maxDraftRound = this.draftPicks.reduce((m, p) => Math.max(m, p.round_number), 0);
-      const rounds = Math.max(maxDraftRound, this.status === 'drafting' ? this.currentRound : 0);
-      const rows = [];
-      // Seed rows shown only if there are any top-4 picks (some divisions skip seeding).
-      const hasSeeds = this.seedPicks.length > 0;
-      if (hasSeeds) {
-        for (let s = 1; s <= 4; s++) rows.push({key: 's' + s, type: 'seed', slot: s, label: 'S' + s});
-      }
-      for (let r = 1; r <= rounds; r++) rows.push({key: 'r' + r, type: 'round', round: r, label: 'R' + r});
-      return rows;
+    // Render enough rounds to comfortably show progress. At minimum 12;
+    // grows by 4 once we approach the bottom. Real rounds-per-team usually
+    // fall in the 10-14 range for Little League majors/AAA.
+    get roundsRendered() {
+      const maxRound = this.draftPicks.reduce((m, p) => Math.max(m, p.round_number), 0);
+      const target = Math.max(12, maxRound + 2);
+      return Array.from({length: target}, (_, i) => i + 1);
     },
 
-    get filteredAvailable() {
-      const q = this.playerSearch.trim().toLowerCase();
-      let list = this.available;
-      if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
-      const mode = (this.sortMode === 'rank' && !this.hasMyRankings) ? 'avg' : this.sortMode;
-      const sorted = list.slice();
-      if (mode === 'rank') {
-        sorted.sort((a, b) => {
-          const ar = a.my_rank, br = b.my_rank;
-          if (ar !== null && br !== null) return ar - br;
-          if (ar !== null) return -1;
-          if (br !== null) return 1;
-          return a.name.localeCompare(b.name);
-        });
-      } else if (mode === 'avg') {
-        sorted.sort((a, b) => {
-          const aa = a.overall_avg, bb = b.overall_avg;
-          if (aa !== null && bb !== null) return bb - aa;
-          if (aa !== null) return -1;
-          if (bb !== null) return 1;
-          return a.name.localeCompare(b.name);
-        });
-      } else {
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-      }
-      return sorted;
-    },
-
-    // ----------------------------------------------------------------
-    // Snake grid lookup (used by the imperative renderer below init())
-    // ----------------------------------------------------------------
-
-    /* Build a flat (row, col) → cell map for the current pick set. */
-    buildCellIndex() {
-      const idx = {};
-      // Seed picks: assign in pick_number order to slots 1..4 per team.
-      const seedsByTeam = {};
-      for (const p of this.seedPicks) {
-        (seedsByTeam[p.team_id] ??= []).push(p);
-      }
-      for (const tid in seedsByTeam) {
-        seedsByTeam[tid].sort((a, b) => a.pick_number - b.pick_number);
-        seedsByTeam[tid].forEach((p, i) => {
-          idx[`s${i + 1}:${tid}`] = p;
-        });
-      }
-      // Snake-draft picks: indexed by (round, team_id). Server already
-      // emits team_id on each pick, so no snake math needed for lookup —
-      // the snake math only matters when rendering the "current cell"
-      // outline (computed separately in computeCurrentTeam).
+    // Pre-compute each cell row: round + ordered cells (one per team in
+    // column order, matching the fixed header row). For snake rounds, the
+    // pick-position math is inverted so a team's pick number is correct even
+    // though the column order never changes.
+    get cellRows() {
+      const numTeams = this.teams.length;
+      if (numTeams === 0) return [];
+      const pickByRoundTeam = {};
       for (const p of this.draftPicks) {
-        idx[`r${p.round_number}:${p.team_id}`] = p;
+        pickByRoundTeam[`${p.round_number}:${p.team_id}`] = p;
       }
-      return idx;
+      return this.roundsRendered.map(r => {
+        const reverseRound = this.snakeDraft && r % 2 === 0;
+        // Always iterate this.teams in column order so cells align with headers.
+        const cells = this.teams.map((team, idx) => {
+          const posInRound = reverseRound ? (numTeams - 1 - idx) : idx;
+          const pickNum = (r - 1) * numTeams + posInRound + 1;
+          const pick = pickByRoundTeam[`${r}:${team.id}`];
+          const isOnClock = this.status === 'drafting'
+            && r === this.currentRound
+            && pickNum === this.currentPick;
+          return {team_id: team.id, pick_number: pickNum, pick: pick || null, is_on_clock: isOnClock};
+        });
+        return {round: r, cells};
+      });
     },
 
-    cellFor(row, teamId) {
-      const k = row.type === 'seed'
-        ? `s${row.slot}:${teamId}`
-        : `r${row.round}:${teamId}`;
-      return this._cellIndex[k] || null;
+    // Highest-leverage available player for this user. Preference order:
+    //   1. The user's own ranking (lowest my_rank wins)
+    //   2. Highest overall_avg
+    //   3. First by name
+    get suggestedPlayer() {
+      if (!this.available.length) return null;
+      const ranked = this.available.filter(p => p.my_rank !== null && p.my_rank !== undefined);
+      if (ranked.length) {
+        return ranked.reduce((best, p) => (p.my_rank < best.my_rank ? p : best));
+      }
+      const scored = this.available.filter(p => p.overall_avg !== null && p.overall_avg !== undefined);
+      if (scored.length) {
+        return scored.reduce((best, p) => (p.overall_avg > best.overall_avg ? p : best));
+      }
+      return this.available[0];
     },
 
-    isCurrentCell(row, teamId) {
-      return row.type === 'round'
-        && row.round === this.currentRound
-        && teamId === this.currentTeamId
-        && this.status === 'drafting';
-    },
-
-    // ----------------------------------------------------------------
-    // Init
-    // ----------------------------------------------------------------
+    // ── Lifecycle ──────────────────────────────────────────────────────
 
     init() {
-      this._cellIndex = this.buildCellIndex();
+      this.teams.forEach(t => { this.openTeams[t.id] = true; });
       this.computeCurrentTeam();
       this.connectWebSocket();
-      this.$watch('picks', () => { this._cellIndex = this.buildCellIndex(); this.renderBoardCells(); });
-      this.$watch('teams', () => { this.renderBoardCells(); });
-      this.$watch('currentTeamId', () => { this.renderBoardCells(); });
-      this.$watch('currentRound', () => { this.renderBoardCells(); });
-      this.$watch('status', () => { this.renderBoardCells(); });
-      this.$nextTick(() => this.renderBoardCells());
-      // If the drafter has no personal rankings, fall back to avg sort.
-      if (!this.hasMyRankings) this.sortMode = 'avg';
     },
 
-    /* The snake grid's body cells are rendered imperatively into the
-     * .draft-board-grid container after the header row. Alpine can
-     * declaratively render a single flat x-for, but a grid where each
-     * row has a label + N team cells is much easier as direct DOM
-     * appends — and a flat 1-D x-for inside a CSS grid does the right
-     * thing visually because grid lays out children left-to-right,
-     * row-by-row. We keep both header rows and body cells under one
-     * .draft-board-grid; this method rewrites just the body. */
-    renderBoardCells() {
-      const grid = this.$el.querySelector('.draft-board-grid');
-      if (!grid) return;
-      // Drop everything past the header row (1 label cell + N team cells).
-      const headerCount = 1 + this.teams.length;
-      while (grid.children.length > headerCount) grid.removeChild(grid.lastChild);
+    // ── Helpers ────────────────────────────────────────────────────────
 
-      for (const row of this.boardRows) {
-        // Row-label cell.
-        const labelEl = document.createElement('div');
-        labelEl.className = 'draft-cell draft-cell--rownum';
-        labelEl.textContent = row.label;
-        grid.appendChild(labelEl);
-
-        // Team cells in column order.
-        for (const team of this.teams) {
-          const cell = this.cellFor(row, team.id);
-          const el = document.createElement('div');
-          el.className = 'draft-cell';
-          if (cell) {
-            el.classList.add('draft-cell--filled');
-            if (cell.is_top_4) el.classList.add('draft-cell--top4');
-            if (cell.is_coaches_child) el.classList.add('draft-cell--child');
-          }
-          if (this.isCurrentCell(row, team.id)) el.classList.add('draft-cell--current');
-
-          if (cell) {
-            const meta = document.createElement('div');
-            meta.className = 'draft-cell__pick-meta';
-            meta.textContent = cell.is_top_4
-              ? `S${row.slot}`
-              : `${cell.round_number}.${cell.pick_number}`;
-            el.appendChild(meta);
-
-            const name = document.createElement('div');
-            name.className = 'draft-cell__name';
-            name.textContent = cell.player_name;
-            el.appendChild(name);
-
-            if (cell.is_coaches_child) {
-              const badge = document.createElement('div');
-              badge.className = 'draft-cell__badge';
-              badge.textContent = "Coach's child";
-              badge.title = "Coach's child";
-              el.appendChild(badge);
-            }
-          } else if (this.isCurrentCell(row, team.id)) {
-            const meta = document.createElement('div');
-            meta.className = 'draft-cell__pick-meta';
-            meta.textContent = `${this.currentRound}.${this.currentPick}`;
-            el.appendChild(meta);
-
-            const onclock = document.createElement('div');
-            onclock.className = 'draft-cell__name';
-            onclock.style.color = 'var(--primary)';
-            onclock.textContent = 'On the clock';
-            el.appendChild(onclock);
-          }
-
-          grid.appendChild(el);
-        }
+    teamsInRoundOrder(round) {
+      if (!this.teams.length) return [];
+      if (this.snakeDraft && round % 2 === 0) {
+        return this.teams.slice().reverse();
       }
+      return this.teams;
     },
 
-    // ----------------------------------------------------------------
-    // Snake math
-    // ----------------------------------------------------------------
+    getTop4Slots(teamId) {
+      return this.seedPicks
+        .filter(p => p.team_id === teamId)
+        .sort((a, b) => a.pick_number - b.pick_number);
+    },
 
     computeCurrentTeam() {
       if (this.status !== 'drafting' || this.teams.length === 0) {
         this.currentTeamId = null;
         return;
       }
-      const n = this.teams.length;
-      const posInRound = (this.currentPick - 1) % n;
-      const idx = (this.snakeDraft && this.currentRound % 2 === 0)
-        ? (n - 1 - posInRound)
-        : posInRound;
-      this.currentTeamId = this.teams[idx]?.id || null;
+      const ordered = this.teamsInRoundOrder(this.currentRound);
+      const pickInRound = (this.currentPick - 1) % this.teams.length;
+      this.currentTeamId = ordered[pickInRound]?.id || null;
     },
 
-    getTeamPickCount(teamId) {
-      return this.picks.filter(p => p.team_id === teamId).length;
-    },
+    getTeamPlayers(teamId) { return this.picks.filter(p => p.team_id === teamId); },
+    getTeamPlayerCount(teamId) { return this.getTeamPlayers(teamId).length; },
+    toggleTeamRoster(teamId) { this.openTeams[teamId] = !this.openTeams[teamId]; },
 
-    // ----------------------------------------------------------------
-    // Suggest pick — client-side heuristic over the available queue.
-    // Priority: lowest my_rank → highest overall_avg → alphabetical.
-    // Highlights the row + scrolls to it; the drafter still has to
-    // click Pick → Confirm.
-    // ----------------------------------------------------------------
-
-    suggestPick() {
-      if (!this.isMyTurn || this.available.length === 0) return;
-      // Reuse the same sort logic as the "My rank" sort mode, with avg
-      // as the tiebreaker, then name.
-      const ranked = this.available.slice().sort((a, b) => {
-        const ar = a.my_rank, br = b.my_rank;
-        if (ar !== null && br !== null && ar !== br) return ar - br;
-        if (ar !== null && br === null) return -1;
-        if (ar === null && br !== null) return 1;
-        const aa = a.overall_avg, bb = b.overall_avg;
-        if (aa !== null && bb !== null && aa !== bb) return bb - aa;
-        if (aa !== null && bb === null) return -1;
-        if (aa === null && bb !== null) return 1;
-        return a.name.localeCompare(b.name);
-      });
-      const top = ranked[0];
-      if (!top) return;
-      this.suggestedPlayerId = top.id;
-      // Flip the queue to "My rank" / "Avg" so the suggestion sits at the top.
-      if (this.hasMyRankings) this.sortMode = 'rank'; else this.sortMode = 'avg';
-      this.playerSearch = '';
-      this.$nextTick(() => {
-        const row = this.$el.querySelector(`[data-player-id="${top.id}"]`);
-        if (row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
-      });
-      // Fade the highlight after 6s so it doesn't stick around past the next pick.
-      clearTimeout(this._suggestTimer);
-      this._suggestTimer = setTimeout(() => { this.suggestedPlayerId = null; }, 6000);
-    },
-
-    // ----------------------------------------------------------------
-    // Confirm / submit / undo
-    // ----------------------------------------------------------------
+    // ── Pick flow ──────────────────────────────────────────────────────
 
     confirmPick(player) {
+      if (!player) return;
       this.pendingPlayer = player;
       this.showConfirmModal = true;
     },
@@ -714,19 +471,19 @@ function draftBoard() {
     },
 
     undoPick() {
-      if (!confirm('Undo the last pick? The player will return to the available queue.')) return;
+      if (!confirm('Undo the last pick? This will remove it from the board.')) return;
       this.ws.send(JSON.stringify({type: 'draft.undo'}));
     },
 
-    // ----------------------------------------------------------------
-    // WebSocket plumbing — unchanged from SFLL-93.
-    // ----------------------------------------------------------------
+    // ── WebSocket ──────────────────────────────────────────────────────
 
     connectWebSocket() {
-      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const url = `${proto}//${window.location.host}/ws/draft/${this.sessionId}/`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${window.location.host}/ws/draft/${this.sessionId}/`;
       this.ws = new WebSocket(url);
-      this.ws.onopen  = () => { this.wsConnected = true; this.wsReconnectDelay = 1000; };
+
+      this.ws.onopen = () => { this.wsConnected = true; this.wsReconnectDelay = 1000; };
+
       this.ws.onclose = () => {
         this.wsConnected = false;
         setTimeout(() => {
@@ -734,46 +491,52 @@ function draftBoard() {
           this.connectWebSocket();
         }, this.wsReconnectDelay);
       };
+
       this.ws.onerror = () => { this.wsConnected = false; };
-      this.ws.onmessage = (e) => this.handleMessage(JSON.parse(e.data));
+
+      this.ws.onmessage = (e) => { this.handleMessage(JSON.parse(e.data)); };
     },
 
     handleMessage(data) {
       switch (data.type) {
-        case 'board_state':      this.handleBoardState(data.data); break;
-        case 'draft.pick_made':  this.handlePickMade(data.pick); break;
-        case 'draft.pick_undone':this.handlePickUndone(data.data); break;
-        case 'draft.started':    this.handleDraftStarted(data.data); break;
-        case 'draft.completed':  this.handleDraftCompleted(); break;
-        case 'error':            this.handleError(data.message); break;
+        case 'board_state':         this.handleBoardState(data.data); break;
+        case 'draft.pick_made':     this.handlePickMade(data.pick); break;
+        case 'draft.pick_undone':   this.handlePickUndone(data.data); break;
+        case 'draft.started':       this.handleDraftStarted(data.data); break;
+        case 'draft.completed':     this.handleDraftCompleted(); break;
+        case 'error':               this.handleError(data.message); break;
       }
     },
 
     handleBoardState(state) {
-      if (!state || state.error) return;
-      this.status        = state.session.status;
-      this.currentRound  = state.session.current_round;
-      this.currentPick   = state.session.current_pick;
-      this.snakeDraft    = state.session.snake_draft;
-      this.teams         = state.teams;
-      this.picks         = state.picks;
-      this.available     = state.available;
-      if (state.current_team_id) this.currentTeamId = state.current_team_id;
-      else this.computeCurrentTeam();
+      if (state.error) return;
+      this.status = state.session.status;
+      this.currentRound = state.session.current_round;
+      this.currentPick = state.session.current_pick;
+      this.snakeDraft = state.session.snake_draft;
+      this.teams = state.teams;
+      this.picks = state.picks;
+      this.available = state.available;
+      if (state.current_team_id) {
+        this.currentTeamId = state.current_team_id;
+      } else {
+        this.computeCurrentTeam();
+      }
     },
 
     handlePickMade(pick) {
       this.picks.push(pick);
       this.available = this.available.filter(p => p.id !== pick.player_id);
       this.currentRound = pick.current_round;
-      this.currentPick  = pick.current_pick;
-      if (pick.next_team_id) this.currentTeamId = pick.next_team_id;
-      else this.computeCurrentTeam();
-
+      this.currentPick = pick.current_pick;
+      if (pick.next_team_id) {
+        this.currentTeamId = pick.next_team_id;
+      } else {
+        this.computeCurrentTeam();
+      }
       this.showConfirmModal = false;
       this.pendingPlayer = null;
       this.pickInFlight = false;
-      this.suggestedPlayerId = null;
     },
 
     handlePickUndone(data) {
@@ -787,15 +550,18 @@ function draftBoard() {
       });
       this.available.sort((a, b) => a.name.localeCompare(b.name));
       this.currentRound = data.current_round;
-      this.currentPick  = data.current_pick;
-      if (data.next_team_id) this.currentTeamId = data.next_team_id;
-      else this.computeCurrentTeam();
+      this.currentPick = data.current_pick;
+      if (data.next_team_id) {
+        this.currentTeamId = data.next_team_id;
+      } else {
+        this.computeCurrentTeam();
+      }
     },
 
     handleDraftStarted(data) {
       this.status = 'drafting';
       this.currentRound = data.current_round;
-      this.currentPick  = data.current_pick;
+      this.currentPick = data.current_pick;
       this.computeCurrentTeam();
     },
 
@@ -804,7 +570,7 @@ function draftBoard() {
       this.currentTeamId = null;
       setTimeout(() => {
         window.location.href = `/draft/live/${this.sessionId}/rosters/`;
-      }, 1500);
+      }, 2000);
     },
 
     handleError(message) {
