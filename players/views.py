@@ -31,8 +31,21 @@ def index(request):
         qs = PlayerSeason.objects.none()
 
     division_id = request.GET.get('division')
+    selected_division = None
     if division_id:
         qs = qs.filter(division_id=division_id)
+        selected_division = Division.objects.filter(pk=division_id, is_active=True).first()
+
+    # Sub-league chips — only when the active division splits into sub-leagues.
+    sub_leagues = []
+    selected_league = ''
+    if selected_division and selected_division.has_leagues:
+        sub_leagues = list(selected_division.league_names or [])
+        selected_league = request.GET.get('league', '')
+        if selected_league and selected_league in sub_leagues:
+            qs = qs.filter(assigned_team__sub_league=selected_league)
+        else:
+            selected_league = ''
 
     view = request.GET.get('view', 'all')
     if view == 'top4':
@@ -63,7 +76,7 @@ def index(request):
     if sort_dir == 'desc':
         order_fields = [f'-{f}' for f in order_fields]
 
-    # Querystring for sort links (preserves q/view/division, strips sort/dir).
+    # Querystring for sort links (preserves q/view/division/league, strips sort/dir).
     base_params = {k: v for k, v in request.GET.items() if k not in ('sort', 'dir')}
     sort_base_qs = urllib.parse.urlencode(base_params)
 
@@ -72,6 +85,8 @@ def index(request):
         'season': active_season,
         'divisions': Division.objects.filter(is_active=True),
         'division_id': division_id,
+        'sub_leagues': sub_leagues,
+        'selected_league': selected_league,
         'view': view,
         'search': search,
         'sort': sort,

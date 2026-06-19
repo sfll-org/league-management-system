@@ -51,11 +51,22 @@
       {% endfor %}
     </div>
     {% endif %}
+
+    {% if sub_leagues %}
+    <div class="flex gap-2 items-center">
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}division={{ division_id }}"
+         class="chip {% if not selected_league %}chip--active{% endif %}">All</a>
+      {% for sub in sub_leagues %}
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}division={{ division_id }}&league={{ sub }}"
+         class="chip {% if selected_league == sub %}chip--active{% endif %}">{{ sub }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
   </form>
 
   {% if player_seasons %}
   <div class="card">
-    <table class="table table--clickable">
+    <table class="table table--clickable roster-table">
       <thead>
         <tr>
           <th aria-sort="{% if sort == 'name' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">

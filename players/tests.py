@@ -753,20 +753,20 @@ class RosterFiltersTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = _create_user(email='roster@sfll.org')
-        league = _create_league()
-        season = Season.objects.create(
-            league=league, name='Spring 2026', year=2026, season_type='spring',
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league, name='Spring 2026', year=2026, season_type='spring',
             is_active=True,
         )
-        self.division = Division.objects.create(league=league, name='Majors')
+        self.division = Division.objects.create(league=self.league, name='Majors')
         Player.objects.create(
-            league=league, sportsconnect_player_id='RT-1',
+            league=self.league, sportsconnect_player_id='RT-1',
             first_name='A', last_name='Alpha',
-        ).seasons.create(season=season, division=self.division, is_top_4=True)
+        ).seasons.create(season=self.season, division=self.division, is_top_4=True)
         Player.objects.create(
-            league=league, sportsconnect_player_id='RT-2',
+            league=self.league, sportsconnect_player_id='RT-2',
             first_name='B', last_name='Beta',
-        ).seasons.create(season=season, division=self.division)
+        ).seasons.create(season=self.season, division=self.division)
 
     def test_roster_top4_filter(self):
         self.client.login(username='roster@sfll.org', password='testpass123')
@@ -819,3 +819,63 @@ class RosterFiltersTests(TestCase):
         for col in ('name', 'division', 'team', 'jersey', 'status'):
             resp = self.client.get(reverse('players:index') + f'?sort={col}')
             self.assertEqual(resp.status_code, 200, msg=f'sort={col} returned non-200')
+
+    def test_roster_sub_league_chips_shown_for_split_division(self):
+        """Sub-league chips appear when the selected division has has_leagues=True."""
+        div = Division.objects.create(
+            league=self.league, name='Majors Split', has_leagues=True,
+            league_names=['American', 'National'],
+        )
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:index') + f'?division={div.pk}',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'American')
+        self.assertContains(resp, 'National')
+
+    def test_roster_sub_league_filter_narrows_results(self):
+        """Selecting a sub-league returns only players on teams in that league."""
+        div = Division.objects.create(
+            league=self.league, name='Majors Split', has_leagues=True,
+            league_names=['American', 'National'],
+        )
+        team_am = Team.objects.create(league=self.league, name='Giants')
+        team_nat = Team.objects.create(league=self.league, name='Dodgers')
+        ts_am = TeamSeason.objects.create(
+            team=team_am, season=self.season, division=div, sub_league='American',
+        )
+        ts_nat = TeamSeason.objects.create(
+            team=team_nat, season=self.season, division=div, sub_league='National',
+        )
+        p1 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SL-1', first_name='X', last_name='Xavier',
+        )
+        p2 = Player.objects.create(
+            league=self.league, sportsconnect_player_id='SL-2', first_name='Y', last_name='Yates',
+        )
+        p1.seasons.create(season=self.season, division=div, assigned_team=ts_am)
+        p2.seasons.create(season=self.season, division=div, assigned_team=ts_nat)
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:index') + f'?division={div.pk}&league=American',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Xavier')
+        self.assertNotContains(resp, 'Yates')
+
+    def test_roster_invalid_sub_league_ignored(self):
+        """An unrecognised sub-league value is silently ignored."""
+        div = Division.objects.create(
+            league=self.league, name='Majors Split', has_leagues=True,
+            league_names=['American', 'National'],
+        )
+        Player.objects.create(
+            league=self.league, sportsconnect_player_id='SL-3', first_name='Z', last_name='Zed',
+        ).seasons.create(season=self.season, division=div)
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:index') + f'?division={div.pk}&league=bogus',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Zed')
