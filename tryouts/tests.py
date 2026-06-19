@@ -467,3 +467,76 @@ class SessionDetailContextTests(TestCase):
         # 1 player, 2 stations → expected = 2; only 1 distinct pair evaluated
         self.assertEqual(ctx['evals_expected'], 2)
         self.assertEqual(ctx['eval_count'], 1)
+
+
+class ReassignPlayerViewTests(TestCase):
+    """Verify reassign_player POST is scoped to same season/division."""
+
+    def setUp(self):
+        self.base = _setup_base()
+        self.user = _create_user(is_superuser=True)
+        self.client = Client()
+        self.client.login(username='user@sfll.org', password='testpass123')
+
+        self.player = _create_player(self.base['league'])
+        self.ps = PlayerSeason.objects.create(
+            player=self.player,
+            season=self.base['season'],
+            division=self.base['division'],
+        )
+        self.source_session = Session.objects.create(
+            season=self.base['season'],
+            name='SES Day 1',
+            date=date(2026, 3, 28),
+            start_time=time(9, 0),
+            division=self.base['division'],
+        )
+        self.assignment = SessionAssignment.objects.create(
+            session=self.source_session,
+            player_season=self.ps,
+        )
+        # Valid target: same season/division
+        self.valid_target = Session.objects.create(
+            season=self.base['season'],
+            name='SES Day 2',
+            date=date(2026, 4, 5),
+            start_time=time(9, 0),
+            division=self.base['division'],
+        )
+        # Out-of-scope target: different division
+        other_division = Division.objects.create(
+            league=self.base['league'], name='Minors', display_order=1,
+        )
+        self.rogue_target = Session.objects.create(
+            season=self.base['season'],
+            name='Minors SES 1',
+            date=date(2026, 4, 5),
+            start_time=time(9, 0),
+            division=other_division,
+        )
+
+    def _url(self):
+        return reverse(
+            'tryouts:reassign_player',
+            kwargs={'pk': self.source_session.pk, 'assignment_id': self.assignment.pk},
+        )
+
+    def test_valid_reassignment_succeeds(self):
+        resp = self.client.post(self._url(), {'target_session': self.valid_target.pk})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(
+            SessionAssignment.objects.filter(
+                session=self.valid_target, player_season=self.ps
+            ).exists()
+        )
+
+    def test_out_of_scope_session_rejected(self):
+        # Crafted POST with a session from a different division — must return 404
+        resp = self.client.post(self._url(), {'target_session': self.rogue_target.pk})
+        self.assertEqual(resp.status_code, 404)
+        # Player must remain in the original session
+        self.assertTrue(
+            SessionAssignment.objects.filter(
+                session=self.source_session, player_season=self.ps
+            ).exists()
+        )

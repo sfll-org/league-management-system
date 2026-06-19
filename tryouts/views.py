@@ -758,7 +758,12 @@ def reassign_player(request, pk, assignment_id):
                 },
             )
 
-        target_session = get_object_or_404(Session, pk=target_session_id)
+        target_session = get_object_or_404(
+            Session,
+            pk=target_session_id,
+            season=source_session.season,
+            division=source_session.division,
+        )
 
         # Check the player isn't already assigned to the target session
         if SessionAssignment.objects.filter(
