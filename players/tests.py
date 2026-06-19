@@ -631,7 +631,6 @@ class PrintSurfaceTests(TestCase):
             season_type="fall", is_active=False,
         )
         TryoutSession.objects.create(
-            league=self.league,
             season=other_season,
             division=self.division,
             name="Fall Session",
