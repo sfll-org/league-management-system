@@ -291,6 +291,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ teams_json|json_script:"sfll-draft-teams" }}
+{{ picks_json|json_script:"sfll-draft-picks" }}
+{{ available_json|json_script:"sfll-draft-available" }}
 <script>
 function draftBoard() {
   return {
@@ -303,9 +306,9 @@ function draftBoard() {
     currentUserId: {{ current_user_id }},
     isAdmin: {{ is_admin|yesno:"true,false" }},
     drafterTeamId: {{ drafter_team_id|default:"null" }},
-    teams: {{ teams_json|safe }},
-    picks: {{ picks_json|safe }},
-    available: {{ available_json|safe }},
+    teams: JSON.parse(document.getElementById('sfll-draft-teams').textContent),
+    picks: JSON.parse(document.getElementById('sfll-draft-picks').textContent),
+    available: JSON.parse(document.getElementById('sfll-draft-available').textContent),
 
     // ── Derived/UI state ───────────────────────────────────────────────
     currentTeamId: null,
@@ -371,8 +374,10 @@ function draftBoard() {
       return Array.from({length: target}, (_, i) => i + 1);
     },
 
-    // Pre-compute each cell row: round + ordered cells (one per team in pick
-    // order for that round), each tagged with the pick if drafted.
+    // Pre-compute each cell row: round + ordered cells (one per team in
+    // column order, matching the fixed header row). For snake rounds, the
+    // pick-position math is inverted so a team's pick number is correct even
+    // though the column order never changes.
     get cellRows() {
       const numTeams = this.teams.length;
       if (numTeams === 0) return [];
@@ -381,9 +386,11 @@ function draftBoard() {
         pickByRoundTeam[`${p.round_number}:${p.team_id}`] = p;
       }
       return this.roundsRendered.map(r => {
-        const ordered = this.teamsInRoundOrder(r);
-        const cells = ordered.map((team, idx) => {
-          const pickNum = (r - 1) * numTeams + idx + 1;
+        const reverseRound = this.snakeDraft && r % 2 === 0;
+        // Always iterate this.teams in column order so cells align with headers.
+        const cells = this.teams.map((team, idx) => {
+          const posInRound = reverseRound ? (numTeams - 1 - idx) : idx;
+          const pickNum = (r - 1) * numTeams + posInRound + 1;
           const pick = pickByRoundTeam[`${r}:${team.id}`];
           const isOnClock = this.status === 'drafting'
             && r === this.currentRound
