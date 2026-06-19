@@ -634,8 +634,8 @@ class SesQuickRescheduleTests(TestCase):
             session=regular, player_season=sa.player_season,
         ).exists())
 
-    def test_reschedule_returns_409_when_no_target(self):
-        # Remove all other sessions in the division.
+    def test_reschedule_returns_200_with_inline_message_when_no_target(self):
+        # Remove all other sessions in the division so there is no target.
         self.makeup.delete()
         sa = self.fixture['assignments'][0]
         url = reverse(
@@ -643,7 +643,9 @@ class SesQuickRescheduleTests(TestCase):
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)
-        self.assertEqual(resp.status_code, 409)
+        # 200 so HTMX can swap the inline error message into the target element.
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b'No upcoming session', resp.content)
         # Original assignment untouched.
         self.assertTrue(SessionAssignment.objects.filter(pk=sa.pk).exists())
 
