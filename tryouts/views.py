@@ -1135,10 +1135,11 @@ def ses_quick_reschedule(request, pk, assignment_id):
 
     target = _next_makeup_target(session)
     if target is None:
+        # Return 200 so HTMX swaps the error message into #ses-noshow.
+        # 4xx responses are not swapped by HTMX by default.
         return HttpResponse(
             '<div class="empty">No upcoming session available for one-click reschedule. '
             'Create a makeup session first.</div>',
-            status=409,
         )
 
     # If the player is somehow already assigned to the target (defensive — UI
