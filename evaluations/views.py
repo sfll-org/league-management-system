@@ -34,8 +34,8 @@ def _get_coach_season(user, session):
 
 
 def _is_eval_authorized(user):
-    """Return True if user is a coach, CTO, SES manager, or staff."""
-    if user.is_staff:
+    """Return True if user is a coach, CTO, SES manager, staff, or superuser."""
+    if user.is_superuser or user.is_staff:
         return True
     return UserRole.objects.filter(
         user=user,

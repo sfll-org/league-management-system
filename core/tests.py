@@ -428,7 +428,7 @@ class CmdkPageRoleFilterTests(TestCase):
     def _user_with_roles(self, email, roles=()):
         user = _create_user(email=email)
         for role in roles:
-            UserRole.objects.create(user=user, role=role, is_active=True)
+            UserRole.objects.create(user=user, role=role, league=self.league, is_active=True)
         return user
 
     def _page_titles(self, user):

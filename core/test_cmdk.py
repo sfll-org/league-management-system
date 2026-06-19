@@ -139,8 +139,8 @@ class CmdkSearchEndpointTests(TestCase):
         # Subtitle includes the player count.
         sosa = next(f for f in families if f['title'] == 'Sosa Household')
         self.assertIn('1 player', sosa['subtitle'])
-        # Deep-link is into the roster filtered by account; space is encoded as + by urlencode.
-        self.assertIn('account=Sosa+Household', sosa['url'])
+        # Deep-link uses quote_via=quote so spaces are encoded as %20, not +.
+        self.assertIn('account=Sosa%20Household', sosa['url'])
 
     def test_superuser_treated_as_admin(self):
         user = _user(email='su@sfll.org', power=True)
