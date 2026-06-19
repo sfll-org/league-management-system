@@ -1,54 +1,148 @@
 {% extends "base.html" %}
+{# SFLL-94 — Roster (Pacific). Replaces the Tailwind dark-mode list.
+   Each row links to the Player Detail page that lives in this same phase.
+   Phase 3 (separate ticket) will deepen the filter UI; this template is
+   the minimum surface required to navigate to and from Player Detail. #}
 
-{% block title %}SFLL — Players{% endblock %}
+{% block title %}SFLL — Roster{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-white">Player Roster</h1>
-            <p class="mt-1 text-gray-400">
-                {% if season %}{{ season.name }} — {% endif %}
-                {{ player_seasons.count }} player{{ player_seasons.count|pluralize }}
-            </p>
-        </div>
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Roster</h1>
+      <p class="page-sub">
+        {% if season %}{{ season.name }} — {% endif %}
+        {{ player_seasons|length }} player{{ player_seasons|length|pluralize }}
+      </p>
+    </div>
+  </div>
+
+  <form method="get" class="toolbar" role="search">
+    <div class="input toolbar__search">
+      <input
+        type="search" name="q" value="{{ search }}"
+        placeholder="Search players…" aria-label="Search players"
+      />
     </div>
 
-    {% if player_seasons %}
-    <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-700/50">
-                    <tr>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Name</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden sm:table-cell">Division</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium hidden md:table-cell">Team</th>
-                        <th class="px-4 py-3 text-left text-gray-300 font-medium">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    {% for ps in player_seasons %}
-                    <tr class="hover:bg-gray-700/30 transition">
-                        <td class="px-4 py-3 text-white">{{ ps.player.full_name }}</td>
-                        <td class="px-4 py-3 text-gray-300 hidden sm:table-cell">{{ ps.division|default:"—" }}</td>
-                        <td class="px-4 py-3 text-gray-300 hidden md:table-cell">{{ ps.assigned_team|default:"Unassigned" }}</td>
-                        <td class="px-4 py-3">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium
-                                {% if ps.status == 'registered' %}bg-emerald-900/50 text-emerald-300
-                                {% else %}bg-gray-700 text-gray-300{% endif %}">
-                                {{ ps.status }}
-                            </span>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <div class="seg" role="tablist" aria-label="Quick views">
+      <button
+        type="submit" name="view" value="all"
+        class="seg__btn {% if view == 'all' %}seg__btn--active{% endif %}"
+      >All</button>
+      <button
+        type="submit" name="view" value="top4"
+        class="seg__btn {% if view == 'top4' %}seg__btn--active{% endif %}"
+      >Top 4</button>
+      <button
+        type="submit" name="view" value="unassigned"
+        class="seg__btn {% if view == 'unassigned' %}seg__btn--active{% endif %}"
+      >Unassigned</button>
     </div>
-    {% else %}
-    <div class="bg-gray-800 rounded-xl p-12 border border-gray-700 text-center">
-        <p class="text-gray-400">No players registered for the current season.</p>
+
+    {% if divisions %}
+    <div class="flex gap-2 items-center">
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}"
+         class="chip {% if not division_id %}chip--active{% endif %}">All divisions</a>
+      {% for d in divisions %}
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}division={{ d.pk }}"
+         class="chip {% if division_id == d.pk|stringformat:'s' %}chip--active{% endif %}">{{ d.name }}</a>
+      {% endfor %}
     </div>
     {% endif %}
+
+    {% if sub_leagues %}
+    <div class="flex gap-2 items-center">
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}division={{ division_id }}"
+         class="chip {% if not selected_league %}chip--active{% endif %}">All</a>
+      {% for sub in sub_leagues %}
+      <a href="?{% if search %}q={{ search }}&{% endif %}{% if view != 'all' %}view={{ view }}&{% endif %}division={{ division_id }}&league={{ sub }}"
+         class="chip {% if selected_league == sub %}chip--active{% endif %}">{{ sub }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </form>
+
+  {% if player_seasons %}
+  <div class="card">
+    <table class="table table--clickable roster-table">
+      <thead>
+        <tr>
+          <th aria-sort="{% if sort == 'name' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'name' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=name&dir={% if sort == 'name' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Name<span class="th-sort__icon" aria-hidden="true">{% if sort == 'name' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'division' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'division' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=division&dir={% if sort == 'division' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Division<span class="th-sort__icon" aria-hidden="true">{% if sort == 'division' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'team' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'team' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=team&dir={% if sort == 'team' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Team<span class="th-sort__icon" aria-hidden="true">{% if sort == 'team' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'jersey' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'jersey' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=jersey&dir={% if sort == 'jersey' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Jersey<span class="th-sort__icon" aria-hidden="true">{% if sort == 'jersey' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'status' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'status' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=status&dir={% if sort == 'status' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Status<span class="th-sort__icon" aria-hidden="true">{% if sort == 'status' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ps in player_seasons %}
+        <tr onclick="window.location='{% url 'players:detail' ps.pk %}'">
+          <td>
+            <div class="player-cell">
+              <div class="avatar" aria-hidden="true">
+                {{ ps.player.first_name|slice:":1" }}{{ ps.player.last_name|slice:":1" }}
+              </div>
+              <div>
+                <div class="player-cell__name">
+                  <a href="{% url 'players:detail' ps.pk %}">{{ ps.player.full_name }}</a>
+                </div>
+                {% if ps.is_top_4 %}
+                <div class="player-cell__sub">Top 4</div>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td>{{ ps.division|default:'—' }}</td>
+          <td>
+            {% if ps.assigned_team %}{{ ps.assigned_team.team.name }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
+          </td>
+          <td class="col-num">
+            {% if ps.jersey_number is not None %}#{{ ps.jersey_number }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td>
+            <span class="pill pill--{% if ps.status == 'registered' %}success{% else %}neutral{% endif %}">
+              {{ ps.status }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card">
+    <div class="empty">
+      <strong>No players match.</strong>
+      Adjust the filters or import a SportsConnect report to populate the roster.
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
