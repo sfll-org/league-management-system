@@ -39,8 +39,9 @@
     <div class="lms-sidebar__section">
       <p class="lms-sidebar__section-label">Operations</p>
       <a href="{% url 'dashboard' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}">Dashboard</a>
-      <a href="{% url 'players:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'players' and request.resolver_match.url_name != 'family_index' and request.resolver_match.url_name != 'family_detail' %} is-active{% endif %}">Roster</a>
+      <a href="{% url 'players:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'players' and request.resolver_match.url_name == 'index' %} is-active{% endif %}">Roster</a>
       <a href="{% url 'players:family_index' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'family_index' or request.resolver_match.url_name == 'family_detail' %} is-active{% endif %}">Families</a>
+      <a href="{% url 'players:print_index' %}" class="lms-sidebar__link{% if request.resolver_match.url_name == 'print_index' or request.resolver_match.url_name == 'print_dugout_card' %} is-active{% endif %}">Print roster cards</a>
       <a href="{% url 'communications:index' %}" class="lms-sidebar__link{% if request.resolver_match.namespace == 'communications' %} is-active{% endif %}">Communications</a>
     </div>
 

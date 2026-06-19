@@ -1,0 +1,174 @@
+{% load static %}<!DOCTYPE html>
+{# SFLL-114 — Half-sheet dugout roster card (Phase 9, print preview).
+   Standalone print surface — does NOT extend base.html so the sidebar
+   shell never appears on the printed sheet. Pacific tokens drive all
+   colors via lms-tokens.css; component classes live in lms-print.css.
+   Two identical cards render per letter sheet so a coach can keep one
+   in the dugout and hand the other to a parent helper or umpire.
+   window.print() fires on load unless ?print=0 is passed. #}
+<html
+  lang="en"
+  data-palette="pacific"
+  data-type="humanist-display"
+  data-density="balanced"
+>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dugout card — {{ team_season.team.name }}</title>
+
+  <link rel="stylesheet" href="{% static 'css/lms-tokens.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/lms-print.css' %}" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+  />
+</head>
+<body class="print-body">
+  {# Screen-only toolbar — @media print hides it.
+     Gives the user a reprint button after dismissing the auto-fired
+     dialog, plus a back link so the print surface isn't a dead-end. #}
+  <div class="print-toolbar">
+    <div class="print-toolbar__meta">
+      <strong>{{ team_season.team.name }}</strong>
+      <span>·</span>
+      <span>{{ team_season.division.name }}{% if team_season.sub_league %} · {{ team_season.sub_league }}{% endif %}</span>
+      <span>·</span>
+      <span>{{ team_season.season.name }}</span>
+    </div>
+    <div class="print-toolbar__actions">
+      <a href="{% url 'players:print_index' %}" class="btn btn--ghost">All teams</a>
+      <button type="button" class="btn btn--primary" onclick="window.print()">Print again</button>
+    </div>
+  </div>
+
+  <main class="print-sheet">
+    {# Two identical cards — top and bottom of the letter sheet.
+       A coach folds or cuts along the midline and keeps one in the
+       dugout while handing the other to a parent helper. #}
+    {% for half in "12" %}
+    <article class="dugout-card" aria-label="Dugout roster card">
+
+      <header class="dugout-card__strip">
+        <div class="dugout-card__team">
+          <p class="dugout-card__eyebrow">
+            {{ team_season.season.league.short_name|default:"SFLL" }} · {{ team_season.season.name }}
+          </p>
+          <h1 class="dugout-card__team-name">{{ team_season.team.name }}</h1>
+          <p class="dugout-card__team-meta">
+            {{ team_season.division.name }}{% if team_season.sub_league %} · {{ team_season.sub_league }}{% endif %}
+          </p>
+        </div>
+
+        <div class="dugout-card__coaches">
+          {% if head_coach %}
+          <p class="dugout-card__coach">
+            <span class="dugout-card__coach-label">Head Coach</span>
+            <span class="dugout-card__coach-name">{{ head_coach.coach.user.get_full_name|default:head_coach.coach.user.email }}</span>
+            {% if head_coach.coach.phone %}<span class="dugout-card__coach-phone">{{ head_coach.coach.phone }}</span>{% endif %}
+          </p>
+          {% endif %}
+          {% for ac in assistant_coaches %}
+          <p class="dugout-card__coach">
+            <span class="dugout-card__coach-label">Assistant</span>
+            <span class="dugout-card__coach-name">{{ ac.coach.user.get_full_name|default:ac.coach.user.email }}</span>
+            {% if ac.coach.phone %}<span class="dugout-card__coach-phone">{{ ac.coach.phone }}</span>{% endif %}
+          </p>
+          {% endfor %}
+          {% if not head_coach and not assistant_coaches %}
+          <p class="dugout-card__coach dugout-card__coach--empty">No coaches assigned yet</p>
+          {% endif %}
+        </div>
+      </header>
+
+      <section class="dugout-card__section">
+        <h2 class="dugout-card__section-title">Next 5 games</h2>
+        {% if games %}
+        <table class="dugout-table dugout-table--games">
+          <thead>
+            <tr>
+              <th class="dugout-col-date">Date</th>
+              <th class="dugout-col-time">Time</th>
+              <th>Event</th>
+              <th class="dugout-col-loc">Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for game in games %}
+            <tr>
+              <td class="dugout-col-date">
+                <span class="dugout-cell-day">{{ game.date|date:"D" }}</span>
+                <span class="dugout-cell-date">{{ game.date|date:"M j" }}</span>
+              </td>
+              <td class="dugout-col-time">{{ game.start_time|time:"g:i A"|default:"—" }}</td>
+              <td>{{ game.name|default:"Game" }}</td>
+              <td class="dugout-col-loc">{{ game.location|default:"TBD" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="dugout-card__empty">No upcoming events scheduled.</p>
+        {% endif %}
+      </section>
+
+      <section class="dugout-card__section dugout-card__section--roster">
+        <h2 class="dugout-card__section-title">
+          Roster &amp; emergency contacts
+          <span class="dugout-card__section-count">{{ roster|length }} player{{ roster|length|pluralize }}</span>
+        </h2>
+        {% if roster %}
+        <table class="dugout-table dugout-table--roster">
+          <thead>
+            <tr>
+              <th class="dugout-col-num">#</th>
+              <th>Player</th>
+              <th>Parent / guardian</th>
+              <th class="dugout-col-contact">Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ps in roster %}
+            <tr>
+              <td class="dugout-col-num">{{ forloop.counter }}</td>
+              <td><span class="dugout-cell-player">{{ ps.player.full_name }}</span></td>
+              <td>{{ ps.account_name|default:"—" }}</td>
+              <td class="dugout-col-contact">
+                {% if ps.account_email %}<span class="dugout-cell-email">{{ ps.account_email }}</span>{% endif %}
+                {% if ps.additional_email %}<span class="dugout-cell-email dugout-cell-email--alt">{{ ps.additional_email }}</span>{% endif %}
+                {% if not ps.account_email and not ps.additional_email %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="dugout-card__empty">No players assigned to this team yet.</p>
+        {% endif %}
+      </section>
+
+      <footer class="dugout-card__footer">
+        <span>Emergency: dial 911 from the field.</span>
+        <span class="dugout-card__footer-meta">
+          Printed {% now "M j, Y" %}{% if half == "1" %} · Card 1 of 2{% else %} · Card 2 of 2{% endif %}
+        </span>
+      </footer>
+
+    </article>
+    {% endfor %}
+  </main>
+
+  {% if auto_print %}
+  <script>
+    // Fire the print dialog once layout + fonts have settled.
+    // The micro-delay covers fonts still streaming over the network.
+    window.addEventListener('load', function () {
+      window.setTimeout(function () { window.print(); }, 150);
+    });
+  </script>
+  {% endif %}
+</body>
+</html>
