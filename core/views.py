@@ -77,7 +77,7 @@ def dashboard(request):
     if _is_admin(roles):
         # Player counts by division
         division_counts = (
-            player_seasons.values("division__name")
+            player_seasons.values("division__id", "division__name")
             .annotate(count=Count("id"))
             .order_by("division__display_order")
         )

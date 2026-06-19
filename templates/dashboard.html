@@ -162,7 +162,7 @@
           </thead>
           <tbody>
             {% for dc in division_counts %}
-            <tr onclick="window.location='{% url 'players:index' %}?division={{ dc.division__name|urlencode }}'">
+            <tr onclick="window.location='{% url 'players:index' %}?division={{ dc.division__id }}'">
               <td><strong>{{ dc.division__name|default:"Unassigned" }}</strong></td>
               <td class="col-num">{{ dc.count }}</td>
               <td>
