@@ -176,6 +176,10 @@ def dashboard(request):
                     }
                 )
         context["attention_items"] = attention
+        counts = {"danger": 0, "warn": 0, "info": 0}
+        for item in attention:
+            counts[item["level"]] = counts.get(item["level"], 0) + 1
+        context["attention_counts"] = counts
 
     # ------- Coach widgets -------
     if _is_coach(roles):

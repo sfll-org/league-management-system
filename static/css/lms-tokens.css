@@ -163,6 +163,9 @@ html[data-density="airy"] {
   --radius-sm: 8px;
 }
 
+/* Alpine cloak — prevents flash before Alpine initialises */
+[x-cloak] { display: none !important; }
+
 /* ───────────────────────── base ───────────────────────── */
 
 * { box-sizing: border-box; }

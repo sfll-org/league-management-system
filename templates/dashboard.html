@@ -88,7 +88,7 @@
     <div class="flex-col" style="gap:var(--gap-lg)">
 
       {# Needs Attention card — Alpine.js segmented filter #}
-      <div class="card" x-data="{ filter: 'all' }">
+      <div class="card" x-data="{ filter: 'all', counts: { danger: {{ attention_counts.danger|default:0 }}, warn: {{ attention_counts.warn|default:0 }}, info: {{ attention_counts.info|default:0 }} } }">
         <div class="card__head">
           <div>
             <span class="card__title">Needs attention</span>
@@ -126,15 +126,17 @@
             </div>
             <div class="alert__meta">{{ item.meta }}</div>
           </div>
-          {% empty %}
-          <div class="empty" x-show="filter === 'all'">
+          {% endfor %}
+          {% if not attention_items %}
+          <div class="empty">
             <strong>All clear.</strong>
             Nothing needs your attention right now.
           </div>
-          <div class="empty" x-show="filter !== 'all'">
+          {% else %}
+          <div class="empty" x-show="filter !== 'all' && counts[filter] === 0" x-cloak>
             <strong>Nothing in this bucket.</strong>
           </div>
-          {% endfor %}
+          {% endif %}
         </div>
       </div>
 
@@ -276,8 +278,8 @@
         <div class="card__list">
           {% if last_import %}
           <div class="alert">
-            <div class="alert__icon alert__icon--{% if last_import.status == 'success' %}success{% elif last_import.status == 'failed' %}danger{% else %}info{% endif %}">
-              {% if last_import.status == 'success' %}
+            <div class="alert__icon alert__icon--{% if last_import.status == 'completed' %}success{% elif last_import.status == 'failed' %}danger{% else %}info{% endif %}">
+              {% if last_import.status == 'completed' %}
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg>
               {% else %}
               <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9"/><path d="M6 9l4 4 4-4"/><path d="M4 16h12"/></svg>
