@@ -40,9 +40,9 @@
         {% if session.is_makeup %}
         <span class="pill pill--warn">Makeup session</span>
         {% endif %}
-        {% if noshow_count == 0 and assignment_count > 0 %}
+        {% if session_is_past and noshow_count == 0 and assignment_count > 0 %}
         <span class="pill pill--success"><span class="pill__dot"></span>All checked in</span>
-        {% elif assignment_count > 0 %}
+        {% elif session_is_past and assignment_count > 0 %}
         <span class="pill pill--warn"><span class="pill__dot"></span>{{ noshow_count }} no-show{% if noshow_count != 1 %}s{% endif %}</span>
         {% endif %}
       </div>
@@ -89,12 +89,16 @@
       <div class="stat__delta stat__delta--flat">evaluation rotations</div>
     </div>
     <div class="stat">
-      <div class="stat__label">No-shows</div>
-      <div class="stat__value tabular">{{ noshow_count }}</div>
-      {% if noshow_count > 0 %}
-      <div class="stat__delta stat__delta--down">need makeup</div>
+      <div class="stat__label">{% if session_is_past %}No-shows{% else %}Pending{% endif %}</div>
+      <div class="stat__value tabular">{% if session_is_past %}{{ noshow_count }}{% else %}{{ pending_count }}{% endif %}</div>
+      {% if session_is_past %}
+        {% if noshow_count > 0 %}
+        <div class="stat__delta stat__delta--down">need makeup</div>
+        {% else %}
+        <div class="stat__delta stat__delta--up">none</div>
+        {% endif %}
       {% else %}
-      <div class="stat__delta stat__delta--up">none</div>
+      <div class="stat__delta stat__delta--flat">not yet closed</div>
       {% endif %}
     </div>
   </div>
@@ -137,7 +141,7 @@
         Check-in roster · {{ assignment_count }}
       </div>
       <div class="tab" :class="{ 'tab--active': tab === 'noshow' }" @click="tab='noshow'">
-        No-shows · {{ noshow_count }}
+        {% if session_is_past %}No-shows · {{ noshow_count }}{% else %}Pending · {{ pending_count }}{% endif %}
       </div>
       <div class="tab" :class="{ 'tab--active': tab === 'evals' }" @click="tab='evals'">
         Evaluations · {{ eval_count }}
@@ -227,7 +231,12 @@
     {# ── No-show tab ── #}
     <div x-show="tab === 'noshow'" x-cloak>
       <div class="card">
-        {% if noshow_count == 0 %}
+        {% if not session_is_past %}
+        <div class="empty">
+          <strong>Session not yet closed.</strong>
+          Players who don't check in will appear here once the session date has passed.
+        </div>
+        {% elif noshow_count == 0 %}
         <div class="empty">
           <strong>Nobody missed it.</strong>
           Every assigned player checked in. That almost never happens.

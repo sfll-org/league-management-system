@@ -159,16 +159,24 @@ def session_detail(request, pk):
             }
         )
 
+    # Count distinct (player_season, station) pairs so the numerator matches
+    # evals_expected = total_assigned * station_count (player × station completions).
     eval_count = (
         Evaluation.objects.filter(session=session)
-        .values("player_season")
+        .values("player_season", "station")
         .distinct()
         .count()
     )
     station_count = stations.count()
     evals_expected = total_assigned * station_count
     evals_pending = evals_expected - eval_count
-    noshow_count = total_assigned - checked_in_count
+
+    # No-shows only exist once the session has closed; unchecked players during
+    # an ongoing/upcoming session are pending arrivals, not no-shows.
+    session_is_past = session.date < date.today()
+    unchecked_count = total_assigned - checked_in_count
+    noshow_count = unchecked_count if session_is_past else 0
+    pending_count = unchecked_count if not session_is_past else 0
 
     return render(
         request,
@@ -179,6 +187,8 @@ def session_detail(request, pk):
             "assignment_count": total_assigned,
             "checked_in_count": checked_in_count,
             "noshow_count": noshow_count,
+            "pending_count": pending_count,
+            "session_is_past": session_is_past,
             "stations": stations,
             "station_count": station_count,
             "station_progress": station_progress,

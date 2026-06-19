@@ -319,3 +319,151 @@ class SessionCreatePostTests(TestCase):
         })
         # Should re-render form (200), not redirect
         self.assertEqual(resp.status_code, 200)
+
+
+class SessionDetailContextTests(TestCase):
+    """Regression tests for session_detail context correctness (SFLL-111 Codex findings)."""
+
+    def setUp(self):
+        from accounts.models import Coach, CoachSeason
+        from players.models import Station, Team, TeamSeason
+
+        self.base = _setup_base()
+        self.user = _create_user(is_superuser=True)
+        self.client = Client()
+        self.client.login(username='user@sfll.org', password='testpass123')
+
+        league = self.base['league']
+        season = self.base['season']
+        division = self.base['division']
+
+        self.station_a = Station.objects.create(
+            league=league, name='Hitting', display_order=0, eval_fields=[]
+        )
+        self.station_b = Station.objects.create(
+            league=league, name='Fielding', display_order=1, eval_fields=[]
+        )
+
+        # Two players
+        p1 = _create_player(league, sc_id='SC-001', first='Alice', last='A')
+        p2 = _create_player(league, sc_id='SC-002', first='Bob', last='B')
+        self.ps1 = PlayerSeason.objects.create(player=p1, season=season, division=division)
+        self.ps2 = PlayerSeason.objects.create(player=p2, season=season, division=division)
+
+        # Coach setup for Evaluation objects
+        team = Team.objects.create(league=league, name='Marlins')
+        team_season = TeamSeason.objects.create(team=team, season=season, division=division)
+        coach_user = _create_user(email='coach@sfll.org')
+        coach = Coach.objects.create(user=coach_user, league=league)
+        self.coach_season = CoachSeason.objects.create(
+            coach=coach, team_season=team_season, season=season, role='head_coach'
+        )
+
+    def _make_session(self, delta_days):
+        """Return a session delta_days from today (negative = past, positive = future)."""
+        return Session.objects.create(
+            season=self.base['season'], name='SES Test',
+            date=date.today() + timedelta(days=delta_days),
+            start_time=time(9, 0), division=self.base['division'],
+        )
+
+    def _assign_and_checkin(self, session, player_season, checkin=True):
+        a = SessionAssignment.objects.create(
+            session=session, player_season=player_season, assigned_by=self.user
+        )
+        if checkin:
+            CheckIn.objects.create(session_assignment=a, checked_in_by=self.user)
+        return a
+
+    def test_past_session_shows_noshow_count(self):
+        """session_is_past=True: unchecked players become no-shows."""
+        session = self._make_session(-1)  # yesterday
+        self._assign_and_checkin(session, self.ps1, checkin=True)
+        self._assign_and_checkin(session, self.ps2, checkin=False)
+
+        resp = self.client.get(reverse('tryouts:session_detail', args=[session.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context['session_is_past'])
+        self.assertEqual(resp.context['noshow_count'], 1)
+        self.assertEqual(resp.context['pending_count'], 0)
+
+    def test_future_session_noshow_count_is_zero(self):
+        """session_is_past=False: unchecked players are pending arrivals, not no-shows."""
+        session = self._make_session(1)  # tomorrow
+        self._assign_and_checkin(session, self.ps1, checkin=True)
+        self._assign_and_checkin(session, self.ps2, checkin=False)
+
+        resp = self.client.get(reverse('tryouts:session_detail', args=[session.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.context['session_is_past'])
+        self.assertEqual(resp.context['noshow_count'], 0)
+        self.assertEqual(resp.context['pending_count'], 1)
+
+    def test_eval_count_uses_player_station_pairs(self):
+        """eval_count must count distinct (player_season, station) completions.
+
+        With 2 players and 2 stations, if both players are evaluated at both
+        stations, eval_count should be 4 (matching evals_expected = 2 * 2).
+        A second coach evaluating the same player at the same station must not
+        inflate the count beyond 1 for that pair.
+        """
+        from evaluations.models import Evaluation
+
+        session = self._make_session(-1)
+        self._assign_and_checkin(session, self.ps1)
+        self._assign_and_checkin(session, self.ps2)
+
+        # ps1 at station_a, ps2 at station_a — 2 distinct pairs
+        Evaluation.objects.create(
+            player_season=self.ps1, session=session,
+            coach_season=self.coach_season, station=self.station_a, scores={}
+        )
+        Evaluation.objects.create(
+            player_season=self.ps2, session=session,
+            coach_season=self.coach_season, station=self.station_a, scores={}
+        )
+
+        resp = self.client.get(reverse('tryouts:session_detail', args=[session.pk]))
+        ctx = resp.context
+        # 2 players, 2 stations → expected = 4; only 2 evals done
+        self.assertEqual(ctx['evals_expected'], 4)
+        self.assertEqual(ctx['eval_count'], 2)
+        self.assertEqual(ctx['evals_pending'], 2)
+
+    def test_eval_count_distinct_pairs_not_raw_rows(self):
+        """Two evaluations for the same player×station (different coaches) count as 1."""
+        from accounts.models import Coach, CoachSeason
+        from players.models import Team, TeamSeason
+        from evaluations.models import Evaluation
+
+        season = self.base['season']
+        league = self.base['league']
+        session = self._make_session(-1)
+        self._assign_and_checkin(session, self.ps1)
+
+        # Second coach for the same session
+        team2 = Team.objects.create(league=league, name='Cubs')
+        team_season2 = TeamSeason.objects.create(
+            team=team2, season=season, division=self.base['division']
+        )
+        coach_user2 = _create_user(email='coach2@sfll.org')
+        coach2 = Coach.objects.create(user=coach_user2, league=league)
+        coach_season2 = CoachSeason.objects.create(
+            coach=coach2, team_season=team_season2, season=season, role='assistant_coach'
+        )
+
+        # Same (player_season, station) from two different coaches → 2 rows, 1 distinct pair
+        Evaluation.objects.create(
+            player_season=self.ps1, session=session,
+            coach_season=self.coach_season, station=self.station_a, scores={}
+        )
+        Evaluation.objects.create(
+            player_season=self.ps1, session=session,
+            coach_season=coach_season2, station=self.station_a, scores={}
+        )
+
+        resp = self.client.get(reverse('tryouts:session_detail', args=[session.pk]))
+        ctx = resp.context
+        # 1 player, 2 stations → expected = 2; only 1 distinct pair evaluated
+        self.assertEqual(ctx['evals_expected'], 2)
+        self.assertEqual(ctx['eval_count'], 1)
