@@ -853,6 +853,40 @@ a { color: inherit; text-decoration: none; }
   border-bottom-color: var(--primary);
   font-weight: 600;
 }
+.tabs-mobile { display: none; }
+@media (max-width: 640px) {
+  .tabs { display: none; }
+  .tabs-mobile {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--ink);
+    margin-bottom: 16px;
+    cursor: pointer;
+  }
+}
+
+/* sortable table headers */
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: inherit;
+  white-space: nowrap;
+}
+.th-sort:hover { color: var(--primary); }
+.th-sort--active { color: var(--primary); }
+.th-sort__icon {
+  font-size: 11px;
+  opacity: 0.5;
+}
+.th-sort--active .th-sort__icon { opacity: 1; }
 
 /* ─────────────────────── command palette ─────────────────────── */
 .cmdk-backdrop {

@@ -59,6 +59,13 @@
     <a href="?tab=evals" role="tab"
        class="tab {% if active_tab == 'evals' %}tab--active{% endif %}">Evals</a>
   </div>
+  {# Mobile: tabs collapse to a select #}
+  <select class="tabs-mobile" aria-label="Navigation tab"
+          onchange="window.location.search='?tab='+this.value">
+    <option value="overview" {% if active_tab == 'overview' %}selected{% endif %}>Overview</option>
+    <option value="season" {% if active_tab == 'season' %}selected{% endif %}>Season</option>
+    <option value="evals" {% if active_tab == 'evals' %}selected{% endif %}>Evals</option>
+  </select>
 
   {# ───── Overview tab ───── #}
   {% if active_tab == 'overview' %}

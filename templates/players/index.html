@@ -58,11 +58,36 @@
     <table class="table table--clickable">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Division</th>
-          <th>Team</th>
-          <th>Jersey</th>
-          <th>Status</th>
+          <th aria-sort="{% if sort == 'name' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'name' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=name&dir={% if sort == 'name' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Name<span class="th-sort__icon" aria-hidden="true">{% if sort == 'name' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'division' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'division' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=division&dir={% if sort == 'division' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Division<span class="th-sort__icon" aria-hidden="true">{% if sort == 'division' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'team' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'team' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=team&dir={% if sort == 'team' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Team<span class="th-sort__icon" aria-hidden="true">{% if sort == 'team' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'jersey' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'jersey' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=jersey&dir={% if sort == 'jersey' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Jersey<span class="th-sort__icon" aria-hidden="true">{% if sort == 'jersey' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
+          <th aria-sort="{% if sort == 'status' %}{% if sort_dir == 'asc' %}ascending{% else %}descending{% endif %}{% else %}none{% endif %}">
+            <a class="th-sort {% if sort == 'status' %}th-sort--active{% endif %}"
+               href="?{{ sort_base_qs }}{% if sort_base_qs %}&{% endif %}sort=status&dir={% if sort == 'status' and sort_dir == 'asc' %}desc{% else %}asc{% endif %}">
+              Status<span class="th-sort__icon" aria-hidden="true">{% if sort == 'status' %}{% if sort_dir == 'asc' %}↑{% else %}↓{% endif %}{% else %}↕{% endif %}</span>
+            </a>
+          </th>
         </tr>
       </thead>
       <tbody>

@@ -795,3 +795,27 @@ class RosterFiltersTests(TestCase):
         resp = self.client.get(reverse('players:index') + '?q=Alpha')
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Alpha')
+
+    def test_roster_sort_name_asc(self):
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index') + '?sort=name&dir=asc')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-sort="ascending"')
+
+    def test_roster_sort_name_desc(self):
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index') + '?sort=name&dir=desc')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'aria-sort="descending"')
+
+    def test_roster_sort_invalid_falls_back(self):
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:index') + '?sort=bogus&dir=bad')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Alpha')
+
+    def test_roster_sort_columns_linkable(self):
+        self.client.login(username='roster@sfll.org', password='testpass123')
+        for col in ('name', 'division', 'team', 'jersey', 'status'):
+            resp = self.client.get(reverse('players:index') + f'?sort={col}')
+            self.assertEqual(resp.status_code, 200, msg=f'sort={col} returned non-200')

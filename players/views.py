@@ -1,3 +1,4 @@
+import urllib.parse
 from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
@@ -45,13 +46,37 @@ def index(request):
             player__first_name__icontains=search,
         )
 
+    _sort_map = {
+        'name':     ['player__last_name', 'player__first_name'],
+        'division': ['division__display_order', 'division__name'],
+        'team':     ['assigned_team__team__name'],
+        'jersey':   ['jersey_number'],
+        'status':   ['status'],
+    }
+    sort = request.GET.get('sort', 'name')
+    if sort not in _sort_map:
+        sort = 'name'
+    sort_dir = request.GET.get('dir', 'asc')
+    if sort_dir not in ('asc', 'desc'):
+        sort_dir = 'asc'
+    order_fields = _sort_map[sort]
+    if sort_dir == 'desc':
+        order_fields = [f'-{f}' for f in order_fields]
+
+    # Querystring for sort links (preserves q/view/division, strips sort/dir).
+    base_params = {k: v for k, v in request.GET.items() if k not in ('sort', 'dir')}
+    sort_base_qs = urllib.parse.urlencode(base_params)
+
     return render(request, 'players/index.html', {
-        'player_seasons': qs.order_by('player__last_name', 'player__first_name'),
+        'player_seasons': qs.order_by(*order_fields),
         'season': active_season,
         'divisions': Division.objects.filter(is_active=True),
         'division_id': division_id,
         'view': view,
         'search': search,
+        'sort': sort,
+        'sort_dir': sort_dir,
+        'sort_base_qs': sort_base_qs,
     })
 
 

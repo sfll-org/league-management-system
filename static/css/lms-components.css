@@ -1892,6 +1892,10 @@ select.kiosk-walkin-input { cursor: pointer; }
 
 .field-row__sub {
   margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
 /* ─── Player Detail (Phase 4 — SFLL-94) ─── */
 
 /* Header arrangement: large avatar + crumbs + name + pill row. The
@@ -2298,6 +2302,8 @@ select.kiosk-walkin-input { cursor: pointer; }
   font-size: 12px;
   color: var(--ink-3);
   padding: 0 14px 12px;
+}
+
 .score-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
