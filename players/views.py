@@ -175,11 +175,16 @@ def _user_can_edit_roster(user, player_season):
     return False
 
 
-def _can_view_evals(user, division=None):
-    """Mirrors evaluations._can_view_aggregated — aggregated only, never per-coach."""
+def _can_view_evals(user, division=None, league=None):
+    """Mirrors evaluations._can_view_aggregated — aggregated only, never per-coach.
+
+    Roles are scoped to `league` so a CTO of league A cannot view league B evals.
+    """
     if user.is_superuser:
         return True
     roles = user.roles.filter(is_active=True)
+    if league:
+        roles = roles.filter(league=league)
     if roles.filter(role__in=['cto', 'ses_manager', 'vp_player_agents', 'president']).exists():
         return True
     if division and roles.filter(role='player_agent', division=division).exists():
@@ -286,7 +291,11 @@ def player_detail(request, player_season_id):
         sub_league_choices = list(player_season.division.league_names or [])
 
     composite = None
-    can_see_evals = _can_view_evals(request.user, division=player_season.division)
+    can_see_evals = _can_view_evals(
+        request.user,
+        division=player_season.division,
+        league=player_season.season.league,
+    )
     if can_see_evals:
         composite = _composite_score(player_season)
 
