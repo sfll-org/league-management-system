@@ -1,192 +1,420 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}SFLL — {{ session.name }}{% endblock %}
+{# SFLL-96 — SES Session screen (Phase 5).
+   Rebuilt on Pacific tokens. Four-section layout:
+     1. Page header + session meta + action buttons
+     2. Stat row — Registered / Checked-in / No-show / On-station
+     3. Per-station progress — small multiples, one card per station
+     4. Two-column lower section:
+          left (2/3)  — searchable check-in roster with quick-check-in CTA
+          right (1/3) — no-show queue with inline one-click reschedule
+   All interactive pieces are HTMX-driven; Alpine handles the search input
+   state so the spinner is wired correctly.
+#}
+
+{% block title %}{{ session.name }} — SFLL{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Station smalls grid ── */
+  .station-smalls {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--gap);
+  }
+  .station-small {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .station-small__name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .station-small__track {
+    height: 6px;
+    background: var(--bg-3);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .station-small__fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 999px;
+    transition: width 400ms ease;
+  }
+  .station-small__counts {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-num);
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .station-small__pct {
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+
+  /* ── Session screen two-column grid ── */
+  .ses-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--gap);
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .ses-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Roster search bar ── */
+  .ses-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .ses-search__input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+  }
+  .ses-search__input::placeholder { color: var(--ink-4); }
+
+  /* ── Roster rows ── */
+  .roster-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    min-height: var(--row-h);
+    transition: background 80ms ease;
+  }
+  .roster-row:last-child { border-bottom: none; }
+  .roster-row:hover { background: var(--bg-2); }
+  .roster-row__name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .roster-row--checked .roster-row__name { color: var(--success); }
+  .roster-row__time {
+    font-family: var(--font-num);
+    font-size: 12px;
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  /* ── No-show queue rows ── */
+  .noshow-row {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--row-h);
+  }
+  .noshow-row:last-child { border-bottom: none; }
+  .noshow-row__name {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Inline reschedule form ── */
+  .reschedule-form {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+  .reschedule-form__label {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+  }
+  .reschedule-form__name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .reschedule-form select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .reschedule-form__actions {
+    display: flex;
+    gap: 6px;
+  }
+
+  /* ── Assignment panel (manage players) ── */
+  #assignment-panel { margin-top: var(--gap); }
+
+  /* ── OOB stat tiles update targets ── */
+  #stat-checked-in,
+  #stat-no-show { }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-    <!-- Breadcrumb -->
-    <nav class="text-sm text-gray-500">
-        <a href="{% url 'tryouts:session_list' %}" class="hover:text-emerald-400 transition">SES Sessions</a>
-        <span class="mx-2">/</span>
-        <span class="text-gray-300">{{ session.name }}</span>
-    </nav>
+<div class="page">
 
-    <!-- Session Info Card -->
-    <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div class="space-y-2">
-                <div class="flex items-center gap-3">
-                    <h1 class="text-2xl font-bold text-white">{{ session.name }}</h1>
-                    {% if session.is_makeup %}
-                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-900/50 text-amber-300 border border-amber-700/50">
-                        Makeup
-                    </span>
-                    {% endif %}
-                </div>
-                <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                    <span class="text-emerald-400 font-medium">{{ session.division.name }}</span>
-                    <span class="text-gray-300">
-                        {{ session.date|date:"l, F j, Y" }}
-                    </span>
-                    <span class="text-gray-300">
-                        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} &ndash; {{ session.end_time|time:"g:i A" }}{% endif %}
-                    </span>
-                    {% if session.location %}
-                    <span class="text-gray-400">{{ session.location }}</span>
-                    {% endif %}
-                </div>
-                {% if session.is_makeup and session.makeup_for %}
-                <p class="text-sm text-amber-400/80">
-                    Makeup for: {{ session.makeup_for.name }} ({{ session.makeup_for.date|date:"M j" }})
-                </p>
-                {% endif %}
-            </div>
-
-            {% if can_manage %}
-            <div class="flex flex-wrap gap-2 shrink-0">
-                <a href="{% url 'tryouts:session_edit' session.pk %}"
-                   class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition">
-                    Edit
-                </a>
-                <a href="{% url 'tryouts:flag_noshows' session.pk %}"
-                   class="px-4 py-2 bg-amber-900/50 hover:bg-amber-800/50 text-amber-300 text-sm font-medium rounded-lg border border-amber-700/50 transition">
-                    No-Shows
-                </a>
-                <a href="{% url 'tryouts:session_qr_codes' session.pk %}"
-                   class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium rounded-lg transition"
-                   target="_blank">
-                    Print QR Codes
-                </a>
-                <a href="{% url 'tryouts:session_delete' session.pk %}"
-                   class="px-4 py-2 bg-red-900/50 hover:bg-red-800/50 text-red-300 text-sm font-medium rounded-lg border border-red-700/50 transition">
-                    Delete
-                </a>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Stats -->
-        <div class="mt-4 pt-4 border-t border-gray-700 flex flex-wrap gap-6">
-            <div>
-                <span class="text-2xl font-bold text-white">{{ assignment_count }}</span>
-                <span class="text-sm text-gray-400 ml-1">assigned</span>
-            </div>
-            <div>
-                <span class="text-2xl font-bold text-emerald-400">{{ checked_in_count }}</span>
-                <span class="text-sm text-gray-400 ml-1">checked in</span>
-            </div>
-        </div>
+  {# ─── Page header ─── #}
+  <div class="page-header">
+    <div>
+      <nav style="font-size:12px; color:var(--ink-3); margin-bottom:6px;">
+        <a href="{% url 'tryouts:session_list' %}" style="color:var(--primary); text-decoration:none;">SES Sessions</a>
+        <span style="margin:0 5px;">/</span>
+        <span>{{ session.name }}</span>
+      </nav>
+      <h1 class="page-title">
+        {{ session.name }}
+        {% if session.is_makeup %}
+        <span class="pill pill--warn" style="font-size:13px; vertical-align:middle; margin-left:8px;">Makeup</span>
+        {% endif %}
+      </h1>
+      <div class="page-sub">
+        {{ session.division.name }}
+        &nbsp;·&nbsp;
+        {{ session.date|date:"l, F j, Y" }}
+        &nbsp;·&nbsp;
+        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} – {{ session.end_time|time:"g:i A" }}{% endif %}
+        {% if session.location %}
+          &nbsp;·&nbsp;{{ session.location }}
+        {% endif %}
+        {% if session.is_makeup and session.makeup_for %}
+          &nbsp;·&nbsp;<span style="color:var(--warn);">Makeup for {{ session.makeup_for.name }} ({{ session.makeup_for.date|date:"M j" }})</span>
+        {% endif %}
+      </div>
     </div>
 
-    <div class="grid gap-6 lg:grid-cols-3">
-        <!-- Assigned Players (2/3 width) -->
-        <div class="lg:col-span-2 space-y-4">
-            <div class="bg-gray-800 rounded-xl border border-gray-700">
-                <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-white">Assigned Players</h2>
-                    {% if can_manage %}
-                    <button hx-get="{% url 'tryouts:session_assign' session.pk %}"
-                            hx-target="#assignment-panel"
-                            hx-swap="innerHTML"
-                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition">
-                        Manage Assignments
-                    </button>
-                    {% endif %}
-                </div>
-
-                {% if assignments %}
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-left text-gray-400 border-b border-gray-700">
-                                <th class="px-6 py-3 font-medium">Player</th>
-                                <th class="px-6 py-3 font-medium hidden sm:table-cell">Assigned</th>
-                                <th class="px-6 py-3 font-medium">Check-in</th>
-                                <th class="px-3 py-3 font-medium w-10">QR</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-700/50">
-                            {% for row in assignments %}
-                            <tr class="hover:bg-gray-700/30 transition">
-                                <td class="px-6 py-3 text-white font-medium">
-                                    {{ row.player.last_name }}, {{ row.player.first_name }}
-                                </td>
-                                <td class="px-6 py-3 text-gray-400 hidden sm:table-cell">
-                                    {{ row.assignment.created_at|date:"M j, g:i A" }}
-                                </td>
-                                <td class="px-6 py-3">
-                                    {% if row.checked_in %}
-                                    <span class="inline-flex items-center gap-1 text-emerald-400">
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                                        </svg>
-                                        {{ row.checkin.checked_in_at|time:"g:i A" }}
-                                    </span>
-                                    {% else %}
-                                    <span class="text-gray-500">&mdash;</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-3 py-3">
-                                    <a href="{% url 'tryouts:player_qr_code' player_season_id=row.player_season.pk %}"
-                                       target="_blank"
-                                       title="QR code for {{ row.player.full_name }}"
-                                       class="text-gray-500 hover:text-emerald-400 transition">
-                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                  d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round"
-                                                  d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75H16.5v-.75Z" />
-                                        </svg>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="px-6 py-12 text-center">
-                    <p class="text-gray-500">No players assigned to this session yet.</p>
-                    {% if can_manage %}
-                    <button hx-get="{% url 'tryouts:session_assign' session.pk %}"
-                            hx-target="#assignment-panel"
-                            hx-swap="innerHTML"
-                            class="mt-3 text-emerald-400 hover:text-emerald-300 text-sm transition">
-                        Assign players now
-                    </button>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- HTMX Assignment Panel -->
-            <div id="assignment-panel"></div>
-        </div>
-
-        <!-- Sidebar: Stations -->
-        <div class="space-y-4">
-            <div class="bg-gray-800 rounded-xl border border-gray-700">
-                <div class="px-6 py-4 border-b border-gray-700">
-                    <h2 class="text-lg font-semibold text-white">Evaluation Stations</h2>
-                </div>
-                {% if stations %}
-                <ul class="divide-y divide-gray-700/50">
-                    {% for station in stations %}
-                    <li class="px-6 py-3">
-                        <p class="text-white font-medium">{{ station.name }}</p>
-                        {% if station.description %}
-                        <p class="text-gray-500 text-sm mt-0.5">{{ station.description }}</p>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <div class="px-6 py-8 text-center">
-                    <p class="text-gray-500 text-sm">No stations configured.</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+    {% if can_manage %}
+    <div class="page-header__actions">
+      {% if can_manage %}
+      <button class="btn"
+              hx-get="{% url 'tryouts:session_assign' session.pk %}"
+              hx-target="#assignment-panel"
+              hx-swap="innerHTML">
+        Manage Assignments
+      </button>
+      {% endif %}
+      <a href="{% url 'tryouts:session_qr_codes' session.pk %}" class="btn" target="_blank">
+        Print QR
+      </a>
+      <a href="{% url 'tryouts:session_edit' session.pk %}" class="btn">Edit</a>
+      <a href="{% url 'tryouts:session_delete' session.pk %}" class="btn btn--danger btn--sm">Delete</a>
     </div>
-</div>
+    {% endif %}
+  </div>
+
+  {# ─── 1. Stat row ─── #}
+  <div class="stats" id="ses-stats">
+
+    <div class="stat">
+      <div class="stat__label">Registered</div>
+      <div class="stat__value num">{{ assignment_count }}</div>
+      <div class="stat__delta stat__delta--flat">assigned to session</div>
+    </div>
+
+    <div class="stat" id="stat-checked-in">
+      <div class="stat__label">Checked in</div>
+      <div class="stat__value num" style="color:var(--success);">{{ checked_in_count }}</div>
+      <div class="stat__delta stat__delta--flat">
+        {% if assignment_count %}
+          {% widthratio checked_in_count assignment_count 100 %}% of registered
+        {% else %}—{% endif %}
+      </div>
+    </div>
+
+    <div class="stat" id="stat-no-show">
+      <div class="stat__label">No-show</div>
+      <div class="stat__value num"
+           style="color:{% if no_show_count %}var(--warn){% else %}var(--ink){% endif %};">
+        {{ no_show_count }}
+      </div>
+      <div class="stat__delta stat__delta--flat">did not check in</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat__label">On-station</div>
+      <div class="stat__value num" style="color:var(--primary);">{{ on_station_count }}</div>
+      <div class="stat__delta stat__delta--flat">have been evaluated</div>
+    </div>
+
+  </div>{# /.stats #}
+
+  {# ─── 2. Per-station progress (small multiples) ─── #}
+  {% if station_progress %}
+  <div class="card" style="margin-bottom:var(--gap-lg);">
+    <div class="card__head">
+      <span class="card__title">Station progress</span>
+      <span class="card__title-sub">
+        {% if checked_in_count %}of {{ checked_in_count }} checked-in players{% else %}no check-ins yet{% endif %}
+      </span>
+    </div>
+    <div class="card__body">
+      <div class="station-smalls">
+        {% for sp in station_progress %}
+        <div class="station-small">
+          <div class="station-small__name" title="{{ sp.station.name }}">{{ sp.station.name }}</div>
+          <div class="station-small__track">
+            <div class="station-small__fill" style="width:{{ sp.pct }}%;"></div>
+          </div>
+          <div class="station-small__counts">
+            <span>{{ sp.evaluated }}/{{ sp.total }}</span>
+            <span class="station-small__pct">{{ sp.pct }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── 3+4. Check-in roster + no-show queue ─── #}
+  <div class="ses-grid">
+
+    {# ── Check-in roster ── #}
+    <div class="card">
+      <div class="card__head">
+        <span class="card__title">Roster</span>
+        <span class="card__title-sub">{{ assignment_count }} assigned</span>
+      </div>
+
+      {# Search bar #}
+      <div class="ses-search" x-data="{ loading: false }">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             style="color:var(--ink-4); flex-shrink:0;">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input
+          type="search"
+          placeholder="Search players…"
+          autocomplete="off"
+          class="ses-search__input"
+          hx-get="{% url 'tryouts:ses_roster_search' session.pk %}"
+          hx-trigger="keyup changed delay:250ms, search"
+          hx-target="#roster-rows"
+          hx-indicator="#roster-spinner"
+        />
+        <svg id="roster-spinner" class="htmx-indicator" width="14" height="14" viewBox="0 0 24 24"
+             style="color:var(--ink-3); animation:spin 0.7s linear infinite; flex-shrink:0;">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="40 60"/>
+        </svg>
+      </div>
+
+      {# Roster rows (HTMX target) #}
+      <div id="roster-rows">
+        {% include "tryouts/partials/ses_roster_rows.html" %}
+      </div>
+
+      {% if can_manage %}
+      <div id="assignment-panel"></div>
+      {% endif %}
+    </div>
+
+    {# ── No-show queue ── #}
+    <div class="card">
+      <div class="card__head">
+        <span class="card__title">No-show queue</span>
+        {% if no_show_count %}
+        <span class="pill pill--warn" style="margin-left:auto;">{{ no_show_count }}</span>
+        {% else %}
+        <span class="pill pill--success" style="margin-left:auto;">
+          <span class="pill__dot"></span>All in
+        </span>
+        {% endif %}
+      </div>
+
+      <div id="noshow-queue">
+        {% for a in assignments %}
+        {% if not a.checked_in %}
+        <div id="noshow-row-{{ a.assignment.pk }}"
+             class="noshow-row"
+             x-data="{ rescheduling: false }">
+
+          {# Default state — name + reschedule button #}
+          <div class="noshow-row__name" x-show="!rescheduling">
+            {{ a.player.last_name }}, {{ a.player.first_name }}
+          </div>
+          {% if target_sessions %}
+          <button class="btn btn--sm" x-show="!rescheduling" @click="rescheduling = true">
+            Reschedule
+          </button>
+          {% endif %}
+
+          {# Inline reschedule form — visible when rescheduling=true #}
+          {% if target_sessions %}
+          <form x-show="rescheduling" x-cloak
+                style="width:100%; display:flex; flex-direction:column; gap:6px;"
+                hx-post="{% url 'tryouts:ses_quick_reschedule' session.pk a.assignment.pk %}"
+                hx-target="#noshow-row-{{ a.assignment.pk }}"
+                hx-swap="outerHTML">
+            {% csrf_token %}
+            <div style="font-size:12px; color:var(--ink-2); font-weight:600;">
+              {{ a.player.last_name }}, {{ a.player.first_name }}
+            </div>
+            <select name="target_session" required
+                    style="border:1px solid var(--border-2); border-radius:var(--radius-sm);
+                           padding:5px 8px; font-size:13px; background:var(--surface);
+                           color:var(--ink); width:100%;">
+              <option value="">— pick a session —</option>
+              {% for s in target_sessions %}
+              <option value="{{ s.pk }}">{{ s.name }} · {{ s.date|date:"M j" }}</option>
+              {% endfor %}
+            </select>
+            <div style="display:flex; gap:6px;">
+              <button type="submit" class="btn btn--primary btn--sm">Move</button>
+              <button type="button" class="btn btn--sm" @click="rescheduling = false">Cancel</button>
+            </div>
+          </form>
+          {% endif %}
+
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        {% if no_show_count == 0 %}
+        <div style="padding:24px 16px; text-align:center; color:var(--ink-3); font-size:13.5px;">
+          Nothing to fix. Touch some grass.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>{# /.ses-grid #}
+
+</div>{# /.page #}
+
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+  [x-cloak] { display: none !important; }
+</style>
 {% endblock %}

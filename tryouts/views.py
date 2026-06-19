@@ -5,11 +5,12 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
+from evaluations.models import Evaluation
 from players.models import Division, PlayerSeason, Season, Station
+
 from .models import CheckIn, Session, SessionAssignment
 from .utils import generate_checkin_qr
 
@@ -20,7 +21,13 @@ def _can_manage_sessions(user):
         return True
     return user.roles.filter(
         is_active=True,
-        role__in=['cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent'],
+        role__in=[
+            "cto",
+            "ses_manager",
+            "vp_player_agents",
+            "president",
+            "player_agent",
+        ],
     ).exists()
 
 
@@ -34,21 +41,25 @@ def session_list(request):
     """List SES sessions for the active season, with optional division filter."""
     active_season = _get_active_season()
     if not active_season:
-        return render(request, 'tryouts/session_list.html', {
-            'upcoming_sessions': [],
-            'past_sessions': [],
-            'season': None,
-            'divisions': [],
-            'selected_division': None,
-            'can_manage': _can_manage_sessions(request.user),
-        })
+        return render(
+            request,
+            "tryouts/session_list.html",
+            {
+                "upcoming_sessions": [],
+                "past_sessions": [],
+                "season": None,
+                "divisions": [],
+                "selected_division": None,
+                "can_manage": _can_manage_sessions(request.user),
+            },
+        )
 
-    sessions = Session.objects.select_related('division', 'season').filter(
+    sessions = Session.objects.select_related("division", "season").filter(
         season=active_season,
     )
 
     # Division filter
-    division_id = request.GET.get('division')
+    division_id = request.GET.get("division")
     selected_division = None
     if division_id:
         try:
@@ -58,11 +69,12 @@ def session_list(request):
             pass
 
     divisions = Division.objects.filter(
-        league=active_season.league, is_active=True,
-    ).order_by('display_order')
+        league=active_season.league,
+        is_active=True,
+    ).order_by("display_order")
 
     # Annotate with counts
-    sessions = sessions.prefetch_related('assignments', 'assignments__checkin')
+    sessions = sessions.prefetch_related("assignments", "assignments__checkin")
 
     today = date.today()
     upcoming = [s for s in sessions if s.date >= today]
@@ -72,55 +84,127 @@ def session_list(request):
     upcoming.sort(key=lambda s: (s.date, s.start_time))
     past.sort(key=lambda s: (s.date, s.start_time), reverse=True)
 
-    return render(request, 'tryouts/session_list.html', {
-        'upcoming_sessions': upcoming,
-        'past_sessions': past,
-        'season': active_season,
-        'divisions': divisions,
-        'selected_division': selected_division,
-        'can_manage': _can_manage_sessions(request.user),
-    })
+    return render(
+        request,
+        "tryouts/session_list.html",
+        {
+            "upcoming_sessions": upcoming,
+            "past_sessions": past,
+            "season": active_season,
+            "divisions": divisions,
+            "selected_division": selected_division,
+            "can_manage": _can_manage_sessions(request.user),
+        },
+    )
 
 
 @login_required
 def session_detail(request, pk):
-    """Show session info, assigned players, and stations."""
+    """SES Session screen — stat row, station progress, check-in roster, no-show queue."""
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season', 'makeup_for'),
+        Session.objects.select_related("division", "season", "makeup_for"),
         pk=pk,
     )
-    assignments = SessionAssignment.objects.select_related(
-        'player_season__player',
-    ).filter(session=session).order_by('player_season__player__last_name')
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+            "player_season__division",
+        )
+        .filter(session=session)
+        .prefetch_related("checkin")
+        .order_by(
+            "player_season__player__last_name",
+            "player_season__player__first_name",
+        )
+    )
 
     # Annotate check-in status
     assignment_data = []
     checked_in_count = 0
     for a in assignments:
-        has_checkin = hasattr(a, 'checkin')
+        try:
+            checkin = a.checkin
+            has_checkin = True
+        except CheckIn.DoesNotExist:
+            checkin = None
+            has_checkin = False
         if has_checkin:
             checked_in_count += 1
-        assignment_data.append({
-            'assignment': a,
-            'player_season': a.player_season,
-            'player': a.player_season.player,
-            'checked_in': has_checkin,
-            'checkin': a.checkin if has_checkin else None,
-        })
+        assignment_data.append(
+            {
+                "assignment": a,
+                "player_season": a.player_season,
+                "player": a.player_season.player,
+                "checked_in": has_checkin,
+                "checkin": checkin,
+            }
+        )
 
-    # Stations are league-level; show all active stations for the league
+    no_show_count = len(assignment_data) - checked_in_count
+
+    # On-station: distinct players with at least one eval this session
+    evaled_player_ids = set(
+        Evaluation.objects.filter(session=session).values_list(
+            "player_season_id", flat=True
+        )
+    )
+    on_station_count = len(evaled_player_ids)
+
+    # Stations + per-station eval progress (denominator = checked-in players)
     stations = Station.objects.filter(
-        league=session.division.league, is_active=True,
-    ).order_by('display_order')
+        league=session.division.league,
+        is_active=True,
+    ).order_by("display_order")
 
-    return render(request, 'tryouts/session_detail.html', {
-        'session': session,
-        'assignments': assignment_data,
-        'assignment_count': len(assignment_data),
-        'checked_in_count': checked_in_count,
-        'stations': stations,
-        'can_manage': _can_manage_sessions(request.user),
-    })
+    checked_in_player_ids = {
+        a["player_season"].pk for a in assignment_data if a["checked_in"]
+    }
+    station_progress = []
+    for station in stations:
+        station_eval_ids = set(
+            Evaluation.objects.filter(
+                session=session,
+                station=station,
+            ).values_list("player_season_id", flat=True)
+        )
+        evaluated = len(checked_in_player_ids & station_eval_ids)
+        total = checked_in_count
+        station_progress.append(
+            {
+                "station": station,
+                "evaluated": evaluated,
+                "total": total,
+                "pct": round(evaluated / total * 100) if total else 0,
+            }
+        )
+
+    # Target sessions for no-show inline reschedule
+    target_sessions = (
+        Session.objects.filter(
+            season=session.season,
+            division=session.division,
+        )
+        .exclude(pk=session.pk)
+        .order_by("date", "start_time")
+    )
+
+    return render(
+        request,
+        "tryouts/session_detail.html",
+        {
+            "session": session,
+            "assignments": assignment_data,
+            "assignment_count": len(assignment_data),
+            "checked_in_count": checked_in_count,
+            "no_show_count": no_show_count,
+            "on_station_count": on_station_count,
+            "station_progress": station_progress,
+            "stations": stations,
+            "target_sessions": target_sessions,
+            "can_manage": _can_manage_sessions(request.user),
+            "can_checkin": _can_checkin(request.user),
+        },
+    )
 
 
 @login_required
@@ -132,24 +216,29 @@ def session_create(request):
     active_season = _get_active_season()
     if not active_season:
         messages.error(request, "No active season. Cannot create a session.")
-        return redirect('tryouts:session_list')
+        return redirect("tryouts:session_list")
 
     divisions = Division.objects.filter(
-        league=active_season.league, is_active=True,
-    ).order_by('display_order')
+        league=active_season.league,
+        is_active=True,
+    ).order_by("display_order")
 
     # Existing sessions for makeup_for dropdown
-    existing_sessions = Session.objects.filter(season=active_season).order_by('date')
+    existing_sessions = Session.objects.filter(season=active_season).order_by("date")
 
-    if request.method == 'POST':
+    if request.method == "POST":
         return _save_session(request, active_season, divisions, existing_sessions)
 
-    return render(request, 'tryouts/session_form.html', {
-        'is_edit': False,
-        'season': active_season,
-        'divisions': divisions,
-        'existing_sessions': existing_sessions,
-    })
+    return render(
+        request,
+        "tryouts/session_form.html",
+        {
+            "is_edit": False,
+            "season": active_season,
+            "divisions": divisions,
+            "existing_sessions": existing_sessions,
+        },
+    )
 
 
 @login_required
@@ -162,37 +251,50 @@ def session_edit(request, pk):
     active_season = session.season
 
     divisions = Division.objects.filter(
-        league=active_season.league, is_active=True,
-    ).order_by('display_order')
+        league=active_season.league,
+        is_active=True,
+    ).order_by("display_order")
 
-    existing_sessions = Session.objects.filter(
-        season=active_season,
-    ).exclude(pk=pk).order_by('date')
+    existing_sessions = (
+        Session.objects.filter(
+            season=active_season,
+        )
+        .exclude(pk=pk)
+        .order_by("date")
+    )
 
-    if request.method == 'POST':
+    if request.method == "POST":
         return _save_session(
-            request, active_season, divisions, existing_sessions, session=session,
+            request,
+            active_season,
+            divisions,
+            existing_sessions,
+            session=session,
         )
 
-    return render(request, 'tryouts/session_form.html', {
-        'is_edit': True,
-        'session': session,
-        'season': active_season,
-        'divisions': divisions,
-        'existing_sessions': existing_sessions,
-    })
+    return render(
+        request,
+        "tryouts/session_form.html",
+        {
+            "is_edit": True,
+            "session": session,
+            "season": active_season,
+            "divisions": divisions,
+            "existing_sessions": existing_sessions,
+        },
+    )
 
 
 def _save_session(request, season, divisions, existing_sessions, session=None):
     """Shared save logic for create/edit."""
-    name = request.POST.get('name', '').strip()
-    date_str = request.POST.get('date', '').strip()
-    start_time = request.POST.get('start_time', '').strip()
-    end_time = request.POST.get('end_time', '').strip() or None
-    location = request.POST.get('location', '').strip()
-    division_id = request.POST.get('division', '')
-    is_makeup = request.POST.get('is_makeup') == 'on'
-    makeup_for_id = request.POST.get('makeup_for', '') or None
+    name = request.POST.get("name", "").strip()
+    date_str = request.POST.get("date", "").strip()
+    start_time = request.POST.get("start_time", "").strip()
+    end_time = request.POST.get("end_time", "").strip() or None
+    location = request.POST.get("location", "").strip()
+    division_id = request.POST.get("division", "")
+    is_makeup = request.POST.get("is_makeup") == "on"
+    makeup_for_id = request.POST.get("makeup_for", "") or None
 
     # Validation
     errors = []
@@ -208,21 +310,25 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
     if errors:
         for e in errors:
             messages.error(request, e)
-        return render(request, 'tryouts/session_form.html', {
-            'is_edit': session is not None,
-            'session': session,
-            'season': season,
-            'divisions': divisions,
-            'existing_sessions': existing_sessions,
-            'form_data': request.POST,
-        })
+        return render(
+            request,
+            "tryouts/session_form.html",
+            {
+                "is_edit": session is not None,
+                "session": session,
+                "season": season,
+                "divisions": divisions,
+                "existing_sessions": existing_sessions,
+                "form_data": request.POST,
+            },
+        )
 
     # Resolve FKs
     try:
         division = Division.objects.get(pk=division_id)
     except Division.DoesNotExist:
         messages.error(request, "Invalid division.")
-        return redirect('tryouts:session_list')
+        return redirect("tryouts:session_list")
 
     makeup_for = None
     if is_makeup and makeup_for_id:
@@ -245,9 +351,8 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
     session.makeup_for = makeup_for
     session.save()
 
-    action = "updated" if session.pk else "created"
-    messages.success(request, f"Session \"{session.name}\" saved successfully.")
-    return redirect('tryouts:session_detail', pk=session.pk)
+    messages.success(request, f'Session "{session.name}" saved successfully.')
+    return redirect("tryouts:session_detail", pk=session.pk)
 
 
 @login_required
@@ -258,32 +363,38 @@ def session_delete(request, pk):
 
     session = get_object_or_404(Session, pk=pk)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         name = session.name
         session.delete()
-        messages.success(request, f"Session \"{name}\" deleted.")
-        return redirect('tryouts:session_list')
+        messages.success(request, f'Session "{name}" deleted.')
+        return redirect("tryouts:session_list")
 
-    return render(request, 'tryouts/session_delete.html', {
-        'session': session,
-    })
+    return render(
+        request,
+        "tryouts/session_delete.html",
+        {
+            "session": session,
+        },
+    )
 
 
 @login_required
 def session_assign_players(request, pk):
     """HTMX view: show/toggle player assignments for a session."""
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
     can_manage = _can_manage_sessions(request.user)
 
-    if request.method == 'POST' and can_manage:
-        player_season_id = request.POST.get('player_season_id')
+    if request.method == "POST" and can_manage:
+        player_season_id = request.POST.get("player_season_id")
         if player_season_id:
             try:
                 ps = PlayerSeason.objects.get(pk=player_season_id)
                 existing = SessionAssignment.objects.filter(
-                    session=session, player_season=ps,
+                    session=session,
+                    player_season=ps,
                 )
                 if existing.exists():
                     existing.delete()
@@ -297,37 +408,49 @@ def session_assign_players(request, pk):
                 pass
 
     # Build player list for this division
-    player_seasons = PlayerSeason.objects.select_related('player').filter(
-        season=session.season,
-        division=session.division,
-    ).order_by('player__last_name', 'player__first_name')
+    player_seasons = (
+        PlayerSeason.objects.select_related("player")
+        .filter(
+            season=session.season,
+            division=session.division,
+        )
+        .order_by("player__last_name", "player__first_name")
+    )
 
     assigned_ids = set(
         SessionAssignment.objects.filter(session=session).values_list(
-            'player_season_id', flat=True,
+            "player_season_id",
+            flat=True,
         )
     )
 
     player_data = []
     for ps in player_seasons:
-        player_data.append({
-            'player_season': ps,
-            'player': ps.player,
-            'is_assigned': ps.pk in assigned_ids,
-        })
+        player_data.append(
+            {
+                "player_season": ps,
+                "player": ps.player,
+                "is_assigned": ps.pk in assigned_ids,
+            }
+        )
 
-    return render(request, 'tryouts/partials/player_assignments.html', {
-        'session': session,
-        'players': player_data,
-        'assigned_count': len(assigned_ids),
-        'total_count': len(player_data),
-        'can_manage': can_manage,
-    })
+    return render(
+        request,
+        "tryouts/partials/player_assignments.html",
+        {
+            "session": session,
+            "players": player_data,
+            "assigned_count": len(assigned_ids),
+            "total_count": len(player_data),
+            "can_manage": can_manage,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # Check-in views
 # ---------------------------------------------------------------------------
+
 
 def _can_checkin(user):
     """Front desk, player agents, ses managers, cto can check in players."""
@@ -335,7 +458,14 @@ def _can_checkin(user):
         return True
     return user.roles.filter(
         is_active=True,
-        role__in=['cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent', 'front_desk'],
+        role__in=[
+            "cto",
+            "ses_manager",
+            "vp_player_agents",
+            "president",
+            "player_agent",
+            "front_desk",
+        ],
     ).exists()
 
 
@@ -352,15 +482,17 @@ def _build_assignment_data(assignments):
             has_checkin = False
         if has_checkin:
             checked_in_count += 1
-        data.append({
-            'assignment': a,
-            'player_season': a.player_season,
-            'player': a.player_season.player,
-            'division': a.player_season.division,
-            'account_name': a.player_season.account_name,
-            'checked_in': has_checkin,
-            'checkin': checkin,
-        })
+        data.append(
+            {
+                "assignment": a,
+                "player_season": a.player_season,
+                "player": a.player_season.player,
+                "division": a.player_season.division,
+                "account_name": a.player_season.account_name,
+                "checked_in": has_checkin,
+                "checkin": checkin,
+            }
+        )
     return data, checked_in_count
 
 
@@ -371,61 +503,91 @@ def session_checkin(request, pk):
         return HttpResponseForbidden("You do not have permission to check in players.")
 
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
 
-    assignments = SessionAssignment.objects.select_related(
-        'player_season__player', 'player_season__division',
-    ).filter(session=session).order_by('player_season__player__last_name')
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+            "player_season__division",
+        )
+        .filter(session=session)
+        .order_by("player_season__player__last_name")
+    )
 
     # Prefetch check-ins
-    assignments = assignments.prefetch_related('checkin')
+    assignments = assignments.prefetch_related("checkin")
 
     assignment_data, checked_in_count = _build_assignment_data(assignments)
 
     # Get today's sessions for session switcher
     today = date.today()
-    todays_sessions = Session.objects.filter(
-        season=session.season, date=today,
-    ).select_related('division').order_by('start_time')
+    todays_sessions = (
+        Session.objects.filter(
+            season=session.season,
+            date=today,
+        )
+        .select_related("division")
+        .order_by("start_time")
+    )
 
-    return render(request, 'tryouts/checkin.html', {
-        'session': session,
-        'assignments': assignment_data,
-        'assignment_count': len(assignment_data),
-        'checked_in_count': checked_in_count,
-        'todays_sessions': todays_sessions,
-    })
+    return render(
+        request,
+        "tryouts/checkin.html",
+        {
+            "session": session,
+            "assignments": assignment_data,
+            "assignment_count": len(assignment_data),
+            "checked_in_count": checked_in_count,
+            "todays_sessions": todays_sessions,
+        },
+    )
 
 
 def checkin_by_token(request, token):
     """Public check-in via QR code — no authentication required."""
-    player_season = get_object_or_404(PlayerSeason.objects.select_related('player', 'season'), checkin_token=token)
+    player_season = get_object_or_404(
+        PlayerSeason.objects.select_related("player", "season"), checkin_token=token
+    )
 
     today = date.today()
     # Find today's session assignment for this player
-    assignment = SessionAssignment.objects.select_related(
-        'session', 'session__division',
-    ).filter(
-        player_season=player_season,
-        session__date=today,
-    ).first()
+    assignment = (
+        SessionAssignment.objects.select_related(
+            "session",
+            "session__division",
+        )
+        .filter(
+            player_season=player_season,
+            session__date=today,
+        )
+        .first()
+    )
 
     if not assignment:
-        return render(request, 'tryouts/checkin_confirm.html', {
-            'player': player_season.player,
-            'error': 'No SES session found for today. Please check with the front desk.',
-        })
+        return render(
+            request,
+            "tryouts/checkin_confirm.html",
+            {
+                "player": player_season.player,
+                "error": "No SES session found for today. Please check with the front desk.",
+            },
+        )
 
     # Check if already checked in
     try:
         existing = assignment.checkin
-        return render(request, 'tryouts/checkin_confirm.html', {
-            'player': player_season.player,
-            'session': assignment.session,
-            'checkin': existing,
-            'already_checked_in': True,
-        })
+        return render(
+            request,
+            "tryouts/checkin_confirm.html",
+            {
+                "player": player_season.player,
+                "session": assignment.session,
+                "checkin": existing,
+                "already_checked_in": True,
+            },
+        )
     except CheckIn.DoesNotExist:
         pass
 
@@ -433,15 +595,19 @@ def checkin_by_token(request, token):
     checkin = CheckIn.objects.create(
         session_assignment=assignment,
         checked_in_by=None,
-        notes='QR code check-in',
+        notes="QR code check-in",
     )
 
-    return render(request, 'tryouts/checkin_confirm.html', {
-        'player': player_season.player,
-        'session': assignment.session,
-        'checkin': checkin,
-        'already_checked_in': False,
-    })
+    return render(
+        request,
+        "tryouts/checkin_confirm.html",
+        {
+            "player": player_season.player,
+            "session": assignment.session,
+            "checkin": checkin,
+            "already_checked_in": False,
+        },
+    )
 
 
 @login_required
@@ -451,11 +617,16 @@ def checkin_search(request, pk):
         return HttpResponseForbidden()
 
     session = get_object_or_404(Session, pk=pk)
-    q = request.GET.get('q', '').strip()
+    q = request.GET.get("q", "").strip()
 
-    assignments = SessionAssignment.objects.select_related(
-        'player_season__player', 'player_season__division',
-    ).filter(session=session).prefetch_related('checkin')
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+            "player_season__division",
+        )
+        .filter(session=session)
+        .prefetch_related("checkin")
+    )
 
     if q:
         assignments = assignments.filter(
@@ -463,16 +634,20 @@ def checkin_search(request, pk):
             | Q(player_season__player__last_name__icontains=q)
         )
 
-    assignments = assignments.order_by('player_season__player__last_name')
+    assignments = assignments.order_by("player_season__player__last_name")
 
     assignment_data, checked_in_count = _build_assignment_data(assignments)
 
-    return render(request, 'tryouts/partials/checkin_player_list.html', {
-        'session': session,
-        'assignments': assignment_data,
-        'assignment_count': len(assignment_data),
-        'checked_in_count': checked_in_count,
-    })
+    return render(
+        request,
+        "tryouts/partials/checkin_player_list.html",
+        {
+            "session": session,
+            "assignments": assignment_data,
+            "assignment_count": len(assignment_data),
+            "checked_in_count": checked_in_count,
+        },
+    )
 
 
 @login_required
@@ -484,7 +659,9 @@ def checkin_player(request, pk, assignment_id):
 
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
-            'player_season__player', 'player_season__division', 'session',
+            "player_season__player",
+            "player_season__division",
+            "session",
         ),
         pk=assignment_id,
         session_id=pk,
@@ -494,37 +671,67 @@ def checkin_player(request, pk, assignment_id):
     checkin, created = CheckIn.objects.get_or_create(
         session_assignment=assignment,
         defaults={
-            'checked_in_by': request.user,
+            "checked_in_by": request.user,
         },
     )
 
-    # Get updated stats for OOB swap
     session = assignment.session
+
+    # Detect which template to use based on HTMX target header.
+    # The new SES session screen targets #roster-assignment-{id};
+    # the old iPad check-in kiosk targets #assignment-{id}.
+    # We serve the Pacific-styled partial for the session screen and
+    # the legacy dark partial for the kiosk so both views keep working.
+    htmx_target = request.headers.get("HX-Target", "")
+    if htmx_target.startswith("roster-assignment-"):
+        return render(
+            request,
+            "tryouts/partials/ses_roster_rows.html",
+            {
+                "assignments": [
+                    {
+                        "assignment": assignment,
+                        "player_season": assignment.player_season,
+                        "player": assignment.player_season.player,
+                        "checked_in": True,
+                        "checkin": checkin,
+                    }
+                ],
+                "session": session,
+                "can_checkin": True,
+            },
+        )
+
+    # Legacy kiosk path — keep existing OOB behaviour
     total_assigned = session.assignments.count()
     total_checked_in = CheckIn.objects.filter(
         session_assignment__session=session
     ).count()
-
-    return render(request, 'tryouts/partials/checkin_player_row.html', {
-        'a': {
-            'assignment': assignment,
-            'player_season': assignment.player_season,
-            'player': assignment.player_season.player,
-            'division': assignment.player_season.division,
-            'account_name': assignment.player_season.account_name,
-            'checked_in': True,
-            'checkin': checkin,
+    return render(
+        request,
+        "tryouts/partials/checkin_player_row.html",
+        {
+            "a": {
+                "assignment": assignment,
+                "player_season": assignment.player_season,
+                "player": assignment.player_season.player,
+                "division": assignment.player_season.division,
+                "account_name": assignment.player_season.account_name,
+                "checked_in": True,
+                "checkin": checkin,
+            },
+            "session": session,
+            "total_assigned": total_assigned,
+            "total_checked_in": total_checked_in,
+            "include_stats_oob": True,
         },
-        'session': session,
-        'total_assigned': total_assigned,
-        'total_checked_in': total_checked_in,
-        'include_stats_oob': True,
-    })
+    )
 
 
 # ---------------------------------------------------------------------------
 # Session reassignment
 # ---------------------------------------------------------------------------
+
 
 def _can_reassign(user):
     """Check if user can reassign players between sessions."""
@@ -532,7 +739,7 @@ def _can_reassign(user):
         return True
     return user.roles.filter(
         is_active=True,
-        role__in=['cto', 'ses_manager', 'player_agent', 'front_desk'],
+        role__in=["cto", "ses_manager", "player_agent", "front_desk"],
     ).exists()
 
 
@@ -544,7 +751,9 @@ def reassign_player(request, pk, assignment_id):
 
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
-            'session__division', 'session__season', 'player_season__player',
+            "session__division",
+            "session__season",
+            "player_season__player",
         ),
         pk=assignment_id,
         session_id=pk,
@@ -552,44 +761,57 @@ def reassign_player(request, pk, assignment_id):
     source_session = assignment.session
 
     # Available target sessions: same division, same season, not the current one
-    target_sessions = Session.objects.filter(
-        season=source_session.season,
-        division=source_session.division,
-    ).exclude(pk=source_session.pk).order_by('date', 'start_time')
+    target_sessions = (
+        Session.objects.filter(
+            season=source_session.season,
+            division=source_session.division,
+        )
+        .exclude(pk=source_session.pk)
+        .order_by("date", "start_time")
+    )
 
-    if request.method == 'POST':
-        target_session_id = request.POST.get('target_session')
-        reason = request.POST.get('reason', '').strip()
+    if request.method == "POST":
+        target_session_id = request.POST.get("target_session")
+        reason = request.POST.get("reason", "").strip()
 
         if not target_session_id:
             messages.error(request, "Please select a target session.")
-            return render(request, 'tryouts/reassign.html', {
-                'assignment': assignment,
-                'source_session': source_session,
-                'player': assignment.player_season.player,
-                'player_season': assignment.player_season,
-                'target_sessions': target_sessions,
-                'form_data': request.POST,
-            })
+            return render(
+                request,
+                "tryouts/reassign.html",
+                {
+                    "assignment": assignment,
+                    "source_session": source_session,
+                    "player": assignment.player_season.player,
+                    "player_season": assignment.player_season,
+                    "target_sessions": target_sessions,
+                    "form_data": request.POST,
+                },
+            )
 
         target_session = get_object_or_404(Session, pk=target_session_id)
 
         # Check the player isn't already assigned to the target session
         if SessionAssignment.objects.filter(
-            session=target_session, player_season=assignment.player_season,
+            session=target_session,
+            player_season=assignment.player_season,
         ).exists():
             messages.error(
                 request,
                 f"Player is already assigned to {target_session.name}.",
             )
-            return render(request, 'tryouts/reassign.html', {
-                'assignment': assignment,
-                'source_session': source_session,
-                'player': assignment.player_season.player,
-                'player_season': assignment.player_season,
-                'target_sessions': target_sessions,
-                'form_data': request.POST,
-            })
+            return render(
+                request,
+                "tryouts/reassign.html",
+                {
+                    "assignment": assignment,
+                    "source_session": source_session,
+                    "player": assignment.player_season.player,
+                    "player_season": assignment.player_season,
+                    "target_sessions": target_sessions,
+                    "form_data": request.POST,
+                },
+            )
 
         # Create new assignment in target session
         SessionAssignment.objects.create(
@@ -601,19 +823,19 @@ def reassign_player(request, pk, assignment_id):
         # Record audit log
         AuditLog.objects.create(
             user=request.user,
-            action='player.reassign',
-            entity_type='SessionAssignment',
+            action="player.reassign",
+            entity_type="SessionAssignment",
             entity_id=assignment.pk,
             details={
-                'from_session_id': source_session.pk,
-                'from_session_name': source_session.name,
-                'to_session_id': target_session.pk,
-                'to_session_name': target_session.name,
-                'player_season_id': assignment.player_season.pk,
-                'player_name': str(assignment.player_season.player),
-                'reason': reason,
+                "from_session_id": source_session.pk,
+                "from_session_name": source_session.name,
+                "to_session_id": target_session.pk,
+                "to_session_name": target_session.name,
+                "player_season_id": assignment.player_season.pk,
+                "player_name": str(assignment.player_season.player),
+                "reason": reason,
             },
-            ip_address=request.META.get('REMOTE_ADDR'),
+            ip_address=request.META.get("REMOTE_ADDR"),
         )
 
         # Delete old assignment
@@ -626,22 +848,27 @@ def reassign_player(request, pk, assignment_id):
         )
 
         # If HTMX request, return to the check-in dashboard
-        if request.headers.get('HX-Request'):
-            return redirect('tryouts:session_checkin', pk=source_session.pk)
-        return redirect('tryouts:session_detail', pk=source_session.pk)
+        if request.headers.get("HX-Request"):
+            return redirect("tryouts:session_checkin", pk=source_session.pk)
+        return redirect("tryouts:session_detail", pk=source_session.pk)
 
-    return render(request, 'tryouts/reassign.html', {
-        'assignment': assignment,
-        'source_session': source_session,
-        'player': assignment.player_season.player,
-        'player_season': assignment.player_season,
-        'target_sessions': target_sessions,
-    })
+    return render(
+        request,
+        "tryouts/reassign.html",
+        {
+            "assignment": assignment,
+            "source_session": source_session,
+            "player": assignment.player_season.player,
+            "player_season": assignment.player_season,
+            "target_sessions": target_sessions,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # No-show flagging
 # ---------------------------------------------------------------------------
+
 
 def _can_flag_noshows(user):
     """Check if user can flag no-shows."""
@@ -649,7 +876,7 @@ def _can_flag_noshows(user):
         return True
     return user.roles.filter(
         is_active=True,
-        role__in=['cto', 'ses_manager', 'player_agent'],
+        role__in=["cto", "ses_manager", "player_agent"],
     ).exists()
 
 
@@ -660,13 +887,19 @@ def flag_noshows(request, pk):
         return HttpResponseForbidden("You do not have permission to flag no-shows.")
 
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
 
     # All assignments for this session
-    assignments = SessionAssignment.objects.select_related(
-        'player_season__player', 'player_season__division',
-    ).filter(session=session).order_by('player_season__player__last_name')
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+            "player_season__division",
+        )
+        .filter(session=session)
+        .order_by("player_season__player__last_name")
+    )
 
     # Find no-shows: assignments with no CheckIn record
     noshow_assignments = []
@@ -676,36 +909,38 @@ def flag_noshows(request, pk):
         try:
             _ = a.checkin
         except CheckIn.DoesNotExist:
-            noshow_assignments.append({
-                'assignment': a,
-                'player_season': a.player_season,
-                'player': a.player_season.player,
-            })
+            noshow_assignments.append(
+                {
+                    "assignment": a,
+                    "player_season": a.player_season,
+                    "player": a.player_season.player,
+                }
+            )
 
-    if request.method == 'POST':
+    if request.method == "POST":
         # Flag selected players for makeup
-        flagged_ids = request.POST.getlist('flag_player_season')
+        flagged_ids = request.POST.getlist("flag_player_season")
         flagged_count = 0
         for ps_id in flagged_ids:
             try:
                 ps = PlayerSeason.objects.get(pk=ps_id)
                 # Mark the player season status so they need a makeup
-                if ps.status != 'needs_makeup':
-                    ps.status = 'needs_makeup'
-                    ps.save(update_fields=['status'])
+                if ps.status != "needs_makeup":
+                    ps.status = "needs_makeup"
+                    ps.save(update_fields=["status"])
                     flagged_count += 1
 
                     AuditLog.objects.create(
                         user=request.user,
-                        action='player.noshow_flagged',
-                        entity_type='PlayerSeason',
+                        action="player.noshow_flagged",
+                        entity_type="PlayerSeason",
                         entity_id=ps.pk,
                         details={
-                            'session_id': session.pk,
-                            'session_name': session.name,
-                            'player_name': str(ps.player),
+                            "session_id": session.pk,
+                            "session_name": session.name,
+                            "player_name": str(ps.player),
                         },
-                        ip_address=request.META.get('REMOTE_ADDR'),
+                        ip_address=request.META.get("REMOTE_ADDR"),
                     )
             except PlayerSeason.DoesNotExist:
                 continue
@@ -718,47 +953,234 @@ def flag_noshows(request, pk):
         else:
             messages.info(request, "No players were flagged.")
 
-        return redirect('tryouts:flag_noshows', pk=session.pk)
+        return redirect("tryouts:flag_noshows", pk=session.pk)
 
-    return render(request, 'tryouts/noshows.html', {
-        'session': session,
-        'noshow_assignments': noshow_assignments,
-        'noshow_count': len(noshow_assignments),
-        'total_count': total_count,
-        'can_manage': _can_manage_sessions(request.user),
-    })
+    return render(
+        request,
+        "tryouts/noshows.html",
+        {
+            "session": session,
+            "noshow_assignments": noshow_assignments,
+            "noshow_count": len(noshow_assignments),
+            "total_count": total_count,
+            "can_manage": _can_manage_sessions(request.user),
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # QR code views
 # ---------------------------------------------------------------------------
 
+
 @login_required
 def player_qr_code(request, player_season_id):
     """Generate and return a QR code PNG for a player's check-in token."""
     ps = get_object_or_404(PlayerSeason, pk=player_season_id)
     png_data = generate_checkin_qr(ps.checkin_token)
-    return HttpResponse(png_data, content_type='image/png')
+    return HttpResponse(png_data, content_type="image/png")
 
 
 @login_required
 def session_qr_codes(request, pk):
     """Printable page with QR codes for all assigned players in a session."""
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
-    assignments = SessionAssignment.objects.select_related(
-        'player_season__player',
-    ).filter(session=session).order_by('player_season__player__last_name')
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+        )
+        .filter(session=session)
+        .order_by("player_season__player__last_name")
+    )
 
     player_data = []
     for a in assignments:
-        player_data.append({
-            'player': a.player_season.player,
-            'player_season': a.player_season,
-        })
+        player_data.append(
+            {
+                "player": a.player_season.player,
+                "player_season": a.player_season,
+            }
+        )
 
-    return render(request, 'tryouts/qr_codes.html', {
-        'session': session,
-        'players': player_data,
-    })
+    return render(
+        request,
+        "tryouts/qr_codes.html",
+        {
+            "session": session,
+            "players": player_data,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# SES Session screen — HTMX endpoints (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def _build_roster_data(assignments, q=""):
+    """Filter and build roster list with check-in status for the session screen."""
+    data = []
+    for a in assignments:
+        player = a.player_season.player
+        if q:
+            name = f"{player.first_name} {player.last_name}".lower()
+            if q.lower() not in name:
+                continue
+        try:
+            checkin = a.checkin
+            has_checkin = True
+        except CheckIn.DoesNotExist:
+            checkin = None
+            has_checkin = False
+        data.append(
+            {
+                "assignment": a,
+                "player_season": a.player_season,
+                "player": player,
+                "checked_in": has_checkin,
+                "checkin": checkin,
+            }
+        )
+    return data
+
+
+@login_required
+def ses_roster_search(request, pk):
+    """HTMX: filter the roster table rows within the SES session screen."""
+    if not _can_checkin(request.user):
+        return HttpResponseForbidden()
+
+    session = get_object_or_404(Session, pk=pk)
+    q = request.GET.get("q", "").strip()
+
+    assignments = (
+        SessionAssignment.objects.select_related(
+            "player_season__player",
+            "player_season__division",
+        )
+        .filter(session=session)
+        .prefetch_related("checkin")
+        .order_by(
+            "player_season__player__last_name",
+            "player_season__player__first_name",
+        )
+    )
+
+    roster = _build_roster_data(assignments, q)
+
+    return render(
+        request,
+        "tryouts/partials/ses_roster_rows.html",
+        {
+            "session": session,
+            "assignments": roster,
+            "can_checkin": True,
+        },
+    )
+
+
+@login_required
+def ses_quick_reschedule(request, pk, assignment_id):
+    """HTMX: inline reschedule form for a no-show player.
+
+    GET  → returns a small inline form (target session selector).
+    POST → performs the reassignment and returns a success row.
+    """
+    if not _can_reassign(request.user):
+        return HttpResponseForbidden("You do not have permission to reassign players.")
+
+    assignment = get_object_or_404(
+        SessionAssignment.objects.select_related(
+            "session__division",
+            "session__season",
+            "player_season__player",
+        ),
+        pk=assignment_id,
+        session_id=pk,
+    )
+    source_session = assignment.session
+
+    target_sessions = (
+        Session.objects.filter(
+            season=source_session.season,
+            division=source_session.division,
+        )
+        .exclude(pk=source_session.pk)
+        .order_by("date", "start_time")
+    )
+
+    if request.method == "POST":
+        target_session_id = request.POST.get("target_session")
+        if not target_session_id:
+            return render(
+                request,
+                "tryouts/partials/ses_noshow_reschedule_form.html",
+                {
+                    "assignment": assignment,
+                    "source_session": source_session,
+                    "target_sessions": target_sessions,
+                    "error": "Select a session.",
+                },
+            )
+
+        target_session = get_object_or_404(Session, pk=target_session_id)
+
+        if SessionAssignment.objects.filter(
+            session=target_session,
+            player_season=assignment.player_season,
+        ).exists():
+            return render(
+                request,
+                "tryouts/partials/ses_noshow_reschedule_form.html",
+                {
+                    "assignment": assignment,
+                    "source_session": source_session,
+                    "target_sessions": target_sessions,
+                    "error": f"Already assigned to {target_session.name}.",
+                },
+            )
+
+        SessionAssignment.objects.create(
+            session=target_session,
+            player_season=assignment.player_season,
+            assigned_by=request.user,
+        )
+        AuditLog.objects.create(
+            user=request.user,
+            action="player.reassign",
+            entity_type="SessionAssignment",
+            entity_id=assignment.pk,
+            details={
+                "from_session_id": source_session.pk,
+                "from_session_name": source_session.name,
+                "to_session_id": target_session.pk,
+                "to_session_name": target_session.name,
+                "player_season_id": assignment.player_season.pk,
+                "player_name": str(assignment.player_season.player),
+                "reason": "no-show quick-reschedule",
+            },
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+        assignment.delete()
+
+        return render(
+            request,
+            "tryouts/partials/ses_noshow_rescheduled.html",
+            {
+                "player": assignment.player_season.player,
+                "target_session": target_session,
+            },
+        )
+
+    return render(
+        request,
+        "tryouts/partials/ses_noshow_reschedule_form.html",
+        {
+            "assignment": assignment,
+            "source_session": source_session,
+            "target_sessions": target_sessions,
+        },
+    )

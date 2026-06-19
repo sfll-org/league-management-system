@@ -1,0 +1,43 @@
+{# SES session screen — roster rows (HTMX target for search).
+   Rendered by both session_detail (initial load) and ses_roster_search (search).
+   Uses Pacific tokens; no Tailwind classes. #}
+
+{% for a in assignments %}
+<div id="roster-assignment-{{ a.assignment.pk }}"
+     class="roster-row{% if a.checked_in %} roster-row--checked{% endif %}">
+
+  <div class="roster-row__name">
+    {{ a.player.last_name }}, {{ a.player.first_name }}
+  </div>
+
+  {% if a.checked_in %}
+    <span class="pill pill--success">
+      <span class="pill__dot"></span>
+      {{ a.checkin.checked_in_at|time:"g:i A" }}
+    </span>
+  {% else %}
+    {% if can_checkin %}
+    <button class="btn btn--primary btn--sm"
+            hx-post="{% url 'tryouts:checkin_player' pk=session.pk assignment_id=a.assignment.pk %}"
+            hx-target="#roster-assignment-{{ a.assignment.pk }}"
+            hx-swap="outerHTML"
+            hx-indicator="#ci-spinner-{{ a.assignment.pk }}">
+      Check in
+    </button>
+    <svg id="ci-spinner-{{ a.assignment.pk }}"
+         class="htmx-indicator"
+         width="14" height="14" viewBox="0 0 24 24"
+         style="color:var(--ink-3); animation:spin 0.7s linear infinite; flex-shrink:0;">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="40 60"/>
+    </svg>
+    {% else %}
+    <span class="pill pill--ghost">Pending</span>
+    {% endif %}
+  {% endif %}
+
+</div>
+{% empty %}
+<div style="padding:32px 16px; text-align:center; color:var(--ink-3); font-size:13.5px;">
+  No players match your search.
+</div>
+{% endfor %}

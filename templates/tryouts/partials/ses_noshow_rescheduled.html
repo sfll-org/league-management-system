@@ -1,0 +1,12 @@
+{# SES session screen — success row after a no-show is rescheduled.
+   Replaces the noshow-row after a successful quick-reschedule POST. #}
+
+<div class="noshow-row" style="opacity:0.6;">
+  <div class="noshow-row__name" style="text-decoration:line-through; color:var(--ink-3);">
+    {{ player.last_name }}, {{ player.first_name }}
+  </div>
+  <span class="pill pill--success" style="font-size:11.5px;">
+    <span class="pill__dot"></span>
+    Moved → {{ target_session.name }}
+  </span>
+</div>
