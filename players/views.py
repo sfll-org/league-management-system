@@ -2,7 +2,7 @@ from collections import Counter
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
@@ -246,6 +246,19 @@ def _treasurer_view_only(user, league=None):
     return 'treasurer' in roles and not (roles & admin_roles)
 
 
+_FAMILY_ROLES = {'cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent', 'treasurer'}
+
+
+def _can_view_family(user, league=None):
+    """True if user may access family index / detail pages."""
+    if user.is_superuser:
+        return True
+    qs = user.roles.filter(is_active=True, role__in=_FAMILY_ROLES)
+    if league is not None:
+        qs = qs.filter(league=league)
+    return qs.exists()
+
+
 @login_required
 def family_index(request):
     """List all families in the active season, ordered by account name.
@@ -254,6 +267,9 @@ def family_index(request):
     Family table — that import path already exists from SportsConnect and we
     don't want to invent a new entity until it earns its keep.
     """
+    if not _can_view_family(request.user):
+        return HttpResponseForbidden("You do not have permission to view family records.")
+
     active_season = Season.objects.filter(is_active=True).first()
     if not active_season:
         return render(request, 'players/family_index.html', {
@@ -308,6 +324,9 @@ def family_detail(request, family_key):
     render as structured empty shells. The treasurer role flips the page into
     read-only mode — same surface, no edit affordances.
     """
+    if not _can_view_family(request.user):
+        return HttpResponseForbidden("You do not have permission to view family records.")
+
     email = _decode_family_key(family_key).lower()
     if not email:
         raise Http404("Unknown family")
