@@ -148,3 +148,36 @@ jobs:
 
       - name: Run Django deploy checks (production shape)
         run: python manage.py check --deploy --fail-level WARNING
+
+  # OPS-679: build + push the container image. This repo was renamed
+  # player-database -> league-management-system, but the apk8s deploy
+  # (kubernetes/apps/sfll) still pulls ghcr.io/sfll-org/player-database:latest,
+  # so we publish under that package name. Only runs on merge to main, and
+  # only after both check jobs pass, so a red PR never ships an image.
+  publish:
+    name: Build & push image
+    needs: [dev-checks, deploy-checks]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/sfll-org/player-database:latest
+            ghcr.io/sfll-org/player-database:${{ github.sha }}
