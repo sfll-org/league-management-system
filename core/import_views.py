@@ -15,7 +15,7 @@ from accounts.models import UserRole
 from core.importers import SportsConnectImporter
 from core.models import ImportFlag, ImportRun
 from core.tasks import sync_sportsconnect
-from players.models import League, Season
+from players.models import League, Season, get_active_league
 
 
 def _require_cto(user):
@@ -56,8 +56,12 @@ def import_history(request):
 @cto_required
 def import_upload(request):
     """Upload and process a SportsConnect CSV."""
-    league = League.objects.first()
-    seasons = Season.objects.filter(league=league).order_by('-year', 'season_type') if league else []
+    try:
+        league = get_active_league()
+    except (League.DoesNotExist, League.MultipleObjectsReturned) as exc:
+        messages.error(request, f'League configuration error: {exc}')
+        return redirect('import_history')
+    seasons = Season.objects.filter(league=league).order_by('-year', 'season_type')
 
     if request.method == 'POST':
         csv_file = request.FILES.get('csv_file')
@@ -157,10 +161,14 @@ def resolve_flag(request, run_id, flag_id):
 @require_POST
 def import_trigger(request):
     """Trigger a SportsConnect sync via Celery for the active league."""
-    league = League.objects.exclude(sportsconnect_report_url='').first()
+    try:
+        league = get_active_league()
+    except (League.DoesNotExist, League.MultipleObjectsReturned) as exc:
+        messages.error(request, f'League configuration error: {exc}')
+        return redirect('import_history')
 
-    if not league:
-        messages.error(request, 'No league has a SportsConnect report URL configured.')
+    if not league.sportsconnect_report_url:
+        messages.error(request, 'No SportsConnect report URL configured for this league.')
         return redirect('import_history')
 
     sync_sportsconnect.delay(league_id=league.pk)

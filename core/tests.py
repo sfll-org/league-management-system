@@ -3,6 +3,7 @@
 import io
 import os
 from datetime import date
+from unittest.mock import patch
 
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -10,7 +11,7 @@ from django.urls import reverse
 from accounts.models import Coach, CoachSeason, User, UserRole
 from core.importers import SportsConnectImporter, _normalize_key, _parse_date
 from core.models import AuditLog, ImportFlag, ImportRun
-from players.models import Division, League, Player, PlayerSeason, Season, Team, TeamSeason
+from players.models import Division, League, Player, PlayerSeason, Season, Team, TeamSeason, get_active_league
 
 
 FIXTURES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'fixtures')
@@ -358,3 +359,99 @@ class HealthCheckTests(TestCase):
         resp = self.client.get(reverse('health-check'))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'ok')
+
+
+class GetActiveLeagueTests(TestCase):
+    """Unit tests for the get_active_league() invariant helper."""
+
+    def test_raises_does_not_exist_when_no_leagues(self):
+        with self.assertRaises(League.DoesNotExist):
+            get_active_league()
+
+    def test_returns_single_league(self):
+        league = League.objects.create(name='San Francisco Little League', short_name='SFLL')
+        self.assertEqual(get_active_league(), league)
+
+    def test_raises_multiple_objects_returned_when_two_leagues(self):
+        League.objects.create(name='League A', short_name='LA')
+        League.objects.create(name='League B', short_name='LB')
+        with self.assertRaises(League.MultipleObjectsReturned):
+            get_active_league()
+
+
+class ImportUploadViewTests(TestCase):
+    """Tests for the import_upload view — league invariant enforcement."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='cto@sfll.org', email='cto@sfll.org',
+            password='testpass123', is_superuser=True,
+        )
+        self.client.login(username='cto@sfll.org', password='testpass123')
+
+    def test_redirects_with_error_when_no_league(self):
+        resp = self.client.get(reverse('import_upload'))
+        self.assertRedirects(resp, reverse('import_history'))
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('League configuration error' in str(m) for m in msgs))
+
+    def test_redirects_with_error_when_multiple_leagues(self):
+        League.objects.create(name='League A', short_name='LA')
+        League.objects.create(name='League B', short_name='LB')
+        resp = self.client.get(reverse('import_upload'))
+        self.assertRedirects(resp, reverse('import_history'))
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('League configuration error' in str(m) for m in msgs))
+
+    def test_renders_upload_form_with_single_league(self):
+        league = League.objects.create(name='San Francisco Little League', short_name='SFLL')
+        Season.objects.create(league=league, name='Spring 2026', year=2026, season_type='spring')
+        resp = self.client.get(reverse('import_upload'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['seasons']), 1)
+
+
+class ImportTriggerViewTests(TestCase):
+    """Tests for the import_trigger view — league invariant enforcement."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username='cto@sfll.org', email='cto@sfll.org',
+            password='testpass123', is_superuser=True,
+        )
+        self.client.login(username='cto@sfll.org', password='testpass123')
+
+    def test_redirects_with_error_when_no_league(self):
+        resp = self.client.post(reverse('import_trigger'))
+        self.assertRedirects(resp, reverse('import_history'))
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('League configuration error' in str(m) for m in msgs))
+
+    def test_redirects_with_error_when_multiple_leagues(self):
+        League.objects.create(name='League A', short_name='LA', sportsconnect_report_url='https://a.example.com')
+        League.objects.create(name='League B', short_name='LB', sportsconnect_report_url='https://b.example.com')
+        resp = self.client.post(reverse('import_trigger'))
+        self.assertRedirects(resp, reverse('import_history'))
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('League configuration error' in str(m) for m in msgs))
+
+    def test_redirects_with_error_when_no_sportsconnect_url(self):
+        League.objects.create(name='San Francisco Little League', short_name='SFLL')
+        resp = self.client.post(reverse('import_trigger'))
+        self.assertRedirects(resp, reverse('import_history'))
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('No SportsConnect report URL' in str(m) for m in msgs))
+
+    @patch('core.import_views.sync_sportsconnect')
+    def test_queues_sync_for_active_league(self, mock_task):
+        league = League.objects.create(
+            name='San Francisco Little League', short_name='SFLL',
+            sportsconnect_report_url='https://reports.sportsconnect.com/sfll',
+        )
+        resp = self.client.post(reverse('import_trigger'))
+        self.assertRedirects(resp, reverse('import_history'))
+        mock_task.delay.assert_called_once_with(league_id=league.pk)
+        msgs = list(resp.wsgi_request._messages)
+        self.assertTrue(any('sync queued' in str(m) for m in msgs))
