@@ -19,6 +19,24 @@ class League(TimeStampedModel):
         return self.short_name
 
 
+def get_active_league():
+    """Return the single configured League.
+
+    Raises League.DoesNotExist if none exist, League.MultipleObjectsReturned
+    if more than one exists — both are data-integrity errors that must be loud,
+    not silently masked by .first().
+    """
+    count = League.objects.count()
+    if count == 0:
+        raise League.DoesNotExist("No League configured in the database.")
+    if count > 1:
+        raise League.MultipleObjectsReturned(
+            f"Expected exactly one League but found {count}. "
+            "Add a league selector to disambiguate."
+        )
+    return League.objects.get()
+
+
 class Season(TimeStampedModel):
     """A playing season within a league."""
     league = models.ForeignKey(League, on_delete=models.CASCADE, related_name='seasons')
