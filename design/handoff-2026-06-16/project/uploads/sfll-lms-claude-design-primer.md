@@ -1,9 +1,7 @@
 # SFLL — League Management System
 ### A primer for Claude Design
 
-> **Naming note.** This system is being renamed from "Player Database" to **SFLL — League Management System** (sometimes shortened to LMS). The old name will keep appearing in code, docs, and the repo URL until the global rename lands. Treat the new name as canonical.
->
-> **Repo:** `github.com/sfll-org/player-database` (will become `sfll-org/league-management-system`). Clone to `~/Git/` before working in Claude Code.
+> **Repo:** `github.com/sfll-org/league-management-system`. Clone to `~/Git/` before working in Claude Code.
 
 ---
 
@@ -130,16 +128,14 @@ Working in Figma is fine; final handoff should include a way to extract tokens (
 
 When this document moves into Claude Code, please:
 
-1. **Clone the repo.** It's currently `sfll-org/player-database`. Once the rename lands it will be `sfll-org/league-management-system`.
+1. **Clone the repo:** `sfll-org/league-management-system`.
 2. **Audit it.** Fill in Section 4 (Current state) — stack, schema, routes/screens, data model, deployment, tech-debt highlights.
-3. **Update naming.** Anywhere "Player Database" appears in user-facing strings, treat that as a rename target (the global rename task is tracked in Plane under project SFLL).
-4. **Produce a "Current State" appendix** at the bottom of this primer with everything Claude Design will need that isn't in the body above.
-5. **Flag gaps.** Anything in the spec that doesn't match what the code actually does — call it out so Nate can reconcile before design starts.
+3. **Produce a "Current State" appendix** at the bottom of this primer with everything Claude Design will need that isn't in the body above.
+4. **Flag gaps.** Anything in the spec that doesn't match what the code actually does — call it out so Nate can reconcile before design starts.
 
 ## Appendix B — Reference
 
 - **Plane project:** SFLL (`15deb480-894a-43f2-af55-77621e881566`)
 - **Confluence hub:** page 17563649 on prodromou.atlassian.net
-- **GitHub:** `sfll-org/player-database` (private; ask Nate for access if needed)
-- **Rename task in Plane:** filed 2026-05-15
+- **GitHub:** `sfll-org/league-management-system` (private; ask Nate for access if needed)
 - **Operations lead:** Nate Prodromou (nate@prodromou.com)
