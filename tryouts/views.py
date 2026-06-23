@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
@@ -1029,7 +1030,6 @@ def flag_noshows(request, pk):
 # ---------------------------------------------------------------------------
 
 
-@login_required
 def _kiosk_assignments_for_today(season):
     """All SessionAssignments for today across the active season's sessions.
 
