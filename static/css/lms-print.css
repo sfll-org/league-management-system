@@ -417,23 +417,18 @@
     gap: 0;
   }
 
-  /* Each card claims its own half-sheet (letter ÷ 2 minus margins).
-     page-break-after splits the two duplicate cards onto separate
-     halves so a coach can fold along the midline and tuck both into
-     a binder sleeve. */
+  /* Both cards occupy the top and bottom halves of one letter sheet.
+     A coach folds or cuts along the midline to keep one in the dugout
+     and hand the other to a parent helper or umpire.
+     Fixed height + overflow: hidden keeps each 5in card within the
+     10.3in printable area (@page margins = 0.35in top + bottom). */
   .dugout-card {
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    min-height: 5.0in;
+    height: 5.0in;
+    overflow: hidden;
     padding: 0.3in 0.35in 0.25in;
-    page-break-after: always;
-    break-after: page;
-  }
-
-  .dugout-card:last-child {
-    page-break-after: auto;
-    break-after: auto;
   }
 
   /* Don't orphan a row mid-page inside a card */
