@@ -101,6 +101,7 @@
           <th>Player</th>
           <th>Division</th>
           <th>Team</th>
+          <th class="col-num">#</th>
           <th></th>
           <th>Status</th>
         </tr>
@@ -131,6 +132,9 @@
             {% else %}
               <span class="pill pill--ghost">Unassigned</span>
             {% endif %}
+          </td>
+          <td class="col-num">
+            {% if ps.jersey_number is not None %}<span class="tabular">#{{ ps.jersey_number }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
           </td>
           <td>
             {% if ps.is_top_4 %}<span class="pill pill--danger">Top-4</span>{% endif %}
