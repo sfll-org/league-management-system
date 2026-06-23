@@ -5,6 +5,9 @@ from django.urls import path
 from core import admin_views, import_views, views
 
 urlpatterns = [
+    # SFLL-117 — ⌘K command palette search backend.
+    path('api/cmdk-search/', views.cmdk_search, name='cmdk_search'),
+
     # Imports (existing)
     path('admin/imports/', import_views.import_history, name='import_history'),
     path('admin/imports/upload/', import_views.import_upload, name='import_upload'),

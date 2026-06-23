@@ -12,14 +12,15 @@ class UserRoleInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'phone', 'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active')
+    list_display = ('email', 'first_name', 'last_name', 'phone', 'is_staff', 'is_active', 'power_user_mode')
+    list_filter = ('is_staff', 'is_active', 'power_user_mode')
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('email',)
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal', {'fields': ('first_name', 'last_name', 'phone')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Power-user features (SFLL-117)', {'fields': ('power_user_mode',)}),
     )
     add_fieldsets = (
         (None, {

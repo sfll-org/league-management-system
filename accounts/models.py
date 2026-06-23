@@ -10,6 +10,13 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name']
     phone = models.CharField(max_length=20, blank=True)
+    # Per-user feature flag for SFLL-117 Phase 12 surfaces (Tweaks panel + ⌘K
+    # command palette). Default off; admins toggle on for power users who
+    # want the design-time controls and the keyboard-first nav.
+    power_user_mode = models.BooleanField(
+        default=False,
+        help_text='Enable Tweaks panel + ⌘K command palette for this user.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

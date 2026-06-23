@@ -1,0 +1,85 @@
+{# SFLL-117 — Tweaks panel.
+   Only included by base.html when user.power_user_mode is True.
+   Pure HTML/CSS; the JS module (lms-tweaks-panel.js) reads the
+   data-group/data-value attributes and wires up persistence. #}
+<aside
+  id="lms-tweaks"
+  class="lms-tweaks"
+  data-open="false"
+  aria-label="Design tweaks"
+>
+  <div class="lms-tweaks__head">
+    <h2 class="lms-tweaks__title">Tweaks</h2>
+    <button type="button" class="lms-tweaks__close" aria-label="Close tweaks panel">Close</button>
+  </div>
+
+  <div class="lms-tweaks__body">
+    <section class="lms-tweaks__group" aria-labelledby="lms-tweaks-palette">
+      <h3 id="lms-tweaks-palette" class="lms-tweaks__group-label">Palette</h3>
+      <div class="lms-tweaks__row">
+        <button type="button" class="lms-tweaks__opt" data-group="palette" data-value="pacific">
+          Pacific<span class="lms-tweaks__opt-sub">SF navy, default</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="palette" data-value="civic">
+          Civic<span class="lms-tweaks__opt-sub">cream + brighter</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="palette" data-value="fog">
+          Fog<span class="lms-tweaks__opt-sub">cool muted</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="palette" data-value="twilight">
+          Twilight<span class="lms-tweaks__opt-sub">warm dark</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="lms-tweaks__group" aria-labelledby="lms-tweaks-type">
+      <h3 id="lms-tweaks-type" class="lms-tweaks__group-label">Type</h3>
+      <div class="lms-tweaks__row">
+        <button type="button" class="lms-tweaks__opt" data-group="type" data-value="humanist-display">
+          Humanist<span class="lms-tweaks__opt-sub">Instrument + Bricolage</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="type" data-value="humanist-plain">
+          Plain<span class="lms-tweaks__opt-sub">Instrument only</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="type" data-value="geometric">
+          Geometric<span class="lms-tweaks__opt-sub">Geist</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="type" data-value="editorial">
+          Editorial<span class="lms-tweaks__opt-sub">Newsreader display</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="lms-tweaks__group" aria-labelledby="lms-tweaks-density">
+      <h3 id="lms-tweaks-density" class="lms-tweaks__group-label">Density</h3>
+      <div class="lms-tweaks__row">
+        <button type="button" class="lms-tweaks__opt" data-group="density" data-value="compact">
+          Compact<span class="lms-tweaks__opt-sub">34px rows</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="density" data-value="balanced">
+          Balanced<span class="lms-tweaks__opt-sub">44px rows</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="density" data-value="airy">
+          Airy<span class="lms-tweaks__opt-sub">56px rows</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="lms-tweaks__group" aria-labelledby="lms-tweaks-nav">
+      <h3 id="lms-tweaks-nav" class="lms-tweaks__group-label">Nav chrome</h3>
+      <div class="lms-tweaks__row">
+        <button type="button" class="lms-tweaks__opt" data-group="nav" data-value="side">
+          Sidebar<span class="lms-tweaks__opt-sub">232px rail</span>
+        </button>
+        <button type="button" class="lms-tweaks__opt" data-group="nav" data-value="top">
+          Top bar<span class="lms-tweaks__opt-sub">horizontal</span>
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <div class="lms-tweaks__footer">
+    <button type="button" class="lms-tweaks__reset">Reset</button>
+    <span class="lms-tweaks__hint">⇧⌘.</span>
+  </div>
+</aside>

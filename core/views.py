@@ -1,3 +1,5 @@
+from urllib.parse import quote, urlencode
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -317,3 +319,176 @@ def dashboard_inbox(request):
 def health_check(request):
     """Health check endpoint for Docker / load balancers."""
     return JsonResponse({"status": "ok"})
+
+
+# --- SFLL-117: ⌘K command palette search endpoint -------------------------
+
+def _can_manage_comms(user):
+    from communications.views import _can_manage_comms as _comm_check
+    return _comm_check(user)
+
+
+def _is_eval_authorized(user):
+    from evaluations.views import _is_eval_authorized as _eval_check
+    return _eval_check(user)
+
+
+# Static page registry. Each entry is (title, url_name, kind, predicate).
+# predicate is None (any logged-in user), 'admin', or a callable(user)->bool.
+_CMDK_PAGES = (
+    # (title, url_name, kind, predicate)
+    ('Dashboard',       'dashboard',                'page',  None),
+    ('Roster',          'players:index',            'page',  None),
+    ('Teams',           'players:teams',            'page',  None),
+    ('Communications',  'communications:index',     'page',  _can_manage_comms),
+    ('SES Sessions',    'tryouts:index',            'page',  None),
+    ('Evaluations',     'evaluations:index',        'page',  _is_eval_authorized),
+    ('Draft',           'draft:index',              'page',  None),
+    ('Imports',         'import_history',           'admin', 'admin'),
+    ('Configuration',   'config_home',              'admin', 'admin'),
+    ('Audit log',       'audit_log',                'admin', 'admin'),
+    ('User management', 'user_list',                'admin', 'admin'),
+)
+
+
+def _cmdk_pages(user):
+    from django.urls import NoReverseMatch, reverse
+    is_admin = getattr(user, 'is_superuser', False) or user.roles.filter(
+        is_active=True, role='cto'
+    ).exists()
+    out = []
+    for title, name, kind, predicate in _CMDK_PAGES:
+        if predicate == 'admin' and not is_admin:
+            continue
+        if callable(predicate) and not predicate(user):
+            continue
+        try:
+            url = reverse(name)
+        except NoReverseMatch:
+            continue
+        out.append({'title': title, 'url': url, 'kind': kind})
+    return out
+
+
+def _cmdk_players(query, limit=20):
+    """Return players matching `query`. Empty query yields a recent slice.
+
+    Multi-token queries are normalised before filtering:
+      - "Last, First"  → last_name AND first_name (comma form)
+      - "First Last"   → first_name AND last_name, both orderings tried
+      - single token   → first_name OR last_name
+    """
+    from django.urls import NoReverseMatch, reverse
+    season = Season.objects.filter(is_active=True).first()
+    qs = PlayerSeason.objects.select_related(
+        'player', 'division', 'assigned_team__team'
+    )
+    if season:
+        qs = qs.filter(season=season)
+    if query:
+        if ',' in query:
+            # "Last, First" format
+            last_part, _, first_part = query.partition(',')
+            qs = qs.filter(
+                Q(player__last_name__icontains=last_part.strip())
+                & Q(player__first_name__icontains=first_part.strip())
+            )
+        elif ' ' in query.strip():
+            # "First Last" or "Last First" — accept either ordering
+            parts = query.split()
+            first_token, last_token = parts[0], parts[-1]
+            qs = qs.filter(
+                (Q(player__first_name__icontains=first_token)
+                 & Q(player__last_name__icontains=last_token))
+                | (Q(player__last_name__icontains=first_token)
+                   & Q(player__first_name__icontains=last_token))
+            )
+        else:
+            qs = qs.filter(
+                Q(player__first_name__icontains=query)
+                | Q(player__last_name__icontains=query)
+            )
+    qs = qs.order_by('player__last_name', 'player__first_name')[:limit]
+
+    try:
+        roster_url = reverse('players:index')
+    except NoReverseMatch:
+        roster_url = '/players/'
+
+    items = []
+    for ps in qs:
+        player = ps.player
+        name = f'{player.last_name}, {player.first_name}'.strip(', ')
+        sub_bits = []
+        if ps.division_id and ps.division:
+            sub_bits.append(ps.division.name)
+        if ps.assigned_team_id and ps.assigned_team and ps.assigned_team.team:
+            sub_bits.append(ps.assigned_team.team.name)
+        items.append({
+            'title': name or player.first_name or player.last_name or 'Unnamed player',
+            'subtitle': ' · '.join(sub_bits),
+            'url': f'{roster_url}?{urlencode({"q": name}, quote_via=quote)}',
+            'kind': 'player',
+        })
+    return items
+
+
+def _cmdk_families(query, limit=15):
+    """Return distinct PlayerSeason.account_name values matching the query.
+
+    Family Detail (Phase 5 / SFLL-110) isn't merged yet; for now we deep-link
+    into the roster filtered by the account name so the palette is useful
+    today. Update the URL when family-detail lands.
+    """
+    from django.urls import NoReverseMatch, reverse
+    season = Season.objects.filter(is_active=True).first()
+    qs = PlayerSeason.objects.exclude(account_name='')
+    if season:
+        qs = qs.filter(season=season)
+    if query:
+        qs = qs.filter(account_name__icontains=query)
+
+    rows = (
+        qs.values('account_name')
+        .annotate(player_count=Count('id'))
+        .order_by('account_name')[:limit]
+    )
+
+    try:
+        roster_url = reverse('players:index')
+    except NoReverseMatch:
+        roster_url = '/players/'
+
+    items = []
+    for row in rows:
+        name = row['account_name']
+        count = row['player_count']
+        suffix = 'player' if count == 1 else 'players'
+        items.append({
+            'title': name,
+            'subtitle': f'{count} {suffix}',
+            'url': f'{roster_url}?{urlencode({"account": name}, quote_via=quote)}',
+            'kind': 'family',
+        })
+    return items
+
+
+@login_required
+def cmdk_search(request):
+    """SFLL-117 — JSON search backend for the ⌘K command palette.
+
+    Pages are role-filtered against the requester; players and families are
+    queried per session against the active season. Empty `q` returns a small
+    starter slice so the palette is useful on first open.
+    """
+    if not getattr(request.user, 'power_user_mode', False):
+        # Feature flag is per-user; non-power-users shouldn't be able to
+        # probe roster names via this endpoint.
+        return JsonResponse({'detail': 'Not enabled.'}, status=403)
+
+    query = (request.GET.get('q') or '').strip()
+    return JsonResponse({
+        'pages': _cmdk_pages(request.user),
+        'players': _cmdk_players(query),
+        'families': _cmdk_families(query),
+    })
