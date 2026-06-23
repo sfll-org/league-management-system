@@ -371,7 +371,13 @@ def _cmdk_pages(user):
 
 
 def _cmdk_players(query, limit=20):
-    """Return players matching `query`. Empty query yields a recent slice."""
+    """Return players matching `query`. Empty query yields a recent slice.
+
+    Multi-token queries are normalised before filtering:
+      - "Last, First"  → last_name AND first_name (comma form)
+      - "First Last"   → first_name AND last_name, both orderings tried
+      - single token   → first_name OR last_name
+    """
     from django.urls import NoReverseMatch, reverse
     season = Season.objects.filter(is_active=True).first()
     qs = PlayerSeason.objects.select_related(
@@ -380,10 +386,28 @@ def _cmdk_players(query, limit=20):
     if season:
         qs = qs.filter(season=season)
     if query:
-        qs = qs.filter(
-            Q(player__first_name__icontains=query)
-            | Q(player__last_name__icontains=query)
-        )
+        if ',' in query:
+            # "Last, First" format
+            last_part, _, first_part = query.partition(',')
+            qs = qs.filter(
+                Q(player__last_name__icontains=last_part.strip())
+                & Q(player__first_name__icontains=first_part.strip())
+            )
+        elif ' ' in query.strip():
+            # "First Last" or "Last First" — accept either ordering
+            parts = query.split()
+            first_token, last_token = parts[0], parts[-1]
+            qs = qs.filter(
+                (Q(player__first_name__icontains=first_token)
+                 & Q(player__last_name__icontains=last_token))
+                | (Q(player__last_name__icontains=first_token)
+                   & Q(player__first_name__icontains=last_token))
+            )
+        else:
+            qs = qs.filter(
+                Q(player__first_name__icontains=query)
+                | Q(player__last_name__icontains=query)
+            )
     qs = qs.order_by('player__last_name', 'player__first_name')[:limit]
 
     try:

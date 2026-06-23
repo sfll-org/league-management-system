@@ -130,6 +130,31 @@ class CmdkSearchEndpointTests(TestCase):
         self.assertTrue(any('Sosa' in n for n in names))
         self.assertFalse(any('Lopez' in n for n in names))
 
+    def test_player_full_name_first_last(self):
+        """'Sammy Sosa' (space-separated) returns the correct player."""
+        user = _user(email='power2@sfll.org', power=True)
+        self.client.force_login(user)
+        resp = self.client.get(reverse('cmdk_search'), {'q': 'Sammy Sosa'})
+        players = resp.json()['players']
+        self.assertEqual(len(players), 1)
+        self.assertIn('Sosa', players[0]['title'])
+
+    def test_player_full_name_last_comma_first(self):
+        """'Sosa, Sammy' (Last, First) returns the correct player."""
+        user = _user(email='power3@sfll.org', power=True)
+        self.client.force_login(user)
+        resp = self.client.get(reverse('cmdk_search'), {'q': 'Sosa, Sammy'})
+        players = resp.json()['players']
+        self.assertEqual(len(players), 1)
+        self.assertIn('Sosa', players[0]['title'])
+
+    def test_player_full_name_no_false_positive(self):
+        """'Sammy Lopez' matches neither player — both tokens must align."""
+        user = _user(email='power4@sfll.org', power=True)
+        self.client.force_login(user)
+        resp = self.client.get(reverse('cmdk_search'), {'q': 'Sammy Lopez'})
+        self.assertEqual(resp.json()['players'], [])
+
     def test_family_results_use_account_name(self):
         user = _user(email='power@sfll.org', power=True)
         self.client.force_login(user)
