@@ -40,6 +40,11 @@ urlpatterns = [
         views.checkin_player,
         name="checkin_player",
     ),
+    # Kiosk (front-desk tablet — Phase 10 / SFLL-115; walk-in + modal SFLL-120)
+    path("kiosk/", views.kiosk, name="kiosk"),
+    path("kiosk/search/", views.kiosk_search, name="kiosk_search"),
+    path("kiosk/checkin/<int:assignment_id>/", views.kiosk_checkin, name="kiosk_checkin"),
+    path("kiosk/walkin/", views.kiosk_walkin, name="kiosk_walkin"),
     # Reassignment
     path(
         "sessions/<int:pk>/reassign/<int:assignment_id>/",

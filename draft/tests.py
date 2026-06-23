@@ -391,3 +391,73 @@ class DraftBoardViewTests(TestCase):
                 legacy, body,
                 f'Legacy pattern `{legacy}` leaked back into the draft board.',
             )
+
+class DraftRoomViewTests(TestCase):
+    """SFLL-115 — iPad Draft Room split-pane."""
+
+    def setUp(self):
+        self.d = _setup_draft_base()
+        self.ds = DraftSession.objects.create(
+            season=self.d['season'],
+            division=self.d['division'],
+            status='drafting',
+            current_round=1,
+            current_pick=1,
+            team_order=[self.d['ts1'].pk, self.d['ts2'].pk],
+        )
+        UserRole.objects.create(
+            user=self.d['coach_user'],
+            league=self.d['league'],
+            role='cto',
+            is_active=True,
+        )
+        self.client = Client()
+
+    def test_draft_room_renders(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'draft-room')
+        self.assertContains(resp, 'On the clock')
+        self.assertContains(resp, 'On deck')
+        self.assertContains(resp, self.d['division'].name)
+
+    def test_draft_room_lists_available_players(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        for ps in self.d['player_seasons']:
+            self.assertContains(resp, ps.player.full_name)
+
+    def test_draft_room_excludes_drafted_players(self):
+        import json as _json
+        import re as _re
+        DraftPick.objects.create(
+            draft_session=self.ds,
+            team_season=self.d['ts1'],
+            player_season=self.d['player_seasons'][0],
+            round_number=1,
+            pick_number=1,
+            is_top_4=False,
+            picked_by=self.d['coach_user'],
+        )
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[self.ds.pk]))
+        drafted_ps = self.d['player_seasons'][0]
+        body = resp.content.decode()
+        picks_match = _re.search(
+            r'<script[^>]+id="picks-data"[^>]*>(.*?)</script>', body, _re.DOTALL
+        )
+        available_match = _re.search(
+            r'<script[^>]+id="available-data"[^>]*>(.*?)</script>', body, _re.DOTALL
+        )
+        picks_data = _json.loads(picks_match.group(1)) if picks_match else []
+        available_data = _json.loads(available_match.group(1)) if available_match else []
+        pick_player_ids = [p['player_id'] for p in picks_data]
+        available_ids = [p['id'] for p in available_data]
+        self.assertIn(drafted_ps.pk, pick_player_ids)
+        self.assertNotIn(drafted_ps.pk, available_ids)
+
+    def test_draft_room_404_for_missing_session(self):
+        self.client.login(username='hc@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('draft:draft_room', args=[99999]))
+        self.assertEqual(resp.status_code, 404)

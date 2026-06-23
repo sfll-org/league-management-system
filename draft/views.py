@@ -718,6 +718,120 @@ def draft_board(request, session_id):
 
 
 @login_required
+def draft_room(request, session_id):
+    """Draft Room — iPad-landscape split-pane (SFLL-115 / Phase 10).
+
+    Shares board state with draft_board but reshapes the layout for a tablet
+    propped between 2-3 coaches at the table: bigger available-player rows,
+    a permanent on-deck queue alongside the pick log, and the on-the-clock
+    banner front and center. Reuses the same DraftPick / DraftSession data
+    and the same WebSocket for live updates.
+    """
+    draft_session = get_object_or_404(
+        DraftSession.objects.select_related("division", "season"),
+        pk=session_id,
+    )
+    season = draft_session.season
+    division = draft_session.division
+
+    team_seasons = list(
+        TeamSeason.objects.filter(
+            season=season,
+            division=division,
+        )
+        .select_related("team", "drafter__coach__user")
+        .order_by("team__name")
+    )
+
+    if draft_session.team_order:
+        ts_map = {ts.pk: ts for ts in team_seasons}
+        ordered_teams = [
+            ts_map[tid] for tid in draft_session.team_order if tid in ts_map
+        ]
+    else:
+        ordered_teams = team_seasons
+
+    picks = list(
+        DraftPick.objects.filter(
+            draft_session=draft_session,
+        )
+        .select_related(
+            "player_season__player",
+            "team_season__team",
+        )
+        .order_by("pick_number")
+    )
+    drafted_ps_ids = set(p.player_season_id for p in picks)
+
+    available_players = list(
+        PlayerSeason.objects.filter(
+            season=season,
+            division=division,
+        )
+        .exclude(
+            pk__in=drafted_ps_ids,
+        )
+        .select_related("player")
+        .order_by(
+            "player__last_name",
+            "player__first_name",
+        )
+    )
+    eval_scores = _get_aggregated_eval_scores(available_players, season)
+
+    available_data = []
+    for ps in available_players:
+        ev = eval_scores.get(ps.pk, {})
+        available_data.append({
+            "id": ps.pk,
+            "name": ps.player.full_name,
+            "overall_avg": ev.get("overall_avg"),
+            "eval_count": ev.get("eval_count", 0),
+        })
+
+    teams_data = []
+    for ts in ordered_teams:
+        teams_data.append({
+            "id": ts.pk,
+            "name": ts.team.name,
+            "drafter_name": (
+                ts.drafter.coach.user.get_full_name() if ts.drafter else None
+            ),
+        })
+
+    picks_data = []
+    for pick in picks:
+        picks_data.append({
+            "id": pick.pk,
+            "round_number": pick.round_number,
+            "pick_number": pick.pick_number,
+            "team_id": pick.team_season_id,
+            "team_name": pick.team_season.team.name,
+            "player_id": pick.player_season_id,
+            "player_name": pick.player_season.player.full_name,
+            "is_top_4": pick.is_top_4,
+            "is_coaches_child": pick.is_coaches_child,
+        })
+
+    is_admin = _can_manage_draft(request.user, division)
+
+    return render(
+        request,
+        "draft/draft_room.html",
+        {
+            "draft_session": draft_session,
+            "season": season,
+            "division": division,
+            "teams_data": teams_data,
+            "picks_data": picks_data,
+            "available_data": available_data,
+            "is_admin": is_admin,
+            "current_user_id": request.user.pk,
+        },
+    )
+
+
+@login_required
 @require_POST
 def start_draft(request, session_id):
     """Transition a DraftSession from 'seeding' to 'drafting'. CTO/Player Agent only."""
