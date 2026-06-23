@@ -276,10 +276,13 @@ def family_index(request):
     Family table — that import path already exists from SportsConnect and we
     don't want to invent a new entity until it earns its keep.
     """
-    if not _user_has_role(request.user, *_FAMILY_ACCESS_ROLES):
-        raise PermissionDenied
-
     active_season = Season.objects.filter(is_active=True).first()
+    # Scope the role check to the active season's league so a user with a
+    # qualifying role in a different league cannot enumerate this season's
+    # families (SFLL-146).
+    league = active_season.league if active_season else None
+    if not _user_has_role(request.user, *_FAMILY_ACCESS_ROLES, league=league):
+        raise PermissionDenied
     if not active_season:
         return render(request, 'players/family_index.html', {
             'families': [],

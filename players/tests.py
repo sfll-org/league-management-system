@@ -730,6 +730,15 @@ class FamilyDetailTests(TestCase):
         resp = self.client.get(reverse('players:family_index'))
         self.assertEqual(resp.status_code, 403)
 
+    def test_family_index_rejects_role_in_other_league(self):
+        # SFLL-146: a role in a different league must NOT grant access to
+        # this season's family list (cross-league IDOR regression test).
+        other_league = League.objects.create(name='Other League', short_name='OL')
+        UserRole.objects.create(user=self.user, league=other_league, role='player_agent')
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 403)
+
     def test_family_index_lists_families(self):
         self._give_player_agent_role()
         self.client.login(username='test@sfll.org', password='testpass123')
