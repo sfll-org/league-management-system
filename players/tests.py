@@ -714,6 +714,9 @@ class FamilyDetailTests(TestCase):
 
         self.family_key = encode_family_key(FAMILY_EMAIL)
 
+    def _give_player_agent_role(self):
+        UserRole.objects.create(user=self.user, league=self.league, role='player_agent')
+
     # ----- index -----
 
     def test_family_index_requires_login(self):
@@ -721,9 +724,16 @@ class FamilyDetailTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("login", resp.url)
 
+    def test_family_index_requires_staff_role(self):
+        # Logged-in user without a staff role must be denied.
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
+        self.assertEqual(resp.status_code, 403)
+
     def test_family_index_lists_families(self):
-        self.client.login(username="test@sfll.org", password="testpass123")
-        resp = self.client.get(reverse("players:family_index"))
+        self._give_player_agent_role()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Maria Rodriguez")
         self.assertContains(resp, FAMILY_EMAIL)
@@ -732,8 +742,9 @@ class FamilyDetailTests(TestCase):
     def test_family_index_no_active_season(self):
         self.season.is_active = False
         self.season.save()
-        self.client.login(username="test@sfll.org", password="testpass123")
-        resp = self.client.get(reverse("players:family_index"))
+        self._give_player_agent_role()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(reverse('players:family_index'))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "No active season")
 
@@ -746,8 +757,17 @@ class FamilyDetailTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertIn("login", resp.url)
 
+    def test_family_detail_requires_staff_role(self):
+        # Logged-in user without a staff role must be denied.
+        self.client.login(username='test@sfll.org', password='testpass123')
+        resp = self.client.get(
+            reverse('players:family_detail', args=[self.family_key]),
+        )
+        self.assertEqual(resp.status_code, 403)
+
     def test_family_detail_renders(self):
-        self.client.login(username="test@sfll.org", password="testpass123")
+        self._give_player_agent_role()
+        self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
@@ -772,8 +792,9 @@ class FamilyDetailTests(TestCase):
         self.assertContains(resp, "Recent communications")
 
     def test_family_detail_404_for_unknown_family(self):
-        self.client.login(username="test@sfll.org", password="testpass123")
-        bogus = encode_family_key("nobody@example.com")
+        self._give_player_agent_role()
+        self.client.login(username='test@sfll.org', password='testpass123')
+        bogus = encode_family_key('nobody@example.com')
         resp = self.client.get(
             reverse("players:family_detail", args=[bogus]),
         )
@@ -808,7 +829,8 @@ class FamilyDetailTests(TestCase):
             subject="SES reminder for Alex",
             body_snapshot="You have an SES session tomorrow.",
         )
-        self.client.login(username="test@sfll.org", password="testpass123")
+        self._give_player_agent_role()
+        self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
@@ -819,13 +841,12 @@ class FamilyDetailTests(TestCase):
     # ----- treasurer + balance gating -----
 
     def test_balance_section_hidden_for_regular_user(self):
-        # Plain logged-in user (no admin / treasurer role) sees no balance.
-        self.client.login(username="test@sfll.org", password="testpass123")
+        # Plain logged-in user (no staff role) is denied access entirely.
+        self.client.login(username='test@sfll.org', password='testpass123')
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
-        self.assertNotContains(resp, ">Balance<")
-        self.assertNotContains(resp, "Treasurer view")
+        self.assertEqual(resp.status_code, 403)
 
     def test_treasurer_sees_balance_in_readonly_mode(self):
         UserRole.objects.create(
@@ -878,8 +899,7 @@ class FamilyDetailTests(TestCase):
         self.assertNotContains(resp, "Treasurer view")
 
     def test_balance_hidden_for_role_in_other_league(self):
-        # A treasurer or admin role on a *different* League must not grant
-        # visibility into this family's Balance section.
+        # Roles on a *different* League must not grant access at all.
         other_league = League.objects.create(
             name="Oakland Little League",
             short_name="OLL",
@@ -898,9 +918,7 @@ class FamilyDetailTests(TestCase):
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
-        self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "Balance")
-        self.assertNotContains(resp, "Treasurer view")
+        self.assertEqual(resp.status_code, 403)
 
 
 class RosterFilterTests(TestCase):

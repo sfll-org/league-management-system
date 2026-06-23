@@ -1,6 +1,7 @@
 from collections import Counter
 
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db.models import Count, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
@@ -224,6 +225,9 @@ def print_dugout_card(request, team_season_id):
 
 FAMILY_COMMS_LIMIT = 20
 
+# Roles that may access family-level data (contacts, comms, balance).
+_FAMILY_ACCESS_ROLES = ('cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent', 'treasurer')
+
 
 def encode_family_key(email):
     """Stable, URL-safe handle for a family (currently their account email)."""
@@ -272,6 +276,9 @@ def family_index(request):
     Family table — that import path already exists from SportsConnect and we
     don't want to invent a new entity until it earns its keep.
     """
+    if not _user_has_role(request.user, *_FAMILY_ACCESS_ROLES):
+        raise PermissionDenied
+
     active_season = Season.objects.filter(is_active=True).first()
     if not active_season:
         return render(request, 'players/family_index.html', {
@@ -333,6 +340,9 @@ def family_detail(request, family_key):
     active_season = Season.objects.filter(is_active=True).first()
     if not active_season:
         raise Http404("No active season")
+
+    if not _user_has_role(request.user, *_FAMILY_ACCESS_ROLES, league=active_season.league):
+        raise PermissionDenied
 
     player_seasons = list(
         PlayerSeason.objects
