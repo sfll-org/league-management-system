@@ -1037,7 +1037,7 @@ def _kiosk_assignments_for_today(season):
     The view selects across all divisions running at Big Rec on the same day,
     which is the front-desk reality the kiosk is built for.
     """
-    today = date.today()
+    today = timezone.localdate()
     qs = (
         SessionAssignment.objects.select_related(
             'session', 'session__division',
@@ -1107,7 +1107,7 @@ def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
 
 def _kiosk_recent_feed(season):
     """Most-recent check-ins today, newest first."""
-    today = date.today()
+    today = timezone.localdate()
     checkins = list(
         CheckIn.objects.select_related(
             'session_assignment__player_season__player',
@@ -1122,7 +1122,7 @@ def _kiosk_recent_feed(season):
 
 def _kiosk_today_walk_ins(season):
     """Walk-ins logged today for this season (regardless of session linkage)."""
-    today = date.today()
+    today = timezone.localdate()
     return list(
         WalkIn.objects.select_related('division', 'session')
         .filter(logged_at__date=today, season=season)
@@ -1146,7 +1146,7 @@ def kiosk(request):
     if not active_season:
         return render(request, 'tryouts/kiosk.html', {
             'season': None,
-            'today': date.today(),
+            'today': timezone.localdate(),
             'tiles': [],
             'session_filters': [],
             'today_sessions': [],
@@ -1230,7 +1230,7 @@ def kiosk_checkin(request, assignment_id):
         ),
         pk=assignment_id,
         session__season=active_season,
-        session__date=date.today(),
+        session__date=timezone.localdate(),
     )
 
     checkin, _created = CheckIn.objects.get_or_create(
