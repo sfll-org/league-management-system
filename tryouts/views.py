@@ -1,5 +1,3 @@
-from datetime import date
-
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
@@ -77,7 +75,7 @@ def session_list(request):
     # Annotate with counts
     sessions = sessions.prefetch_related("assignments", "assignments__checkin")
 
-    today = date.today()
+    today = timezone.localdate()
     upcoming = [s for s in sessions if s.date >= today]
     past = [s for s in sessions if s.date < today]
 
@@ -173,7 +171,7 @@ def session_detail(request, pk):
 
     # No-shows only exist once the session has closed; unchecked players during
     # an ongoing/upcoming session are pending arrivals, not no-shows.
-    session_is_past = session.date < date.today()
+    session_is_past = session.date < timezone.localdate()
     unchecked_count = total_assigned - checked_in_count
     noshow_count = unchecked_count if session_is_past else 0
     pending_count = unchecked_count if not session_is_past else 0
@@ -516,7 +514,7 @@ def session_checkin(request, pk):
     assignment_data, checked_in_count = _build_assignment_data(assignments)
 
     # Get today's sessions for session switcher
-    today = date.today()
+    today = timezone.localdate()
     todays_sessions = (
         Session.objects.filter(
             season=session.season,
@@ -545,7 +543,7 @@ def checkin_by_token(request, token):
         PlayerSeason.objects.select_related("player", "season"), checkin_token=token
     )
 
-    today = date.today()
+    today = timezone.localdate()
     # Find today's session assignment for this player
     assignment = (
         SessionAssignment.objects.select_related(

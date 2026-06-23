@@ -47,7 +47,7 @@ class LeagueModelTests(TestCase):
 
     def test_defaults(self):
         league = _create_league()
-        self.assertEqual(league.timezone, "America/New_York")
+        self.assertEqual(league.timezone, 'America/Los_Angeles')
         self.assertEqual(league.sportsconnect_sync_interval_minutes, 60)
 
 
