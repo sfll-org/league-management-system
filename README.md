@@ -2,13 +2,11 @@
 
 San Francisco Little League's internal Django app for player records, SES (Skills Evaluation Session) data, draft system, and communications.
 
-Repository name (`player-database`) is the legacy slug from the original 2024 scope; the product name is the SFLL League Management System. Repo rename to `league-management-system` tracked in SFLL-90.
-
 ## Quick start
 
 ```bash
-git clone https://github.com/sfll-org/player-database.git
-cd player-database
+git clone https://github.com/sfll-org/league-management-system.git
+cd league-management-system
 cp .env.example .env
 docker compose up -d
 ```

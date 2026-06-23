@@ -149,11 +149,12 @@ jobs:
       - name: Run Django deploy checks (production shape)
         run: python manage.py check --deploy --fail-level WARNING
 
-  # OPS-679: build + push the container image. This repo was renamed
-  # player-database -> league-management-system, but the apk8s deploy
-  # (kubernetes/apps/sfll) still pulls ghcr.io/sfll-org/player-database:latest,
-  # so we publish under that package name. Only runs on merge to main, and
-  # only after both check jobs pass, so a red PR never ships an image.
+  # Build + push the container image. Publishes under both the canonical new
+  # package name and the legacy player-database name for apk8s compatibility
+  # during transition (SFLL-90). Once kubernetes/apps/sfll in apk8s is updated
+  # to pull ghcr.io/sfll-org/league-management-system:latest, remove the
+  # player-database tags below. Only runs on merge to main, and only after
+  # both check jobs pass, so a red PR never ships an image.
   publish:
     name: Build & push image
     needs: [dev-checks, deploy-checks]
@@ -179,5 +180,7 @@ jobs:
           context: .
           push: true
           tags: |
+            ghcr.io/sfll-org/league-management-system:latest
+            ghcr.io/sfll-org/league-management-system:${{ github.sha }}
             ghcr.io/sfll-org/player-database:latest
             ghcr.io/sfll-org/player-database:${{ github.sha }}
