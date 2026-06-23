@@ -1,0 +1,27 @@
+{# SES Session — searchable check-in roster.
+   Rendered initially in session_detail.html and as the response body of
+   `tryouts:ses_roster_search` for HTMX swaps. #}
+{% if roster %}
+  {% for row in roster %}
+    {% include "tryouts/partials/ses_roster_row.html" with row=row %}
+  {% endfor %}
+{% else %}
+  <div class="empty">
+    {% if q %}
+      <strong>No players match "{{ q }}"</strong>
+      Try a different name or clear the search.
+    {% else %}
+      <strong>No players assigned yet</strong>
+      {% if can_manage %}
+        <button type="button"
+                class="btn btn--sm"
+                style="margin-top: 8px;"
+                hx-get="{% url 'tryouts:session_assign' session.pk %}"
+                hx-target="#assignment-panel"
+                hx-swap="innerHTML">
+          Assign players now
+        </button>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endif %}

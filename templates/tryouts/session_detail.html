@@ -8,331 +8,212 @@
    no-show tab with one-click reschedule, evals empty state.
    Tab state managed with Alpine.js x-data. #}
 
+{# SFLL-96 — Phase 5: SES Session screen.
+   Pacific tokens, light theme. Replaces the legacy dark-Tailwind
+   `session_detail.html`. Four regions:
+     1. Stat row     — registered / checked-in / no-show / on-station
+     2. Per-station progress — small multiples, one card per station
+     3. Check-in roster — searchable, quick-check-in CTA per row
+     4. No-show queue — one-click reschedule to next available session
+   HTMX endpoints in tryouts.urls drive the live updates. #}
+
 {% block title %}SFLL — {{ session.name }}{% endblock %}
+{% block page_title %}SES Session{% endblock %}
 
 {% block content %}
-<div class="page">
+<section class="ses-page">
 
-  {# ── Breadcrumb ── #}
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;color:var(--ink-3)">
-    <a href="{% url 'tryouts:session_list' %}" class="btn btn--ghost btn--sm" style="padding:4px 8px;gap:5px">
-      <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/></svg>
-      Back
-    </a>
-    <span style="color:var(--ink-4)">/</span>
-    <span>SES sessions</span>
-  </div>
-
-  {# ── Page header ── #}
-  <div class="page-header">
+  <header class="page-header">
     <div>
-      <h1 class="page-title">{{ session.name }}</h1>
-      <div class="page-sub" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:6px">
-        <span>
-          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><rect x="3" y="5" width="14" height="12" rx="1"/><path d="M3 9h14"/><path d="M7 3v4"/><path d="M13 3v4"/></svg>{{ session.date|date:"l, F j, Y" }}, {{ session.start_time|time:"g:i A" }}{% if session.end_time %} – {{ session.end_time|time:"g:i A" }}{% endif %}
-        </span>
+      <nav class="crumbs">
+        <a href="{% url 'tryouts:session_list' %}">SES Sessions</a>
+        <span class="crumbs__sep">/</span>
+        <strong>{{ session.name }}</strong>
+      </nav>
+      <h1 class="page-title display">{{ session.name }}</h1>
+      <p class="page-sub">
+        <span class="text-strong">{{ session.division.name }}</span>
+        <span class="crumbs__sep">·</span>
+        {{ session.date|date:"l, F j, Y" }}
+        <span class="crumbs__sep">·</span>
+        {{ session.start_time|time:"g:i A" }}{% if session.end_time %} – {{ session.end_time|time:"g:i A" }}{% endif %}
         {% if session.location %}
-        <span>
-          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px"><circle cx="10" cy="8" r="3"/><path d="M10 2C6.686 2 4 4.686 4 8c0 4 6 10 6 10s6-6 6-10c0-3.314-2.686-6-6-6z"/></svg>{{ session.location }}
-        </span>
+          <span class="crumbs__sep">·</span>{{ session.location }}
         {% endif %}
-        <span class="pill pill--primary">{{ session.division.name }}</span>
         {% if session.is_makeup %}
-        <span class="pill pill--warn">Makeup session</span>
+          <span class="pill pill--warn" style="margin-left: 8px;">
+            <span class="pill__dot"></span>Makeup
+            {% if session.makeup_for %}for {{ session.makeup_for.name }}{% endif %}
+          </span>
         {% endif %}
-        {% if session_is_past and noshow_count == 0 and assignment_count > 0 %}
-        <span class="pill pill--success"><span class="pill__dot"></span>All checked in</span>
-        {% elif session_is_past and assignment_count > 0 %}
-        <span class="pill pill--warn"><span class="pill__dot"></span>{{ noshow_count }} no-show{% if noshow_count != 1 %}s{% endif %}</span>
-        {% endif %}
-      </div>
+      </p>
     </div>
     <div class="page-header__actions">
-      <a href="{% url 'tryouts:session_qr_codes' session.pk %}" target="_blank" class="btn btn--ghost">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="6" height="6" rx="0.5"/><rect x="12" y="2" width="6" height="6" rx="0.5"/><rect x="2" y="12" width="6" height="6" rx="0.5"/><rect x="3.5" y="3.5" width="3" height="3"/><rect x="13.5" y="3.5" width="3" height="3"/><rect x="3.5" y="13.5" width="3" height="3"/><path d="M12 12h2v2h-2z"/><path d="M15 12h3"/><path d="M18 12v6h-3"/><path d="M15 15h-1v3"/></svg>
-        Print QR codes
-      </a>
+      {% if can_checkin %}
+        <a href="{% url 'tryouts:session_checkin' session.pk %}" class="btn">Front-desk kiosk</a>
+      {% endif %}
       {% if can_manage %}
-      <a href="{% url 'tryouts:flag_noshows' session.pk %}" class="btn btn--ghost">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l8 14H2L10 4z"/><path d="M10 9v4"/><path d="M10 16h.01"/></svg>
-        Flag no-shows
-      </a>
-      <a href="{% url 'tryouts:session_checkin' session.pk %}" class="btn btn--primary">
-        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-9"/></svg>
-        Check-in kiosk
-      </a>
+        <a href="{% url 'tryouts:session_qr_codes' session.pk %}" class="btn" target="_blank" rel="noopener">Print QR codes</a>
+        <a href="{% url 'tryouts:session_edit' session.pk %}" class="btn">Edit</a>
       {% endif %}
     </div>
+  </header>
+
+  {# ── 1. Stat row ── #}
+  <div id="ses-stats">
+    {% include "tryouts/partials/ses_stats.html" %}
   </div>
 
-  {# ── Stat row ── #}
-  <div class="stats">
-    <div class="stat">
-      <div class="stat__label">Checked in</div>
-      <div class="stat__value tabular">{{ checked_in_count }}/{{ assignment_count }}</div>
-      {% if assignment_count > 0 %}
-      <div class="stat__delta {% if checked_in_count == assignment_count %}stat__delta--up{% else %}stat__delta--flat{% endif %}">
-        {% if assignment_count > 0 %}{% widthratio checked_in_count assignment_count 100 %}% turnout{% endif %}
-      </div>
-      {% endif %}
-    </div>
-    <div class="stat">
-      <div class="stat__label">Evaluations</div>
-      <div class="stat__value tabular">{{ eval_count }}/{{ evals_expected }}</div>
-      {% if evals_expected > 0 %}
-      <div class="stat__delta stat__delta--flat">{{ evals_pending }} pending</div>
-      {% endif %}
-    </div>
-    <div class="stat">
-      <div class="stat__label">Stations</div>
-      <div class="stat__value tabular">{{ station_count }}</div>
-      <div class="stat__delta stat__delta--flat">evaluation rotations</div>
-    </div>
-    <div class="stat">
-      <div class="stat__label">{% if session_is_past %}No-shows{% else %}Pending{% endif %}</div>
-      <div class="stat__value tabular">{% if session_is_past %}{{ noshow_count }}{% else %}{{ pending_count }}{% endif %}</div>
-      {% if session_is_past %}
-        {% if noshow_count > 0 %}
-        <div class="stat__delta stat__delta--down">need makeup</div>
+  {# ── 2. Per-station progress ── #}
+  <article class="card mb-4">
+    <header class="card__head">
+      <h2 class="card__title">Per-station progress</h2>
+      <span class="card__title-sub">
+        {% if stats.checked_in %}
+          {{ stats.checked_in }} checked-in player{{ stats.checked_in|pluralize }} to evaluate
         {% else %}
-        <div class="stat__delta stat__delta--up">none</div>
+          waiting for check-ins
         {% endif %}
+      </span>
+    </header>
+    <div class="card__body">
+      {% if station_progress %}
+        <div class="station-grid">
+          {% for s in station_progress %}
+            <div class="station-card" data-state="{{ s.state }}">
+              <div class="flex items-center justify-between">
+                <strong>{{ s.station.name }}</strong>
+                <span class="pill {% if s.state == 'done' %}pill--success{% elif s.state == 'in_progress' %}pill--primary{% else %}pill--neutral{% endif %}">
+                  {% if s.state == 'done' %}Complete{% elif s.state == 'in_progress' %}In progress{% else %}Idle{% endif %}
+                </span>
+              </div>
+              <div class="bar">
+                <div class="bar__fill {% if s.state == 'done' %}bar__fill--ok{% elif s.state == 'idle' %}bar__fill--warn{% endif %}"
+                     style="width: {{ s.pct }}%"></div>
+              </div>
+              <div class="station-card__row">
+                <span class="num">{{ s.evaluated }} / {{ s.expected }} evaluated</span>
+                <span class="num">{{ s.pct }}%</span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
       {% else %}
-      <div class="stat__delta stat__delta--flat">not yet closed</div>
+        <div class="empty">
+          <strong>No stations configured</strong>
+          Add evaluation stations from the league config to start tracking progress.
+        </div>
       {% endif %}
     </div>
-  </div>
+  </article>
 
-  {# ── Station progress ── #}
-  {% if station_progress %}
-  <h3 class="display" style="font-size:17px;font-weight:600;margin:0 0 12px;letter-spacing:-0.01em">Station progress</h3>
-  <div class="station-grid" style="margin-bottom:24px">
-    {% for sp in station_progress %}
-    <div class="station-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div>
-          <div style="font-weight:600;font-size:14px;color:var(--ink)">{{ sp.station.name }}</div>
-          {% if sp.station.eval_fields %}
-          <div class="text-xs text-muted" style="margin-top:2px">
-            {% for field in sp.station.eval_fields %}{{ field.label }}{% if not forloop.last %} · {% endif %}{% endfor %}
-          </div>
-          {% endif %}
-        </div>
-        <span class="pill {% if sp.pct == 100 %}pill--success{% elif sp.pct > 70 %}pill--primary{% else %}pill--warn{% endif %}">{{ sp.pct }}%</span>
-      </div>
-      <div class="bar" style="margin-top:10px">
-        <div class="bar__fill {% if sp.pct == 100 %}bar__fill--ok{% elif sp.pct < 50 %}bar__fill--warn{% endif %}" style="width:{{ sp.pct }}%"></div>
-      </div>
-      <div class="station-card__row">
-        <span>{{ sp.done }}/{{ sp.total }} evaluated</span>
-        {% if sp.station.description %}
-        <span>{{ sp.station.description|truncatechars:28 }}</span>
+  <div class="ses-twocol">
+
+    {# ── 3. Check-in roster ── #}
+    <article class="card">
+      <header class="card__head">
+        <h2 class="card__title">Check-in roster</h2>
+        <span class="card__title-sub">
+          {{ stats.checked_in }} of {{ stats.registered }} checked in
+        </span>
+        {% if can_manage %}
+          <button type="button"
+                  class="btn btn--ghost btn--sm"
+                  hx-get="{% url 'tryouts:session_assign' session.pk %}"
+                  hx-target="#assignment-panel"
+                  hx-swap="innerHTML">
+            Manage assignments
+          </button>
         {% endif %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+      </header>
+      <div class="card__body">
+        <div class="toolbar">
+          <label class="input toolbar__search" aria-label="Search check-in roster">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="search"
+                   name="q"
+                   value="{{ q }}"
+                   placeholder="Search players by name…"
+                   autocomplete="off"
+                   hx-get="{% url 'tryouts:ses_roster_search' session.pk %}"
+                   hx-trigger="input changed delay:200ms, search"
+                   hx-target="#ses-roster"
+                   hx-include="this">
+          </label>
+        </div>
 
-  {# ── Tabs ── #}
-  <div x-data="{ tab: 'roster' }">
-    <div class="tabs">
-      <div class="tab" :class="{ 'tab--active': tab === 'roster' }" @click="tab='roster'">
-        Check-in roster · {{ assignment_count }}
-      </div>
-      <div class="tab" :class="{ 'tab--active': tab === 'noshow' }" @click="tab='noshow'">
-        {% if session_is_past %}No-shows · {{ noshow_count }}{% else %}Pending · {{ pending_count }}{% endif %}
-      </div>
-      <div class="tab" :class="{ 'tab--active': tab === 'evals' }" @click="tab='evals'">
-        Evaluations · {{ eval_count }}
-      </div>
-    </div>
+        <div id="ses-roster">
+          {% include "tryouts/partials/ses_roster.html" %}
+        </div>
 
-    {# ── Roster tab ── #}
-    <div x-show="tab === 'roster'" x-cloak>
-      {% if assignments %}
-      <div class="card">
-        <div style="overflow-x:auto">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width:32px"></th>
-                <th>Player</th>
-                <th>Checked in</th>
-                {% for st in stations %}
-                <th>{{ st.name }}</th>
-                {% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in assignments %}
-              {% if row.checked_in %}
-              <tr>
-                <td>
-                  <div class="avatar avatar--sm">{{ row.player.first_name|first }}{{ row.player.last_name|first }}</div>
-                </td>
-                <td>
-                  <div class="player-cell__name">{{ row.player.first_name }} {{ row.player.last_name }}</div>
-                  {% if row.player.date_of_birth %}
-                  <div class="player-cell__sub">DOB {{ row.player.date_of_birth|date:"M j, Y" }}</div>
-                  {% endif %}
-                </td>
-                <td style="font-size:13px">
-                  <span style="color:var(--success);margin-right:4px">
-                    <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M4 10l4 4 8-9"/></svg>
-                  </span>
-                  <span class="tabular">{{ row.checkin.checked_in_at|time:"g:i A" }}</span>
-                </td>
-                {% for st in stations %}
-                <td style="font-size:13px">
-                  <span class="pill pill--ghost">—</span>
-                </td>
-                {% endfor %}
-              </tr>
-              {% endif %}
-              {% endfor %}
-              {% for row in assignments %}
-              {% if not row.checked_in %}
-              <tr>
-                <td>
-                  <div class="avatar avatar--sm" style="background:var(--bg-3)">{{ row.player.first_name|first }}{{ row.player.last_name|first }}</div>
-                </td>
-                <td>
-                  <div class="player-cell__name" style="color:var(--ink-2)">{{ row.player.first_name }} {{ row.player.last_name }}</div>
-                  {% if row.player.date_of_birth %}
-                  <div class="player-cell__sub">DOB {{ row.player.date_of_birth|date:"M j, Y" }}</div>
-                  {% endif %}
-                </td>
-                <td>
-                  <span class="pill pill--neutral">Not checked in</span>
-                </td>
-                {% for st in stations %}
-                <td>
-                  <span class="pill pill--ghost">queued</span>
-                </td>
-                {% endfor %}
-              </tr>
-              {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        {# HTMX target for "Manage assignments" panel (unchanged from legacy flow). #}
+        <div id="assignment-panel"></div>
       </div>
-      {% else %}
-      <div class="card">
-        <div class="empty">
-          <strong>No players assigned.</strong>
-          Use "Manage Assignments" to assign players to this session.
-        </div>
-      </div>
-      {% endif %}
-    </div>
+    </article>
 
-    {# ── No-show tab ── #}
-    <div x-show="tab === 'noshow'" x-cloak>
-      <div class="card">
-        {% if not session_is_past %}
-        <div class="empty">
-          <strong>Session not yet closed.</strong>
-          Players who don't check in will appear here once the session date has passed.
-        </div>
-        {% elif noshow_count == 0 %}
-        <div class="empty">
-          <strong>Nobody missed it.</strong>
-          Every assigned player checked in. That almost never happens.
-        </div>
-        {% else %}
-        <div style="overflow-x:auto">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width:32px"></th>
-                <th>Player</th>
-                <th>Contact</th>
-                <th>Status</th>
-                {% if can_manage %}
-                <th class="col-actions">Makeup</th>
-                {% endif %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in assignments %}
-              {% if not row.checked_in %}
-              <tr>
-                <td>
-                  <div class="avatar avatar--sm">{{ row.player.first_name|first }}{{ row.player.last_name|first }}</div>
-                </td>
-                <td>
-                  <div class="player-cell__name">{{ row.player.first_name }} {{ row.player.last_name }}</div>
-                  {% if row.player_season.account_name %}
-                  <div class="player-cell__sub">{{ row.player_season.account_name }}</div>
-                  {% endif %}
-                </td>
-                <td style="font-size:13px">
-                  {% if row.player_season.account_email %}
-                  <a href="mailto:{{ row.player_season.account_email }}" class="text-muted" style="text-decoration:underline">{{ row.player_season.account_email }}</a>
-                  {% else %}
-                  <span class="text-muted">—</span>
-                  {% endif %}
-                </td>
-                <td>
-                  {% if row.player_season.status == 'needs_makeup' %}
-                  <span class="pill pill--warn"><span class="pill__dot"></span>Needs makeup</span>
-                  {% else %}
-                  <span class="pill pill--neutral">Unexcused</span>
-                  {% endif %}
-                </td>
-                {% if can_manage %}
-                <td class="col-actions">
-                  <a href="{% url 'tryouts:reassign_player' session.pk row.assignment.pk %}" class="btn btn--ghost btn--sm">
-                    Reschedule
-                  </a>
-                </td>
-                {% endif %}
-              </tr>
-              {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+    {# ── 4. No-show queue ── #}
+    <article class="card">
+      <header class="card__head">
+        <h2 class="card__title">No-show queue</h2>
+        <span class="card__title-sub">
+          {{ stats.no_show }} not checked in
+        </span>
+        {% if can_manage %}
+          <a class="btn btn--ghost btn--sm"
+             href="{% url 'tryouts:flag_noshows' session.pk %}">
+            Bulk flag…
+          </a>
         {% endif %}
+      </header>
+      <div id="ses-noshow">
+        {% include "tryouts/partials/ses_noshow.html" %}
       </div>
-    </div>
+    </article>
 
-    {# ── Evals tab ── #}
-    <div x-show="tab === 'evals'" x-cloak>
-      <div class="card">
-        <div class="empty">
-          <strong>Evaluations submit per-coach, per-station.</strong>
-          The full grid rolls into the Draft Board view once the session closes.
-          {% if eval_count > 0 %}
-          <div style="margin-top:12px">
-            <a href="{% url 'evaluations:index' %}" class="btn btn--ghost btn--sm">View evaluations</a>
-          </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-  </div>{# /x-data tabs #}
-
-  {# ── Manage assignments panel ── #}
-  {% if can_manage %}
-  <div style="margin-top:24px;display:flex;gap:8px">
-    <button class="btn btn--ghost"
-            hx-get="{% url 'tryouts:session_assign' session.pk %}"
-            hx-target="#assignment-panel"
-            hx-swap="innerHTML">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12"/><path d="M4 10h12"/></svg>
-      Manage assignments
-    </button>
-    <a href="{% url 'tryouts:session_edit' session.pk %}" class="btn btn--ghost">
-      <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3l3 3-9 9H5v-3L14 3z"/></svg>
-      Edit session
-    </a>
   </div>
-  <div id="assignment-panel" style="margin-top:16px"></div>
-  {% endif %}
 
-</div>{# /page #}
+</section>
+
+<style>
+  /* SES Session screen layout — sits on top of lms-tokens.css primitives.
+     Kept inline so the foundation file stays the single source of design
+     tokens; per-screen layout shims live with their template until the
+     shared lms-components.css from Phase 2 (SFLL-93) lands. */
+  .ses-page { display: flex; flex-direction: column; gap: var(--gap-lg); }
+  .ses-twocol {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: var(--gap-lg);
+    align-items: start;
+  }
+  @media (max-width: 1024px) {
+    .ses-twocol { grid-template-columns: 1fr; }
+  }
+  .station-card[data-state="done"]   { border-color: color-mix(in oklch, var(--success) 35%, var(--border)); }
+  .station-card[data-state="in_progress"] { border-color: color-mix(in oklch, var(--primary) 35%, var(--border)); }
+  .ses-roster-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px var(--pad-x);
+    border-top: 1px solid var(--border);
+  }
+  .ses-roster-row:first-child { border-top: 0; }
+  .ses-roster-row[data-checked="true"] { background: color-mix(in oklch, var(--success-soft) 55%, transparent); }
+  .ses-roster-row__sub { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+  .ses-roster-row__time { font-family: var(--font-num); font-size: 12.5px; color: var(--success); }
+  .ses-noshow-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px var(--pad-x);
+    border-top: 1px solid var(--border);
+  }
+  .ses-noshow-row:first-child { border-top: 0; }
+</style>
 {% endblock %}

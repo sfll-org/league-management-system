@@ -1,0 +1,49 @@
+{# Single check-in roster row. Targeted by `#ses-row-<pk>` for swaps. #}
+<div id="ses-row-{{ row.assignment.pk }}"
+     class="ses-roster-row"
+     data-checked="{{ row.checked_in|yesno:'true,false' }}">
+  <div class="player-cell">
+    <div>
+      <div class="player-cell__name">
+        {{ row.player.last_name }}, {{ row.player.first_name }}
+      </div>
+      <div class="ses-roster-row__sub">
+        {% if row.division %}{{ row.division.name }}{% endif %}
+        {% if row.account_name %}
+          {% if row.division %}<span class="crumbs__sep">·</span>{% endif %}
+          {{ row.account_name }}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    {% if row.checked_in %}
+      <span class="pill pill--success">
+        <span class="pill__dot"></span>
+        Checked in
+      </span>
+    {% else %}
+      <span class="pill pill--ghost">Not yet</span>
+    {% endif %}
+  </div>
+
+  <div>
+    {% if row.checked_in %}
+      <span class="ses-roster-row__time">
+        {{ row.checkin.checked_in_at|time:"g:i A" }}
+      </span>
+    {% elif can_checkin %}
+      <button type="button"
+              class="btn btn--primary btn--sm"
+              hx-post="{% url 'tryouts:ses_quick_checkin' session.pk row.assignment.pk %}"
+              hx-target="#ses-row-{{ row.assignment.pk }}"
+              hx-swap="outerHTML"
+              hx-include="[name='q']">
+        Check in
+      </button>
+    {% else %}
+      <span class="text-muted text-xs">—</span>
+    {% endif %}
+  </div>
+</div>
