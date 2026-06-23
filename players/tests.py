@@ -1,8 +1,9 @@
-"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95) and Print surfaces (SFLL-114)."""
+"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95) and Print surfaces (SFLL-114/SFLL-129)."""
 
+import os
 from datetime import date, timedelta
 
-from django.test import TestCase, Client
+from django.test import TestCase, SimpleTestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
@@ -1017,3 +1018,32 @@ class RosterFilterTests(TestCase):
         content = resp.content.decode()
         self.assertIn(f'name="division" value="{self.majors.id}"', content)
         self.assertIn('name="view" value="top4"', content)
+
+
+class PrintCSSRegressionTest(SimpleTestCase):
+    """Regression tests for SFLL-129: two dugout cards must share one letter sheet."""
+
+    @staticmethod
+    def _read_css(filename):
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(base, 'static', 'css', filename)
+        with open(path) as f:
+            return f.read()
+
+    def _assert_no_forced_break(self, css, filename):
+        self.assertNotIn(
+            'page-break-after: always',
+            css,
+            f'{filename} must not force a page break after each .dugout-card',
+        )
+        self.assertNotIn(
+            'break-after: page',
+            css,
+            f'{filename} must not force a page break after each .dugout-card',
+        )
+
+    def test_lms_print_css_no_forced_page_break_on_dugout_card(self):
+        self._assert_no_forced_break(self._read_css('lms-print.css'), 'lms-print.css')
+
+    def test_lms_components_css_no_forced_page_break_on_dugout_card(self):
+        self._assert_no_forced_break(self._read_css('lms-components.css'), 'lms-components.css')

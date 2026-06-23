@@ -750,10 +750,9 @@
 /* — Print rules.
    @page sets letter portrait with 0.35in margins (about as tight as
    most printers will honor without clipping). The body chrome is
-   removed and the sheet stack collapses so each card lands on its
-   own half. min-height stays in inches so the card always claims a
-   real half-sheet's worth of vertical space — coaches read down the
-   page, not across it. */
+   removed and the sheet stack collapses. Both cards share a single
+   letter sheet — no forced break between them; each card is exactly
+   5 in tall so the pair fills the 10.3 in printable area. */
 @media print {
   .print-toolbar { display: none; }
   .print-body { background: #ffffff; }
@@ -767,14 +766,9 @@
     border: 0;
     border-radius: 0;
     box-shadow: none;
-    min-height: 5.0in;
+    height: 5.0in;
+    overflow: hidden;
     padding: 0.3in 0.35in 0.25in;
-    page-break-after: always;
-    break-after: page;
-  }
-  .dugout-card:last-child {
-    page-break-after: auto;
-    break-after: auto;
   }
 }
 
