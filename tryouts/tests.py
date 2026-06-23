@@ -2,42 +2,47 @@
 
 from datetime import date, time, timedelta
 
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
-from django.utils import timezone
-
 from accounts.models import Coach, CoachSeason, User, UserRole
 from core.models import AuditLog
 from evaluations.models import Evaluation
-from players.models import (
-    Division, League, Player, PlayerSeason, Season, Station, Team, TeamSeason,
-)
+from players.models import (Division, League, Player, PlayerSeason, Season,
+                            Station, Team, TeamSeason)
 from tryouts.models import CheckIn, Session, SessionAssignment
 
 
 def _setup_base():
     """Create league, season, division, and user. Returns dict of objects."""
-    league = League.objects.create(name='SFLL', short_name='SFLL')
+    league = League.objects.create(name="SFLL", short_name="SFLL")
     season = Season.objects.create(
-        league=league, name='Spring 2026', year=2026, season_type='spring',
+        league=league,
+        name="Spring 2026",
+        year=2026,
+        season_type="spring",
         is_active=True,
     )
-    division = Division.objects.create(league=league, name='Majors', display_order=0)
-    return {'league': league, 'season': season, 'division': division}
+    division = Division.objects.create(league=league, name="Majors", display_order=0)
+    return {"league": league, "season": season, "division": division}
 
 
-def _create_user(email='user@sfll.org', password='testpass123', is_superuser=False):
+def _create_user(email="user@sfll.org", password="testpass123", is_superuser=False):
     return User.objects.create_user(
-        username=email, email=email,
-        first_name='Test', last_name='User',
-        password=password, is_superuser=is_superuser,
+        username=email,
+        email=email,
+        first_name="Test",
+        last_name="User",
+        password=password,
+        is_superuser=is_superuser,
     )
 
 
-def _create_player(league, sc_id='SC-001', first='Jayden', last='Rodriguez'):
+def _create_player(league, sc_id="SC-001", first="Jayden", last="Rodriguez"):
     return Player.objects.create(
-        league=league, sportsconnect_player_id=sc_id,
-        first_name=first, last_name=last,
+        league=league,
+        sportsconnect_player_id=sc_id,
+        first_name=first,
+        last_name=last,
     )
 
 
@@ -47,37 +52,42 @@ class SessionModelTests(TestCase):
 
     def test_str(self):
         session = Session.objects.create(
-            season=self.base['season'],
-            name='SES Day 1',
+            season=self.base["season"],
+            name="SES Day 1",
             date=date(2026, 3, 28),
             start_time=time(9, 0),
-            division=self.base['division'],
+            division=self.base["division"],
         )
-        self.assertIn('SES Day 1', str(session))
-        self.assertIn('2026-03-28', str(session))
+        self.assertIn("SES Day 1", str(session))
+        self.assertIn("2026-03-28", str(session))
 
     def test_is_makeup_default(self):
         session = Session.objects.create(
-            season=self.base['season'],
-            name='SES Day 1',
+            season=self.base["season"],
+            name="SES Day 1",
             date=date(2026, 3, 28),
             start_time=time(9, 0),
-            division=self.base['division'],
+            division=self.base["division"],
         )
         self.assertFalse(session.is_makeup)
         self.assertIsNone(session.makeup_for)
 
     def test_makeup_session_link(self):
         original = Session.objects.create(
-            season=self.base['season'], name='SES 1',
-            date=date(2026, 3, 28), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES 1",
+            date=date(2026, 3, 28),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
         makeup = Session.objects.create(
-            season=self.base['season'], name='SES 1 Makeup',
-            date=date(2026, 4, 5), start_time=time(9, 0),
-            division=self.base['division'],
-            is_makeup=True, makeup_for=original,
+            season=self.base["season"],
+            name="SES 1 Makeup",
+            date=date(2026, 4, 5),
+            start_time=time(9, 0),
+            division=self.base["division"],
+            is_makeup=True,
+            makeup_for=original,
         )
         self.assertEqual(makeup.makeup_for, original)
         self.assertIn(makeup, original.makeup_sessions.all())
@@ -86,48 +96,58 @@ class SessionModelTests(TestCase):
 class SessionAssignmentModelTests(TestCase):
     def setUp(self):
         self.base = _setup_base()
-        self.player = _create_player(self.base['league'])
+        self.player = _create_player(self.base["league"])
         self.ps = PlayerSeason.objects.create(
-            player=self.player, season=self.base['season'],
-            division=self.base['division'],
+            player=self.player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         self.session = Session.objects.create(
-            season=self.base['season'], name='SES 1',
-            date=date(2026, 3, 28), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES 1",
+            date=date(2026, 3, 28),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
 
     def test_create_assignment(self):
         sa = SessionAssignment.objects.create(
-            session=self.session, player_season=self.ps,
+            session=self.session,
+            player_season=self.ps,
         )
-        self.assertIn('SES 1', str(sa))
+        self.assertIn("SES 1", str(sa))
 
     def test_unique_together(self):
         SessionAssignment.objects.create(
-            session=self.session, player_season=self.ps,
+            session=self.session,
+            player_season=self.ps,
         )
         with self.assertRaises(Exception):
             SessionAssignment.objects.create(
-                session=self.session, player_season=self.ps,
+                session=self.session,
+                player_season=self.ps,
             )
 
 
 class CheckInModelTests(TestCase):
     def setUp(self):
         self.base = _setup_base()
-        self.player = _create_player(self.base['league'])
+        self.player = _create_player(self.base["league"])
         self.ps = PlayerSeason.objects.create(
-            player=self.player, season=self.base['season'],
-            division=self.base['division'],
+            player=self.player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         self.session = Session.objects.create(
-            season=self.base['season'], name='SES 1',
-            date=date.today(), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES 1",
+            date=date.today(),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
         self.assignment = SessionAssignment.objects.create(
-            session=self.session, player_season=self.ps,
+            session=self.session,
+            player_season=self.ps,
         )
 
     def test_create_checkin(self):
@@ -135,7 +155,7 @@ class CheckInModelTests(TestCase):
             session_assignment=self.assignment,
         )
         self.assertIsNotNone(checkin.checked_in_at)
-        self.assertIn('Check-in', str(checkin))
+        self.assertIn("Check-in", str(checkin))
 
     def test_one_to_one_constraint(self):
         CheckIn.objects.create(session_assignment=self.assignment)
@@ -151,56 +171,64 @@ class SessionViewPermissionTests(TestCase):
         self.client = Client()
 
     def test_session_list_requires_login(self):
-        resp = self.client.get(reverse('tryouts:session_list'))
+        resp = self.client.get(reverse("tryouts:session_list"))
         self.assertEqual(resp.status_code, 302)
-        self.assertIn('login', resp.url)
+        self.assertIn("login", resp.url)
 
     def test_session_list_authenticated(self):
         user = _create_user()
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_list'))
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_list"))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_create_forbidden_for_regular_user(self):
         user = _create_user()
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_create'))
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_create"))
         self.assertEqual(resp.status_code, 403)
 
     def test_session_create_allowed_for_superuser(self):
-        user = _create_user(email='admin@sfll.org', is_superuser=True)
-        self.client.login(username='admin@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_create'))
+        user = _create_user(email="admin@sfll.org", is_superuser=True)
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_create"))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_create_allowed_for_cto_role(self):
-        user = _create_user(email='cto@sfll.org')
+        user = _create_user(email="cto@sfll.org")
         UserRole.objects.create(
-            user=user, league=self.base['league'], role='cto', is_active=True,
+            user=user,
+            league=self.base["league"],
+            role="cto",
+            is_active=True,
         )
-        self.client.login(username='cto@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_create'))
+        self.client.login(username="cto@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_create"))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_create_allowed_for_player_agent(self):
-        user = _create_user(email='pa@sfll.org')
+        user = _create_user(email="pa@sfll.org")
         UserRole.objects.create(
-            user=user, league=self.base['league'], role='player_agent',
-            division=self.base['division'], is_active=True,
+            user=user,
+            league=self.base["league"],
+            role="player_agent",
+            division=self.base["division"],
+            is_active=True,
         )
-        self.client.login(username='pa@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_create'))
+        self.client.login(username="pa@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_create"))
         self.assertEqual(resp.status_code, 200)
 
     def test_session_delete_forbidden_for_regular_user(self):
         user = _create_user()
         session = Session.objects.create(
-            season=self.base['season'], name='SES 1',
-            date=date.today(), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES 1",
+            date=date.today(),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:session_delete', args=[session.pk]))
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:session_delete", args=[session.pk]))
         self.assertEqual(resp.status_code, 403)
 
 
@@ -210,58 +238,72 @@ class CheckInViewTests(TestCase):
     def setUp(self):
         self.base = _setup_base()
         self.user = _create_user(is_superuser=True)
-        self.player = _create_player(self.base['league'])
+        self.player = _create_player(self.base["league"])
         self.ps = PlayerSeason.objects.create(
-            player=self.player, season=self.base['season'],
-            division=self.base['division'],
+            player=self.player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         self.session = Session.objects.create(
-            season=self.base['season'], name='SES 1',
-            date=date.today(), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES 1",
+            date=date.today(),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
         self.assignment = SessionAssignment.objects.create(
-            session=self.session, player_season=self.ps,
+            session=self.session,
+            player_season=self.ps,
             assigned_by=self.user,
         )
         self.client = Client()
 
     def test_checkin_dashboard_requires_permission(self):
-        regular_user = _create_user(email='nobody@sfll.org')
-        self.client.login(username='nobody@sfll.org', password='testpass123')
+        regular_user = _create_user(email="nobody@sfll.org")
+        self.client.login(username="nobody@sfll.org", password="testpass123")
         resp = self.client.get(
-            reverse('tryouts:session_checkin', args=[self.session.pk])
+            reverse("tryouts:session_checkin", args=[self.session.pk])
         )
         self.assertEqual(resp.status_code, 403)
 
     def test_checkin_dashboard_allowed_for_front_desk(self):
-        fd_user = _create_user(email='fd@sfll.org')
+        fd_user = _create_user(email="fd@sfll.org")
         UserRole.objects.create(
-            user=fd_user, league=self.base['league'], role='front_desk',
+            user=fd_user,
+            league=self.base["league"],
+            role="front_desk",
             is_active=True,
         )
-        self.client.login(username='fd@sfll.org', password='testpass123')
+        self.client.login(username="fd@sfll.org", password="testpass123")
         resp = self.client.get(
-            reverse('tryouts:session_checkin', args=[self.session.pk])
+            reverse("tryouts:session_checkin", args=[self.session.pk])
         )
         self.assertEqual(resp.status_code, 200)
 
     def test_checkin_player_via_post(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
         resp = self.client.post(
-            reverse('tryouts:checkin_player', args=[self.session.pk, self.assignment.pk])
+            reverse(
+                "tryouts:checkin_player", args=[self.session.pk, self.assignment.pk]
+            )
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(CheckIn.objects.filter(session_assignment=self.assignment).exists())
+        self.assertTrue(
+            CheckIn.objects.filter(session_assignment=self.assignment).exists()
+        )
 
     def test_checkin_player_idempotent(self):
         """Checking in the same player twice should not create duplicate."""
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
         self.client.post(
-            reverse('tryouts:checkin_player', args=[self.session.pk, self.assignment.pk])
+            reverse(
+                "tryouts:checkin_player", args=[self.session.pk, self.assignment.pk]
+            )
         )
         self.client.post(
-            reverse('tryouts:checkin_player', args=[self.session.pk, self.assignment.pk])
+            reverse(
+                "tryouts:checkin_player", args=[self.session.pk, self.assignment.pk]
+            )
         )
         self.assertEqual(
             CheckIn.objects.filter(session_assignment=self.assignment).count(), 1
@@ -269,18 +311,16 @@ class CheckInViewTests(TestCase):
 
     def test_public_checkin_by_token(self):
         """Public QR code check-in should work without authentication."""
-        resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
-        )
+        resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(CheckIn.objects.filter(session_assignment=self.assignment).exists())
+        self.assertTrue(
+            CheckIn.objects.filter(session_assignment=self.assignment).exists()
+        )
 
     def test_public_checkin_already_checked_in(self):
         """If already checked in, public check-in should show already_checked_in."""
         CheckIn.objects.create(session_assignment=self.assignment)
-        resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
-        )
+        resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
         self.assertEqual(resp.status_code, 200)
 
     def test_public_checkin_no_session_today(self):
@@ -288,9 +328,7 @@ class CheckInViewTests(TestCase):
         # Move the session to yesterday
         self.session.date = date.today() - timedelta(days=1)
         self.session.save()
-        resp = self.client.get(
-            reverse('public_checkin', args=[self.ps.checkin_token])
-        )
+        resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
         self.assertEqual(resp.status_code, 200)
 
 
@@ -301,26 +339,32 @@ class SessionCreatePostTests(TestCase):
         self.base = _setup_base()
         self.user = _create_user(is_superuser=True)
         self.client = Client()
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
 
     def test_create_session_post(self):
-        resp = self.client.post(reverse('tryouts:session_create'), {
-            'name': 'SES Day 1',
-            'date': '2026-03-28',
-            'start_time': '09:00',
-            'division': self.base['division'].pk,
-            'location': 'Field 3',
-        })
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "SES Day 1",
+                "date": "2026-03-28",
+                "start_time": "09:00",
+                "division": self.base["division"].pk,
+                "location": "Field 3",
+            },
+        )
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(Session.objects.filter(name='SES Day 1').exists())
+        self.assertTrue(Session.objects.filter(name="SES Day 1").exists())
 
     def test_create_session_missing_required(self):
-        resp = self.client.post(reverse('tryouts:session_create'), {
-            'name': '',
-            'date': '',
-            'start_time': '',
-            'division': '',
-        })
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "",
+                "date": "",
+                "start_time": "",
+                "division": "",
+            },
+        )
         # Should re-render form (200), not redirect
         self.assertEqual(resp.status_code, 200)
 
@@ -337,32 +381,41 @@ def _setup_ses_session(*, num_registered=6, num_checked_in=4, num_on_station=2):
     players (list), assignments (list), and a helper-created CoachSeason.
     """
     base = _setup_base()
-    league = base['league']
-    season = base['season']
-    division = base['division']
+    league = base["league"]
+    season = base["season"]
+    division = base["division"]
 
-    station1 = Station.objects.create(league=league, name='Hitting', display_order=0)
-    station2 = Station.objects.create(league=league, name='Infield', display_order=1)
+    station1 = Station.objects.create(league=league, name="Hitting", display_order=0)
+    station2 = Station.objects.create(league=league, name="Infield", display_order=1)
 
     session = Session.objects.create(
-        season=season, name='SES Day 1',
-        date=date.today(), start_time=time(9, 0),
+        season=season,
+        name="SES Day 1",
+        date=date.today(),
+        start_time=time(9, 0),
         division=division,
     )
 
     # Coach for evaluations
     coach_user = User.objects.create_user(
-        username='coach@sfll.org', email='coach@sfll.org',
-        password='testpass123',
-        first_name='Pat', last_name='Coach',
+        username="coach@sfll.org",
+        email="coach@sfll.org",
+        password="testpass123",
+        first_name="Pat",
+        last_name="Coach",
     )
     coach = Coach.objects.create(user=coach_user, league=league)
-    team = Team.objects.create(league=league, name='Giants')
+    team = Team.objects.create(league=league, name="Giants")
     team_season = TeamSeason.objects.create(
-        team=team, season=season, division=division,
+        team=team,
+        season=season,
+        division=division,
     )
     coach_season = CoachSeason.objects.create(
-        coach=coach, team_season=team_season, season=season, role='head_coach',
+        coach=coach,
+        team_season=team_season,
+        season=season,
+        role="head_coach",
     )
 
     players = []
@@ -370,11 +423,14 @@ def _setup_ses_session(*, num_registered=6, num_checked_in=4, num_on_station=2):
     for i in range(num_registered):
         p = Player.objects.create(
             league=league,
-            sportsconnect_player_id=f'SC-{i:03d}',
-            first_name=f'P{i}', last_name=f'Last{i}',
+            sportsconnect_player_id=f"SC-{i:03d}",
+            first_name=f"P{i}",
+            last_name=f"Last{i}",
         )
         ps = PlayerSeason.objects.create(
-            player=p, season=season, division=division,
+            player=p,
+            season=season,
+            division=division,
         )
         sa = SessionAssignment.objects.create(session=session, player_season=ps)
         players.append((p, ps))
@@ -391,16 +447,19 @@ def _setup_ses_session(*, num_registered=6, num_checked_in=4, num_on_station=2):
             session=session,
             coach_season=coach_season,
             station=station1,
-            scores={'power': 4},
+            scores={"power": 4},
         )
 
     return {
-        'league': league, 'season': season, 'division': division,
-        'station1': station1, 'station2': station2,
-        'session': session,
-        'players': players,
-        'assignments': assignments,
-        'coach_season': coach_season,
+        "league": league,
+        "season": season,
+        "division": division,
+        "station1": station1,
+        "station2": station2,
+        "session": session,
+        "players": players,
+        "assignments": assignments,
+        "coach_season": coach_season,
     }
 
 
@@ -409,30 +468,33 @@ class SesSessionScreenTests(TestCase):
 
     def setUp(self):
         self.fixture = _setup_ses_session(
-            num_registered=6, num_checked_in=4, num_on_station=2,
+            num_registered=6,
+            num_checked_in=4,
+            num_on_station=2,
         )
         self.user = _create_user(is_superuser=True)
         self.client = Client()
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
 
     def test_stat_row_counts(self):
         resp = self.client.get(
-            reverse('tryouts:session_detail', args=[self.fixture['session'].pk])
+            reverse("tryouts:session_detail", args=[self.fixture["session"].pk])
         )
         self.assertEqual(resp.status_code, 200)
-        stats = resp.context['stats']
-        self.assertEqual(stats['registered'], 6)
-        self.assertEqual(stats['checked_in'], 4)
-        self.assertEqual(stats['no_show'], 2)
-        self.assertEqual(stats['on_station'], 2)
+        stats = resp.context["stats"]
+        self.assertEqual(stats["registered"], 6)
+        self.assertEqual(stats["checked_in"], 4)
+        self.assertEqual(stats["no_show"], 2)
+        self.assertEqual(stats["on_station"], 2)
 
     def test_no_show_excludes_checked_in_players(self):
         resp = self.client.get(
-            reverse('tryouts:session_detail', args=[self.fixture['session'].pk])
+            reverse("tryouts:session_detail", args=[self.fixture["session"].pk])
         )
-        no_show_pks = {item['assignment'].pk for item in resp.context['no_show_queue']}
+        no_show_pks = {item["assignment"].pk for item in resp.context["no_show_queue"]}
         checked_in_pks = {
-            sa.pk for sa in self.fixture['assignments']
+            sa.pk
+            for sa in self.fixture["assignments"]
             if CheckIn.objects.filter(session_assignment=sa).exists()
         }
         self.assertEqual(len(no_show_pks & checked_in_pks), 0)
@@ -440,34 +502,36 @@ class SesSessionScreenTests(TestCase):
 
     def test_station_progress_pct_and_state(self):
         resp = self.client.get(
-            reverse('tryouts:session_detail', args=[self.fixture['session'].pk])
+            reverse("tryouts:session_detail", args=[self.fixture["session"].pk])
         )
-        progress = {p['station'].pk: p for p in resp.context['station_progress']}
-        s1 = progress[self.fixture['station1'].pk]
-        s2 = progress[self.fixture['station2'].pk]
+        progress = {p["station"].pk: p for p in resp.context["station_progress"]}
+        s1 = progress[self.fixture["station1"].pk]
+        s2 = progress[self.fixture["station2"].pk]
         # Hitting: 2 of 4 checked-in evaluated → 50%, in_progress.
-        self.assertEqual(s1['evaluated'], 2)
-        self.assertEqual(s1['expected'], 4)
-        self.assertEqual(s1['pct'], 50)
-        self.assertEqual(s1['state'], 'in_progress')
+        self.assertEqual(s1["evaluated"], 2)
+        self.assertEqual(s1["expected"], 4)
+        self.assertEqual(s1["pct"], 50)
+        self.assertEqual(s1["state"], "in_progress")
         # Infield: 0 of 4 → idle.
-        self.assertEqual(s2['evaluated'], 0)
-        self.assertEqual(s2['state'], 'idle')
+        self.assertEqual(s2["evaluated"], 0)
+        self.assertEqual(s2["state"], "idle")
 
     def test_station_progress_handles_zero_checked_in(self):
         # Brand new session — no check-ins yet.
         empty_session = Session.objects.create(
-            season=self.fixture['season'], name='SES Day 2',
-            date=date.today() + timedelta(days=7), start_time=time(9, 0),
-            division=self.fixture['division'],
+            season=self.fixture["season"],
+            name="SES Day 2",
+            date=date.today() + timedelta(days=7),
+            start_time=time(9, 0),
+            division=self.fixture["division"],
         )
         resp = self.client.get(
-            reverse('tryouts:session_detail', args=[empty_session.pk])
+            reverse("tryouts:session_detail", args=[empty_session.pk])
         )
-        for p in resp.context['station_progress']:
-            self.assertEqual(p['expected'], 0)
-            self.assertEqual(p['pct'], 0)
-            self.assertEqual(p['state'], 'idle')
+        for p in resp.context["station_progress"]:
+            self.assertEqual(p["expected"], 0)
+            self.assertEqual(p["pct"], 0)
+            self.assertEqual(p["state"], "idle")
 
 
 class SesRosterSearchTests(TestCase):
@@ -477,26 +541,26 @@ class SesRosterSearchTests(TestCase):
         self.fixture = _setup_ses_session()
         self.user = _create_user(is_superuser=True)
         self.client = Client()
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
 
     def test_search_filters_by_last_name(self):
-        url = reverse('tryouts:ses_roster_search', args=[self.fixture['session'].pk])
-        resp = self.client.get(url, {'q': 'Last3'})
+        url = reverse("tryouts:ses_roster_search", args=[self.fixture["session"].pk])
+        resp = self.client.get(url, {"q": "Last3"})
         self.assertEqual(resp.status_code, 200)
-        roster_pks = [r['assignment'].pk for r in resp.context['roster']]
+        roster_pks = [r["assignment"].pk for r in resp.context["roster"]]
         # P3 / Last3 only.
         self.assertEqual(len(roster_pks), 1)
 
     def test_empty_search_returns_full_roster(self):
-        url = reverse('tryouts:ses_roster_search', args=[self.fixture['session'].pk])
-        resp = self.client.get(url, {'q': ''})
-        self.assertEqual(len(resp.context['roster']), 6)
+        url = reverse("tryouts:ses_roster_search", args=[self.fixture["session"].pk])
+        resp = self.client.get(url, {"q": ""})
+        self.assertEqual(len(resp.context["roster"]), 6)
 
     def test_no_match_shows_empty_state(self):
-        url = reverse('tryouts:ses_roster_search', args=[self.fixture['session'].pk])
-        resp = self.client.get(url, {'q': 'ZZZZ'})
-        self.assertEqual(len(resp.context['roster']), 0)
-        self.assertContains(resp, 'No players match')
+        url = reverse("tryouts:ses_roster_search", args=[self.fixture["session"].pk])
+        resp = self.client.get(url, {"q": "ZZZZ"})
+        self.assertEqual(len(resp.context["roster"]), 0)
+        self.assertContains(resp, "No players match")
 
 
 class SesQuickCheckinTests(TestCase):
@@ -504,27 +568,29 @@ class SesQuickCheckinTests(TestCase):
 
     def setUp(self):
         self.fixture = _setup_ses_session(
-            num_registered=3, num_checked_in=0, num_on_station=0,
+            num_registered=3,
+            num_checked_in=0,
+            num_on_station=0,
         )
         self.user = _create_user(is_superuser=True)
         self.client = Client()
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
 
     def test_quick_checkin_creates_record(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_checkin',
-            args=[self.fixture['session'].pk, sa.pk],
+            "tryouts:ses_quick_checkin",
+            args=[self.fixture["session"].pk, sa.pk],
         )
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(CheckIn.objects.filter(session_assignment=sa).exists())
 
     def test_quick_checkin_returns_row_with_oob_swaps(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_checkin',
-            args=[self.fixture['session'].pk, sa.pk],
+            "tryouts:ses_quick_checkin",
+            args=[self.fixture["session"].pk, sa.pk],
         )
         resp = self.client.post(url)
         # Primary swap target — the row id.
@@ -535,26 +601,27 @@ class SesQuickCheckinTests(TestCase):
         self.assertContains(resp, 'id="ses-noshow"')
 
     def test_quick_checkin_idempotent(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_checkin',
-            args=[self.fixture['session'].pk, sa.pk],
+            "tryouts:ses_quick_checkin",
+            args=[self.fixture["session"].pk, sa.pk],
         )
         self.client.post(url)
         self.client.post(url)
         self.assertEqual(
-            CheckIn.objects.filter(session_assignment=sa).count(), 1,
+            CheckIn.objects.filter(session_assignment=sa).count(),
+            1,
         )
 
     def test_quick_checkin_requires_permission(self):
         # Regular user without check-in roles.
         self.client.logout()
-        _create_user(email='nobody@sfll.org')
-        self.client.login(username='nobody@sfll.org', password='testpass123')
-        sa = self.fixture['assignments'][0]
+        _create_user(email="nobody@sfll.org")
+        self.client.login(username="nobody@sfll.org", password="testpass123")
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_checkin',
-            args=[self.fixture['session'].pk, sa.pk],
+            "tryouts:ses_quick_checkin",
+            args=[self.fixture["session"].pk, sa.pk],
         )
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 403)
@@ -565,97 +632,110 @@ class SesQuickRescheduleTests(TestCase):
 
     def setUp(self):
         self.fixture = _setup_ses_session(
-            num_registered=2, num_checked_in=0, num_on_station=0,
+            num_registered=2,
+            num_checked_in=0,
+            num_on_station=0,
         )
         self.user = _create_user(is_superuser=True)
         self.client = Client()
-        self.client.login(username='user@sfll.org', password='testpass123')
-        self.session = self.fixture['session']
+        self.client.login(username="user@sfll.org", password="testpass123")
+        self.session = self.fixture["session"]
         # An upcoming makeup session in the same division.
         self.makeup = Session.objects.create(
-            season=self.fixture['season'], name='SES Makeup',
-            date=date.today() + timedelta(days=7), start_time=time(9, 0),
-            division=self.fixture['division'],
-            is_makeup=True, makeup_for=self.session,
+            season=self.fixture["season"],
+            name="SES Makeup",
+            date=date.today() + timedelta(days=7),
+            start_time=time(9, 0),
+            division=self.fixture["division"],
+            is_makeup=True,
+            makeup_for=self.session,
         )
 
     def test_reschedule_picks_makeup_target(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 200)
         # Original assignment removed, new one in makeup session.
         self.assertFalse(SessionAssignment.objects.filter(pk=sa.pk).exists())
-        self.assertTrue(SessionAssignment.objects.filter(
-            session=self.makeup, player_season=sa.player_season,
-        ).exists())
+        self.assertTrue(
+            SessionAssignment.objects.filter(
+                session=self.makeup,
+                player_season=sa.player_season,
+            ).exists()
+        )
 
     def test_reschedule_flags_player_needs_makeup(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         ps = sa.player_season
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         self.client.post(url)
         ps.refresh_from_db()
-        self.assertEqual(ps.status, 'needs_makeup')
+        self.assertEqual(ps.status, "needs_makeup")
 
     def test_reschedule_records_audit_log(self):
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         self.client.post(url)
-        log = AuditLog.objects.filter(action='player.quick_reschedule').first()
+        log = AuditLog.objects.filter(action="player.quick_reschedule").first()
         self.assertIsNotNone(log)
-        self.assertEqual(log.details['to_session_id'], self.makeup.pk)
+        self.assertEqual(log.details["to_session_id"], self.makeup.pk)
 
     def test_reschedule_falls_back_to_regular_session(self):
         # No makeup — fall back to the next regular session.
         self.makeup.delete()
         regular = Session.objects.create(
-            season=self.fixture['season'], name='SES Day 2',
-            date=date.today() + timedelta(days=14), start_time=time(9, 0),
-            division=self.fixture['division'],
+            season=self.fixture["season"],
+            name="SES Day 2",
+            date=date.today() + timedelta(days=14),
+            start_time=time(9, 0),
+            division=self.fixture["division"],
         )
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(SessionAssignment.objects.filter(
-            session=regular, player_season=sa.player_season,
-        ).exists())
+        self.assertTrue(
+            SessionAssignment.objects.filter(
+                session=regular,
+                player_season=sa.player_season,
+            ).exists()
+        )
 
     def test_reschedule_returns_200_with_inline_message_when_no_target(self):
         # Remove all other sessions in the division so there is no target.
         self.makeup.delete()
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)
         # 200 so HTMX can swap the inline error message into the target element.
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'No upcoming session', resp.content)
+        self.assertIn(b"No upcoming session", resp.content)
         # Original assignment untouched.
         self.assertTrue(SessionAssignment.objects.filter(pk=sa.pk).exists())
 
     def test_reschedule_requires_permission(self):
         self.client.logout()
-        _create_user(email='nobody@sfll.org')
-        self.client.login(username='nobody@sfll.org', password='testpass123')
-        sa = self.fixture['assignments'][0]
+        _create_user(email="nobody@sfll.org")
+        self.client.login(username="nobody@sfll.org", password="testpass123")
+        sa = self.fixture["assignments"][0]
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)
@@ -663,12 +743,13 @@ class SesQuickRescheduleTests(TestCase):
 
     def test_reschedule_handles_player_already_in_target(self):
         # Defensive: shouldn't 500 if the player already has an assignment.
-        sa = self.fixture['assignments'][0]
+        sa = self.fixture["assignments"][0]
         SessionAssignment.objects.create(
-            session=self.makeup, player_season=sa.player_season,
+            session=self.makeup,
+            player_season=sa.player_season,
         )
         url = reverse(
-            'tryouts:ses_quick_reschedule',
+            "tryouts:ses_quick_reschedule",
             args=[self.session.pk, sa.pk],
         )
         resp = self.client.post(url)

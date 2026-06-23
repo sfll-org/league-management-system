@@ -3,7 +3,6 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
@@ -104,19 +103,22 @@ def session_detail(request, pk):
         Session.objects.select_related("division", "season", "makeup_for"),
         pk=pk,
     )
-    q = (request.GET.get('q') or '').strip()
+    q = (request.GET.get("q") or "").strip()
     context = _build_ses_session_context(session, request.user, q=q)
-    return render(request, 'tryouts/session_detail.html', context)
+    return render(request, "tryouts/session_detail.html", context)
 
 
 def _ses_assignments_qs(session):
     """All assignments for a session with related player/division and check-in prefetched."""
     return (
-        SessionAssignment.objects
-        .select_related('player_season__player', 'player_season__division')
-        .prefetch_related('checkin')
+        SessionAssignment.objects.select_related(
+            "player_season__player", "player_season__division"
+        )
+        .prefetch_related("checkin")
         .filter(session=session)
-        .order_by('player_season__player__last_name', 'player_season__player__first_name')
+        .order_by(
+            "player_season__player__last_name", "player_season__player__first_name"
+        )
     )
 
 
@@ -129,22 +131,21 @@ def _annotate_assignment(a):
         checkin = None
         checked_in = False
     return {
-        'assignment': a,
-        'player_season': a.player_season,
-        'player': a.player_season.player,
-        'division': a.player_season.division,
-        'account_name': a.player_season.account_name,
-        'checked_in': checked_in,
-        'checkin': checkin,
+        "assignment": a,
+        "player_season": a.player_season,
+        "player": a.player_season.player,
+        "division": a.player_season.division,
+        "account_name": a.player_season.account_name,
+        "checked_in": checked_in,
+        "checkin": checkin,
     }
 
 
 def _on_station_player_ids(session):
     """PlayerSeason ids that have at least one Evaluation for this session."""
     return set(
-        Evaluation.objects
-        .filter(session=session)
-        .values_list('player_season_id', flat=True)
+        Evaluation.objects.filter(session=session)
+        .values_list("player_season_id", flat=True)
         .distinct()
     )
 
@@ -152,17 +153,16 @@ def _on_station_player_ids(session):
 def _station_progress(session, checked_in_count):
     """Per-station small-multiple progress: distinct players evaluated / total checked in."""
     stations = list(
-        Station.objects
-        .filter(league=session.division.league, is_active=True)
-        .order_by('display_order')
+        Station.objects.filter(league=session.division.league, is_active=True).order_by(
+            "display_order"
+        )
     )
     eval_counts = {
-        row['station_id']: row['n']
+        row["station_id"]: row["n"]
         for row in (
-            Evaluation.objects
-            .filter(session=session)
-            .values('station_id')
-            .annotate(n=Count('player_season_id', distinct=True))
+            Evaluation.objects.filter(session=session)
+            .values("station_id")
+            .annotate(n=Count("player_season_id", distinct=True))
         )
     }
     expected = checked_in_count or 0
@@ -174,18 +174,20 @@ def _station_progress(session, checked_in_count):
         else:
             pct = min(100, int(round(evaluated * 100 / expected)))
         if expected == 0 or evaluated == 0:
-            state = 'idle'
+            state = "idle"
         elif evaluated >= expected:
-            state = 'done'
+            state = "done"
         else:
-            state = 'in_progress'
-        progress.append({
-            'station': station,
-            'evaluated': evaluated,
-            'expected': expected,
-            'pct': pct,
-            'state': state,
-        })
+            state = "in_progress"
+        progress.append(
+            {
+                "station": station,
+                "evaluated": evaluated,
+                "expected": expected,
+                "pct": pct,
+                "state": state,
+            }
+        )
     return progress
 
 
@@ -196,11 +198,15 @@ def _next_makeup_target(session):
     regular session if no makeup is scheduled. Returns ``None`` if none qualify.
     """
     today = timezone.localdate()
-    upcoming = Session.objects.filter(
-        season=session.season,
-        division=session.division,
-        date__gte=today,
-    ).exclude(pk=session.pk).order_by('date', 'start_time')
+    upcoming = (
+        Session.objects.filter(
+            season=session.season,
+            division=session.division,
+            date__gte=today,
+        )
+        .exclude(pk=session.pk)
+        .order_by("date", "start_time")
+    )
     makeup = upcoming.filter(is_makeup=True).first()
     if makeup:
         return makeup
@@ -212,13 +218,15 @@ def _no_show_queue(session, assignment_data):
     target = _next_makeup_target(session)
     queue = []
     for row in assignment_data:
-        if row['checked_in']:
+        if row["checked_in"]:
             continue
-        queue.append({
-            **row,
-            'reschedule_target': target,
-            'is_flagged': row['player_season'].status == 'needs_makeup',
-        })
+        queue.append(
+            {
+                **row,
+                "reschedule_target": target,
+                "is_flagged": row["player_season"].status == "needs_makeup",
+            }
+        )
     return queue
 
 
@@ -228,7 +236,7 @@ def _filter_roster(assignment_data, q):
     needle = q.lower()
     out = []
     for row in assignment_data:
-        p = row['player']
+        p = row["player"]
         if needle in p.first_name.lower() or needle in p.last_name.lower():
             out.append(row)
             continue
@@ -238,36 +246,37 @@ def _filter_roster(assignment_data, q):
     return out
 
 
-def _build_ses_session_context(session, user, q=''):
+def _build_ses_session_context(session, user, q=""):
     """Assemble the full context dict for the SES Session screen."""
     assignments = _ses_assignments_qs(session)
     full_roster = [_annotate_assignment(a) for a in assignments]
-    checked_in_count = sum(1 for r in full_roster if r['checked_in'])
+    checked_in_count = sum(1 for r in full_roster if r["checked_in"])
     on_station_ids = _on_station_player_ids(session)
     on_station_count = sum(
-        1 for r in full_roster
-        if r['checked_in'] and r['player_season'].pk in on_station_ids
+        1
+        for r in full_roster
+        if r["checked_in"] and r["player_season"].pk in on_station_ids
     )
     no_show_count = len(full_roster) - checked_in_count
 
     stats = {
-        'registered': len(full_roster),
-        'checked_in': checked_in_count,
-        'no_show': no_show_count,
-        'on_station': on_station_count,
+        "registered": len(full_roster),
+        "checked_in": checked_in_count,
+        "no_show": no_show_count,
+        "on_station": on_station_count,
     }
 
     return {
-        'session': session,
-        'stats': stats,
-        'station_progress': _station_progress(session, checked_in_count),
-        'roster': _filter_roster(full_roster, q),
-        'roster_total': len(full_roster),
-        'no_show_queue': _no_show_queue(session, full_roster),
-        'q': q,
-        'can_manage': _can_manage_sessions(user),
-        'can_checkin': _can_checkin(user),
-        'can_reassign': _can_reassign(user),
+        "session": session,
+        "stats": stats,
+        "station_progress": _station_progress(session, checked_in_count),
+        "roster": _filter_roster(full_roster, q),
+        "roster_total": len(full_roster),
+        "no_show_queue": _no_show_queue(session, full_roster),
+        "q": q,
+        "can_manage": _can_manage_sessions(user),
+        "can_checkin": _can_checkin(user),
+        "can_reassign": _can_reassign(user),
     }
 
 
@@ -1050,25 +1059,31 @@ def session_qr_codes(request, pk):
             }
         )
 
-    return render(request, 'tryouts/qr_codes.html', {
-        'session': session,
-        'players': player_data,
-    })
+    return render(
+        request,
+        "tryouts/qr_codes.html",
+        {
+            "session": session,
+            "players": player_data,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
 # SES Session screen — HTMX endpoints
 # ---------------------------------------------------------------------------
 
+
 @login_required
 def ses_roster_search(request, pk):
     """HTMX: filter the SES Session screen's check-in roster by name."""
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
-    q = (request.GET.get('q') or '').strip()
+    q = (request.GET.get("q") or "").strip()
     ctx = _build_ses_session_context(session, request.user, q=q)
-    return render(request, 'tryouts/partials/ses_roster.html', ctx)
+    return render(request, "tryouts/partials/ses_roster.html", ctx)
 
 
 @login_required
@@ -1083,11 +1098,13 @@ def ses_quick_checkin(request, pk, assignment_id):
         return HttpResponseForbidden()
 
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
-            'player_season__player', 'player_season__division',
+            "player_season__player",
+            "player_season__division",
         ),
         pk=assignment_id,
         session=session,
@@ -1095,19 +1112,22 @@ def ses_quick_checkin(request, pk, assignment_id):
 
     CheckIn.objects.get_or_create(
         session_assignment=assignment,
-        defaults={'checked_in_by': request.user},
+        defaults={"checked_in_by": request.user},
     )
 
     # Reload the assignment so the freshly-created CheckIn is on the prefetch.
     assignment = (
-        SessionAssignment.objects
-        .select_related('player_season__player', 'player_season__division')
-        .prefetch_related('checkin')
+        SessionAssignment.objects.select_related(
+            "player_season__player", "player_season__division"
+        )
+        .prefetch_related("checkin")
         .get(pk=assignment.pk)
     )
-    ctx = _build_ses_session_context(session, request.user, q=request.GET.get('q') or '')
-    ctx['row'] = _annotate_assignment(assignment)
-    return render(request, 'tryouts/partials/ses_row_with_oob.html', ctx)
+    ctx = _build_ses_session_context(
+        session, request.user, q=request.GET.get("q") or ""
+    )
+    ctx["row"] = _annotate_assignment(assignment)
+    return render(request, "tryouts/partials/ses_row_with_oob.html", ctx)
 
 
 @login_required
@@ -1123,11 +1143,13 @@ def ses_quick_reschedule(request, pk, assignment_id):
         return HttpResponseForbidden()
 
     session = get_object_or_404(
-        Session.objects.select_related('division', 'season'), pk=pk,
+        Session.objects.select_related("division", "season"),
+        pk=pk,
     )
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
-            'player_season__player', 'session__division',
+            "player_season__player",
+            "session__division",
         ),
         pk=assignment_id,
         session=session,
@@ -1139,13 +1161,14 @@ def ses_quick_reschedule(request, pk, assignment_id):
         # 4xx responses are not swapped by HTMX by default.
         return HttpResponse(
             '<div class="empty">No upcoming session available for one-click reschedule. '
-            'Create a makeup session first.</div>',
+            "Create a makeup session first.</div>",
         )
 
     # If the player is somehow already assigned to the target (defensive — UI
     # only surfaces a single CTA per row), no-op gracefully.
     already_there = SessionAssignment.objects.filter(
-        session=target, player_season=assignment.player_season,
+        session=target,
+        player_season=assignment.player_season,
     ).exists()
 
     if not already_there:
@@ -1157,30 +1180,32 @@ def ses_quick_reschedule(request, pk, assignment_id):
 
     # Flag the PlayerSeason so downstream reports know they needed a makeup.
     ps = assignment.player_season
-    if ps.status != 'needs_makeup':
-        ps.status = 'needs_makeup'
-        ps.save(update_fields=['status'])
+    if ps.status != "needs_makeup":
+        ps.status = "needs_makeup"
+        ps.save(update_fields=["status"])
 
     AuditLog.objects.create(
         user=request.user,
-        action='player.quick_reschedule',
-        entity_type='SessionAssignment',
+        action="player.quick_reschedule",
+        entity_type="SessionAssignment",
         entity_id=assignment.pk,
         details={
-            'from_session_id': session.pk,
-            'from_session_name': session.name,
-            'to_session_id': target.pk,
-            'to_session_name': target.name,
-            'player_season_id': ps.pk,
-            'player_name': str(ps.player),
-            'already_assigned_to_target': already_there,
+            "from_session_id": session.pk,
+            "from_session_name": session.name,
+            "to_session_id": target.pk,
+            "to_session_name": target.name,
+            "player_season_id": ps.pk,
+            "player_name": str(ps.player),
+            "already_assigned_to_target": already_there,
         },
-        ip_address=request.META.get('REMOTE_ADDR'),
+        ip_address=request.META.get("REMOTE_ADDR"),
     )
 
     # Remove the original no-show assignment so the queue clears.
     assignment.delete()
 
-    ctx = _build_ses_session_context(session, request.user, q=request.GET.get('q') or '')
-    ctx['reschedule_target'] = target
-    return render(request, 'tryouts/partials/ses_noshow_with_oob.html', ctx)
+    ctx = _build_ses_session_context(
+        session, request.user, q=request.GET.get("q") or ""
+    )
+    ctx["reschedule_target"] = target
+    return render(request, "tryouts/partials/ses_noshow_with_oob.html", ctx)
