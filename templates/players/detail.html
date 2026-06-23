@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{# SFLL-94 — Player Detail (Phase 4).
+   Three tabs (Overview / Season / Evals); inline-editable fields surface
+   on the Overview tab via HTMX partials in players/_partials/. The
+   composite-score grid on the Evals tab is aggregated across coaches —
+   per-coach scores never appear here (mirrors evaluations.player_report). #}
+
+{% block title %}{{ ps.player.full_name }} — Player{% endblock %}
+
+{% block content %}
+<div class="page">
+
+  {# ───── Detail header ───── #}
+  <div class="page-header">
+    <div class="player-head">
+      <div class="avatar avatar--xl" aria-hidden="true">
+        {{ ps.player.first_name|slice:":1" }}{{ ps.player.last_name|slice:":1" }}
+      </div>
+      <div>
+        <div class="player-head__crumbs">
+          <a href="{% url 'players:index' %}">Roster</a>
+          <span class="crumbs__sep">/</span>
+          <span>{{ ps.season.name }}</span>
+        </div>
+        <h1 class="page-title">{{ ps.player.full_name }}</h1>
+        <div class="player-head__pills">
+          {% if ps.division %}
+          <span class="pill pill--neutral">{{ ps.division.name }}</span>
+          {% endif %}
+          {% if ps.is_top_4 %}
+          <span class="pill pill--danger"><span class="pill__dot"></span>Top 4</span>
+          {% endif %}
+          {% if ps.is_protected %}
+          <span class="pill pill--primary">Protected</span>
+          {% endif %}
+          {% if ps.coaches_child_of %}
+          <span class="pill pill--ghost">Coach's child</span>
+          {% endif %}
+          <span class="pill pill--ghost">{{ ps.get_status_display|default:ps.status }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="page-header__actions">
+      <a href="{% url 'players:index' %}" class="btn btn--ghost">← Back to roster</a>
+      {% if ps.account_email %}
+      <a href="{% url 'players:family_detail' ps.pk %}" class="btn">
+        View family
+      </a>
+      {% endif %}
+      {% if can_see_evals %}
+      <a href="{% url 'evaluations:player_report' ps.pk %}" class="btn">
+        Full eval report
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ───── Tabs ───── #}
+  <div class="tabs" role="tablist">
+    <a href="?tab=overview" role="tab"
+       class="tab {% if active_tab == 'overview' %}tab--active{% endif %}">Overview</a>
+    <a href="?tab=season" role="tab"
+       class="tab {% if active_tab == 'season' %}tab--active{% endif %}">Season</a>
+    <a href="?tab=evals" role="tab"
+       class="tab {% if active_tab == 'evals' %}tab--active{% endif %}">Evals</a>
+  </div>
+
+  {# ───── Overview tab ───── #}
+  {% if active_tab == 'overview' %}
+  <div class="detail-grid">
+    <div class="card">
+      <div class="card__head">
+        <span class="card__title">Player
+          {% if can_edit %}
+          <span class="card__title-sub">Click any value to edit</span>
+          {% else %}
+          <span class="card__title-sub">Read-only — admin role required to edit</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="card__body">
+        <div class="detail-row">
+          <div class="detail-row__label">First name</div>
+          {% include 'players/_partials/detail_field.html' with field='first_name' %}
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Last name</div>
+          {% include 'players/_partials/detail_field.html' with field='last_name' %}
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Date of birth</div>
+          {% include 'players/_partials/detail_field.html' with field='date_of_birth' %}
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Jersey #</div>
+          {% include 'players/_partials/detail_field.html' with field='jersey_number' %}
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Team</div>
+          {% include 'players/_partials/detail_field.html' with field='assigned_team' %}
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Sub-league</div>
+          {% include 'players/_partials/detail_field.html' with field='sub_league' %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__head">
+        <span class="card__title">Registration</span>
+      </div>
+      <div class="card__body">
+        <div class="detail-row">
+          <div class="detail-row__label">Status</div>
+          <div class="detail-row__value">{{ ps.get_status_display|default:ps.status }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Account</div>
+          <div class="detail-row__value">{{ ps.account_name|default:'—' }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Email</div>
+          <div class="detail-row__value">
+            {% if ps.account_email %}
+            <a href="mailto:{{ ps.account_email }}">{{ ps.account_email }}</a>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">SportsConnect ID</div>
+          <div class="detail-row__value mono">{{ ps.player.sportsconnect_player_id|default:'—' }}</div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-row__label">Created</div>
+          <div class="detail-row__value text-muted">{{ ps.created_at|date:'Y-m-d' }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ───── Season tab ───── #}
+  {% if active_tab == 'season' %}
+  <div class="card">
+    <div class="card__head">
+      <span class="card__title">SES attendance
+        <span class="card__title-sub">{{ sessions_rows|length }} session{{ sessions_rows|length|pluralize }}</span>
+      </span>
+    </div>
+    {% if sessions_rows %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>Date</th>
+          <th>Status</th>
+          <th>Checked in</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in sessions_rows %}
+        <tr>
+          <td>{{ row.session.name }}</td>
+          <td class="tabular">{{ row.session.date|date:'Y-m-d' }}</td>
+          <td>
+            {% if row.checked_in_at %}
+              <span class="pill pill--success"><span class="pill__dot"></span>Present</span>
+            {% elif row.no_show %}
+              <span class="pill pill--warn">No-show</span>
+            {% else %}
+              <span class="pill pill--neutral">Upcoming</span>
+            {% endif %}
+          </td>
+          <td class="tabular text-muted">
+            {% if row.checked_in_at %}{{ row.checked_in_at|date:'Y-m-d H:i' }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <strong>No SES sessions yet.</strong>
+      Assignments appear here once this player is scheduled.
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ───── Evals tab ───── #}
+  {% if active_tab == 'evals' %}
+  {% if not can_see_evals %}
+  <div class="card">
+    <div class="empty">
+      <strong>Evaluations are aggregated and access-controlled.</strong>
+      You need CTO, SES Manager, VP Player Agents, President, or this division's
+      Player Agent role to view this player's composite scores.
+    </div>
+  </div>
+  {% else %}
+  <div class="score-overall">
+    <div class="score-overall__label">Composite score</div>
+    <div class="score-overall__value tabular">
+      {% if composite.overall is not None %}{{ composite.overall }}{% else %}—{% endif %}
+    </div>
+    <div class="score-overall__hint">Averaged across all coaches and stations.</div>
+  </div>
+
+  <div class="score-grid">
+    {% for row in composite.stations %}
+    <div class="score-station">
+      <div class="score-station__head">
+        <div class="score-station__name">{{ row.station.name }}</div>
+        <div class="score-station__avg tabular">
+          {% if row.station_avg is not None %}{{ row.station_avg }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </div>
+        <div class="score-station__meta">
+          {% if row.has_data %}{{ row.coach_count }} coach{{ row.coach_count|pluralize }}{% else %}<span class="text-muted">No evals</span>{% endif %}
+        </div>
+      </div>
+      {% if row.field_cells %}
+      <div class="score-cells">
+        {% for cell in row.field_cells %}
+        <div class="score-cell">
+          <div class="score-cell__label">{{ cell.label }}</div>
+          <div class="score-cell__value tabular">
+            {% if cell.avg is not None %}{{ cell.avg }}{% else %}<span class="text-muted">—</span>{% endif %}
+          </div>
+          {% if cell.count %}
+          <div class="score-cell__range tabular">
+            {{ cell.min }}–{{ cell.max }}
+          </div>
+          {% else %}
+          <div class="score-cell__range text-muted">—</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="empty"><strong>No stations configured for this season.</strong></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+</div>
+{% endblock %}

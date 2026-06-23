@@ -1,24 +1,20 @@
-"""Tests for the players app — League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason, plus Family Detail (SFLL-95) and Print surfaces (SFLL-114/SFLL-129)."""
+"""Tests for the players app.
+
+Covers: League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason,
+Family Detail (SFLL-95), Print surfaces (SFLL-114/SFLL-129), Player Detail (SFLL-94).
+"""
 
 import os
 from datetime import date, timedelta
 
-from django.test import TestCase, SimpleTestCase, Client
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import Coach, CoachSeason, User, UserRole
 from communications.models import EmailLog
-from players.models import (
-    Division,
-    League,
-    Player,
-    PlayerSeason,
-    Season,
-    Station,
-    Team,
-    TeamSeason,
-)
+from players.models import (Division, League, Player, PlayerSeason, Season,
+                            Station, Team, TeamSeason)
 from players.views import encode_family_key
 from tryouts.models import Session
 
@@ -624,12 +620,17 @@ class PrintSurfaceTests(TestCase):
 
     def test_print_dugout_card_session_filter_excludes_other_season(self):
         """Sessions from a different season sharing the same division must not appear."""
-        from tryouts.models import Session as TryoutSession
         import datetime
+
+        from tryouts.models import Session as TryoutSession
+
         # Session in this division but a DIFFERENT season
         other_season = Season.objects.create(
-            league=self.league, name="Fall 2026", year=2026,
-            season_type="fall", is_active=False,
+            league=self.league,
+            name="Fall 2026",
+            year=2026,
+            season_type="fall",
+            is_active=False,
         )
         TryoutSession.objects.create(
             season=other_season,
@@ -1074,3 +1075,385 @@ class PrintCSSRegressionTest(SimpleTestCase):
 
     def test_lms_components_css_no_forced_page_break_on_dugout_card(self):
         self._assert_no_forced_break(self._read_css('lms-components.css'), 'lms-components.css')
+
+
+class PlayerDetailViewTests(TestCase):
+    """SFLL-94 Phase 4 — Player Detail page + HTMX inline-edit endpoints."""
+
+    def setUp(self):
+        self.client = Client()
+        self.league = _create_league()
+        self.season = Season.objects.create(
+            league=self.league,
+            name="Spring 2026",
+            year=2026,
+            season_type="spring",
+            is_active=True,
+        )
+        self.division = Division.objects.create(
+            league=self.league,
+            name="Majors",
+            has_leagues=True,
+            league_names=["American", "National"],
+        )
+        self.team = Team.objects.create(league=self.league, name="Marlins")
+        self.team_season = TeamSeason.objects.create(
+            team=self.team,
+            season=self.season,
+            division=self.division,
+            sub_league="American",
+        )
+        self.player = Player.objects.create(
+            league=self.league,
+            sportsconnect_player_id="SC-PD-1",
+            first_name="Jayden",
+            last_name="Rodriguez",
+            date_of_birth=date(2014, 7, 4),
+        )
+        self.ps = PlayerSeason.objects.create(
+            player=self.player,
+            season=self.season,
+            division=self.division,
+            assigned_team=self.team_season,
+            jersey_number=12,
+        )
+        self.viewer = _create_user(email="viewer@sfll.org")
+        self.admin = _create_user(email="admin@sfll.org")
+        self.admin.is_staff = True
+        self.admin.save()
+        UserRole.objects.create(
+            user=self.admin,
+            league=self.league,
+            role="cto",
+            is_active=True,
+        )
+
+    # ---------------- page rendering ----------------
+
+    def test_detail_requires_login(self):
+        resp = self.client.get(reverse("players:detail", args=[self.ps.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_detail_renders(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:detail", args=[self.ps.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Jayden Rodriguez")
+        self.assertContains(resp, "Overview")
+        self.assertContains(resp, "Season")
+        self.assertContains(resp, "Evals")
+
+    def test_detail_overview_shows_inline_fields(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:detail", args=[self.ps.pk]))
+        self.assertContains(resp, 'id="field-first_name"')
+        self.assertContains(resp, 'id="field-jersey_number"')
+        self.assertContains(resp, 'id="field-assigned_team"')
+        self.assertContains(resp, "editable-trigger")
+
+    def test_detail_non_editor_sees_static(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:detail", args=[self.ps.pk]))
+        self.assertNotContains(resp, "editable-trigger")
+        self.assertContains(resp, "detail-row__static")
+
+    def test_detail_season_tab(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail", args=[self.ps.pk]) + "?tab=season",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "SES attendance")
+
+    def test_detail_evals_tab_for_non_privileged_is_locked(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail", args=[self.ps.pk]) + "?tab=evals",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "aggregated and access-controlled")
+
+    def test_detail_evals_tab_for_admin_shows_grid(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail", args=[self.ps.pk]) + "?tab=evals",
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Composite score")
+
+    # ---------------- HTMX inline-edit endpoints ----------------
+
+    def test_field_edit_requires_admin(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail_field_edit", args=[self.ps.pk, "first_name"]),
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_field_edit_admin_gets_form(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail_field_edit", args=[self.ps.pk, "first_name"]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'name="value"')
+        self.assertContains(resp, 'value="Jayden"')
+
+    def test_field_edit_unknown_field_rejected(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail_field_edit", args=[self.ps.pk, "middle_name"]),
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_first_name(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "first_name"]),
+            {"value": "Jayde"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.first_name, "Jayde")
+
+    def test_field_save_first_name_empty_rejected(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "first_name"]),
+            {"value": ""},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_date_of_birth(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "date_of_birth"]),
+            {"value": "2014-08-15"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.date_of_birth, date(2014, 8, 15))
+
+    def test_field_save_date_of_birth_invalid(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "date_of_birth"]),
+            {"value": "08/15/2014"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_jersey_number(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "7"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, 7)
+
+    def test_field_save_jersey_number_clear(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": ""},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertIsNone(self.ps.jersey_number)
+
+    def test_field_save_jersey_number_zero(self):
+        """Jersey number 0 must save, display as #0, and not render as dash."""
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "0"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, 0)
+        self.assertContains(resp, "#0")
+
+    def test_roster_jersey_number_zero_renders(self):
+        """Jersey #0 must appear as #0 in the roster, not as a dash."""
+        self.ps.jersey_number = 0
+        self.ps.save()
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:index"))
+        self.assertContains(resp, "#0")
+        self.assertNotContains(resp, 'col-num">—')
+
+    def test_field_read_jersey_number_zero_renders(self):
+        """Read-mode partial for jersey_number=0 must show #0, not a dash."""
+        self.ps.jersey_number = 0
+        self.ps.save()
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail_field", args=[self.ps.pk, "jersey_number"])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "#0")
+
+    def test_field_save_jersey_number_out_of_range(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "1000"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_assigned_team(self):
+        other_team = Team.objects.create(league=self.league, name="Giants")
+        other_ts = TeamSeason.objects.create(
+            team=other_team,
+            season=self.season,
+            division=self.division,
+        )
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "assigned_team"]),
+            {"value": str(other_ts.pk)},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.assigned_team_id, other_ts.pk)
+
+    def test_field_save_assigned_team_clear(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "assigned_team"]),
+            {"value": ""},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertIsNone(self.ps.assigned_team)
+
+    def test_field_save_assigned_team_rejects_wrong_division(self):
+        other_division = Division.objects.create(
+            league=self.league,
+            name="AAA",
+            display_order=1,
+        )
+        other_team = Team.objects.create(league=self.league, name="Cubs")
+        other_ts = TeamSeason.objects.create(
+            team=other_team,
+            season=self.season,
+            division=other_division,
+        )
+        original_team_id = self.ps.assigned_team_id
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "assigned_team"]),
+            {"value": str(other_ts.pk)},
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.assigned_team_id, original_team_id)
+
+    def test_field_save_sub_league(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "sub_league"]),
+            {"value": "National"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.team_season.refresh_from_db()
+        self.assertEqual(self.team_season.sub_league, "National")
+
+    def test_field_save_sub_league_rejects_unknown_value(self):
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "sub_league"]),
+            {"value": "Federal"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_sub_league_without_team(self):
+        self.ps.assigned_team = None
+        self.ps.save(update_fields=["assigned_team"])
+        self.client.login(username="admin@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "sub_league"]),
+            {"value": "National"},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_field_save_requires_admin(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "first_name"]),
+            {"value": "Hax"},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_field_cancel_returns_read_partial(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail_field", args=[self.ps.pk, "first_name"]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Jayden")
+
+    def test_field_save_player_agent_same_division_allowed(self):
+        """Player Agent scoped to the player's division can edit roster fields."""
+        agent = _create_user(email="majors_agent@sfll.org")
+        UserRole.objects.create(
+            user=agent,
+            league=self.league,
+            role="player_agent",
+            division=self.division,
+            is_active=True,
+        )
+        self.client.login(username="majors_agent@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "42"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, 42)
+
+    def test_field_save_player_agent_wrong_division_denied(self):
+        """Player Agent from a different division is denied with 403."""
+        other_division = Division.objects.create(
+            league=self.league,
+            name="AAA",
+            display_order=1,
+        )
+        agent = _create_user(email="aaa_agent@sfll.org")
+        UserRole.objects.create(
+            user=agent,
+            league=self.league,
+            role="player_agent",
+            division=other_division,
+            is_active=True,
+        )
+        self.client.login(username="aaa_agent@sfll.org", password="testpass123")
+        original_jersey = self.ps.jersey_number
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "99"},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, original_jersey)
+
+    def test_field_save_global_role_wrong_league_denied(self):
+        """A global admin role (e.g. cto) from a different league is denied."""
+        other_league = League.objects.create(name="Other League", short_name="OL")
+        other_user = _create_user(email="other_cto@other.org")
+        UserRole.objects.create(
+            user=other_user,
+            league=other_league,
+            role="cto",
+            is_active=True,
+        )
+        self.client.login(username="other_cto@other.org", password="testpass123")
+        original_jersey = self.ps.jersey_number
+        resp = self.client.post(
+            reverse("players:detail_field_save", args=[self.ps.pk, "jersey_number"]),
+            {"value": "77"},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.ps.refresh_from_db()
+        self.assertEqual(self.ps.jersey_number, original_jersey)

@@ -1,0 +1,69 @@
+{# Edit-mode cell. Form posts back to detail_field_save; the response is the
+   read-mode partial that replaces this <form>. Escape cancels. #}
+{% load static %}
+<form
+  id="field-{{ field }}"
+  class="detail-row__value editable editable--editing"
+  hx-post="{% url 'players:detail_field_save' ps.pk field %}"
+  hx-target="#field-{{ field }}"
+  hx-swap="outerHTML"
+  x-data="{ cancel() { htmx.ajax('GET', '{% url 'players:detail_field' ps.pk field %}', { target: '#field-{{ field }}', swap: 'outerHTML' }) } }"
+  @keydown.escape="cancel()"
+>
+  {% if field == 'first_name' %}
+    <input
+      type="text" name="value" value="{{ ps.player.first_name }}"
+      maxlength="100" autofocus required
+    />
+  {% elif field == 'last_name' %}
+    <input
+      type="text" name="value" value="{{ ps.player.last_name }}"
+      maxlength="100" autofocus required
+    />
+  {% elif field == 'date_of_birth' %}
+    <input
+      type="date" name="value"
+      value="{% if ps.player.date_of_birth %}{{ ps.player.date_of_birth|date:'Y-m-d' }}{% endif %}"
+      autofocus
+    />
+  {% elif field == 'jersey_number' %}
+    <input
+      type="number" name="value"
+      value="{% if ps.jersey_number is not None %}{{ ps.jersey_number }}{% endif %}"
+      min="0" max="999" autofocus
+    />
+  {% elif field == 'assigned_team' %}
+    <select name="value" autofocus>
+      <option value="">— Unassigned —</option>
+      {% for ts in available_teams %}
+      <option value="{{ ts.pk }}"
+        {% if ps.assigned_team_id == ts.pk %}selected{% endif %}>
+        {{ ts.team.name }}{% if ts.sub_league %} ({{ ts.sub_league }}){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  {% elif field == 'sub_league' %}
+    {% if sub_league_choices %}
+    <select name="value" autofocus>
+      <option value="">—</option>
+      {% for opt in sub_league_choices %}
+      <option value="{{ opt }}"
+        {% if ps.assigned_team and ps.assigned_team.sub_league == opt %}selected{% endif %}>
+        {{ opt }}
+      </option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <input
+      type="text" name="value"
+      value="{% if ps.assigned_team %}{{ ps.assigned_team.sub_league }}{% endif %}"
+      maxlength="50" autofocus
+    />
+    {% endif %}
+  {% endif %}
+
+  <div class="editable__actions">
+    <button type="submit" class="btn btn--primary btn--sm">Save</button>
+    <button type="button" class="btn btn--ghost btn--sm" @click="cancel()">Cancel</button>
+  </div>
+</form>

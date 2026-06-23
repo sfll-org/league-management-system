@@ -1,0 +1,29 @@
+{# Read-mode cell for a single inline-editable field. Wrapped in
+   #field-{name} so HTMX swaps replace the whole cell on edit/cancel/save. #}
+{% load static %}
+<div id="field-{{ field }}" class="detail-row__value">
+  {% if can_edit %}
+  <button
+    type="button"
+    class="editable editable-trigger"
+    hx-get="{% url 'players:detail_field_edit' ps.pk field %}"
+    hx-target="#field-{{ field }}"
+    hx-swap="outerHTML"
+    aria-label="Edit {{ field|cut:'_' }}"
+  >
+  {% else %}
+  <span class="detail-row__static">
+  {% endif %}
+    {% if field == 'first_name' %}{{ ps.player.first_name|default:'—' }}
+    {% elif field == 'last_name' %}{{ ps.player.last_name|default:'—' }}
+    {% elif field == 'date_of_birth' %}
+      {% if ps.player.date_of_birth %}{{ ps.player.date_of_birth|date:'Y-m-d' }}{% else %}<span class="text-muted">—</span>{% endif %}
+    {% elif field == 'jersey_number' %}
+      {% if ps.jersey_number is not None %}<span class="tabular">#{{ ps.jersey_number }}</span>{% else %}<span class="text-muted">—</span>{% endif %}
+    {% elif field == 'assigned_team' %}
+      {% if ps.assigned_team %}{{ ps.assigned_team.team.name }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}
+    {% elif field == 'sub_league' %}
+      {% if ps.assigned_team and ps.assigned_team.sub_league %}{{ ps.assigned_team.sub_league }}{% else %}<span class="text-muted">—</span>{% endif %}
+    {% endif %}
+  {% if can_edit %}</button>{% else %}</span>{% endif %}
+</div>
