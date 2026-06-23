@@ -149,7 +149,7 @@ jobs:
       - name: Run Django deploy checks (production shape)
         run: python manage.py check --deploy --fail-level WARNING
 
-  # Build + push the container image. Publishes under both the canonical new
+  # SFLL-128: Build + push the container image. Publishes under both the canonical new
   # package name and the legacy player-database name for apk8s compatibility
   # during transition (SFLL-90). Once kubernetes/apps/sfll in apk8s is updated
   # to pull ghcr.io/sfll-org/league-management-system:latest, remove the
@@ -184,3 +184,39 @@ jobs:
             ghcr.io/sfll-org/league-management-system:${{ github.sha }}
             ghcr.io/sfll-org/player-database:latest
             ghcr.io/sfll-org/player-database:${{ github.sha }}
+
+  # SFLL-128: roll out the new image on apk8s once publish succeeds.
+  #
+  # Requires a DEPLOY_KUBECONFIG repo secret containing a base64-encoded
+  # kubeconfig for a ServiceAccount in the sfll namespace with
+  # `deployments/get` + `deployments/patch` on sfll-web/sfll-celery/sfll-celery-beat.
+  # Setup: kubectl create sa sfll-deploy -n sfll; bind ClusterRole/sfll-deployer;
+  # kubectl create token sfll-deploy -n sfll --duration=0 (store in kubeconfig).
+  # Without the secret the step warns and exits 0 — no CI red on PRs.
+  deploy:
+    name: Roll out to production
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Rollout restart sfll-web, sfll-celery, sfll-celery-beat
+        env:
+          KUBECONFIG_DATA: ${{ secrets.DEPLOY_KUBECONFIG }}
+        run: |
+          if [ -z "$KUBECONFIG_DATA" ]; then
+            echo "::warning::DEPLOY_KUBECONFIG secret not set — skipping rollout restart."
+            echo "Add the secret to enable automatic deploys (see SFLL-128 for setup steps)."
+            exit 0
+          fi
+          echo "$KUBECONFIG_DATA" | base64 -d > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl rollout restart \
+            deployment/sfll-web \
+            deployment/sfll-celery \
+            deployment/sfll-celery-beat \
+            -n sfll
+          kubectl rollout status deployment/sfll-web -n sfll --timeout=5m
