@@ -12,6 +12,8 @@ from players.models import Division, PlayerSeason, Season, Station
 from .models import CheckIn, Session, SessionAssignment, WalkIn
 from .utils import generate_checkin_qr
 
+KIOSK_FEED_LIMIT = 20
+
 
 def _can_manage_sessions(user):
     """Check if user has permission to create/edit/delete sessions."""
