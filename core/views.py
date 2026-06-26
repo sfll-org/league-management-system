@@ -89,7 +89,7 @@ def dashboard(request):
         context["registration_open"] = active_season.registration_open
 
         # SES session stats
-        today = timezone.now().date()
+        today = timezone.localdate()
         upcoming_sessions = sessions.filter(date__gte=today)
         context["upcoming_session_count"] = upcoming_sessions.count()
 
@@ -203,7 +203,7 @@ def dashboard(request):
                 ).select_related("player")
 
                 # Upcoming sessions for their division
-                today = timezone.now().date()
+                today = timezone.localdate()
                 context["coach_upcoming_sessions"] = Session.objects.filter(
                     season=active_season,
                     division=coach_season.team_season.division,
@@ -227,7 +227,7 @@ def dashboard(request):
 
     # ------- Front Desk widgets -------
     if _is_front_desk(roles):
-        today = timezone.now().date()
+        today = timezone.localdate()
         context["todays_sessions"] = sessions.filter(date=today).select_related(
             "division"
         )
