@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import AuditLog
+from core.ratelimit import is_rate_limited
 from evaluations.models import Evaluation
 from players.models import Division, PlayerSeason, Season, Station
 
@@ -623,13 +624,17 @@ def session_checkin(request, pk):
 
 
 def checkin_by_token(request, token):
-    """Public check-in via QR code — no authentication required."""
+    """Public check-in via QR code — no authentication required.
+
+    GET shows a confirmation page; POST commits the check-in. This prevents
+    link prefetchers and email scanners from auto-creating CheckIn rows.
+    Rate-limited per IP on POST to block replay of leaked tokens.
+    """
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player", "season"), checkin_token=token
     )
 
     today = timezone.localdate()
-    # Find today's session assignment for this player
     assignment = (
         SessionAssignment.objects.select_related(
             "session",
@@ -652,7 +657,7 @@ def checkin_by_token(request, token):
             },
         )
 
-    # Check if already checked in
+    # Check if already checked in (safe for both GET and POST)
     try:
         existing = assignment.checkin
         return render(
@@ -668,7 +673,29 @@ def checkin_by_token(request, token):
     except CheckIn.DoesNotExist:
         pass
 
-    # Create check-in (no user — public QR scan)
+    if request.method != "POST":
+        # Show confirmation page — do not mutate on GET
+        return render(
+            request,
+            "tryouts/checkin_confirm.html",
+            {
+                "player": player_season.player,
+                "session": assignment.session,
+                "confirm_checkin": True,
+                "token": token,
+            },
+        )
+
+    # POST: rate-limit per IP before creating the check-in
+    ip = request.META.get("REMOTE_ADDR", "unknown")
+    if is_rate_limited(f"checkin_post_ip:{ip}", limit=20, window=3600):
+        return render(
+            request,
+            "tryouts/checkin_confirm.html",
+            {"rate_limited": True},
+            status=429,
+        )
+
     checkin = CheckIn.objects.create(
         session_assignment=assignment,
         checked_in_by=None,
