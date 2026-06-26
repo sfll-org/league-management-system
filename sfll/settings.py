@@ -14,6 +14,7 @@ import environ
 env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(str, "localhost,127.0.0.1"),
+    SITE_URL=(str, "http://localhost:8001"),
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,6 +26,7 @@ SECRET_KEY = env(
 )
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = [host.strip() for host in env("ALLOWED_HOSTS").split(",")]
+SITE_URL = env("SITE_URL").rstrip("/")
 # No wildcard fallback for DEBUG mode. The default (localhost,127.0.0.1)
 # covers local dev. Set ALLOWED_HOSTS explicitly in every environment.
 
