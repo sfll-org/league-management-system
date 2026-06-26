@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, render
@@ -78,11 +79,23 @@ def index(request):
     if account:
         qs = qs.filter(account_name=account)
 
+    player_count = qs.count()
+    page_obj = Paginator(qs, 50).get_page(request.GET.get("page", 1))
+
+    # Strip ?page= from the current querystring so pagination links can
+    # append their own page number without doubling it.
+    params = request.GET.copy()
+    params.pop("page", None)
+    filter_qs = params.urlencode()
+
     return render(
         request,
         "players/index.html",
         {
-            "player_seasons": qs,
+            "player_seasons": page_obj,
+            "player_count": player_count,
+            "page_obj": page_obj,
+            "filter_qs": filter_qs,
             "season": active_season,
             "divisions": divisions,
             "sub_leagues": sub_leagues,
@@ -611,7 +624,14 @@ def detail_field_save(request, player_season_id, field):
 FAMILY_COMMS_LIMIT = 20
 
 # Roles that may access family-level data (contacts, comms, balance).
-_FAMILY_ACCESS_ROLES = ('cto', 'ses_manager', 'vp_player_agents', 'president', 'player_agent', 'treasurer')
+_FAMILY_ACCESS_ROLES = (
+    "cto",
+    "ses_manager",
+    "vp_player_agents",
+    "president",
+    "player_agent",
+    "treasurer",
+)
 
 
 def encode_family_key(email):
@@ -747,7 +767,9 @@ def family_detail(request, family_key):
     if not active_season:
         raise Http404("No active season")
 
-    if not _user_has_role(request.user, *_FAMILY_ACCESS_ROLES, league=active_season.league):
+    if not _user_has_role(
+        request.user, *_FAMILY_ACCESS_ROLES, league=active_season.league
+    ):
         raise PermissionDenied
 
     player_seasons = list(

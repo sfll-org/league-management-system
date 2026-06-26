@@ -29,8 +29,8 @@
         <h1 class="page-title">Roster</h1>
         <div class="page-sub">
           {% if season %}{{ season.name }} · {% endif %}
-          <span class="tabular">{{ player_seasons.count }}</span>
-          player{{ player_seasons.count|pluralize }}
+          <span class="tabular">{{ player_count }}</span>
+          player{{ player_count|pluralize }}
           {% if q or selected_division or view != 'all' or selected_league %}
             <a href="{% url 'players:index' %}" class="text-muted" style="margin-left: 8px;">Clear filters</a>
           {% endif %}
@@ -149,6 +149,17 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if page_obj.has_other_pages %}
+    <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--border);">
+      {% if page_obj.has_previous %}
+        <a href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" class="btn btn--ghost btn--sm">← Previous</a>
+      {% endif %}
+      <span class="text-muted" style="font-size:13px;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page_obj.next_page_number }}" class="btn btn--ghost btn--sm">Next →</a>
+      {% endif %}
+    </div>
+    {% endif %}
     {% elif not season %}
     <div class="empty">
       <strong>No active season.</strong>
@@ -171,7 +182,8 @@
 
 <script>
 // Search field debounce — submit ~250ms after the last keystroke so chips
-// + search compose naturally. Falls back to Enter / form-submit if JS is off.
+// + search compose naturally. Drops ?page= so a new search always starts
+// at page 1. Falls back to Enter / form-submit if JS is off.
 (function() {
   var form = document.getElementById('roster-filters');
   if (!form) return;
@@ -180,7 +192,11 @@
   var t;
   search.addEventListener('input', function() {
     clearTimeout(t);
-    t = setTimeout(function() { form.submit(); }, 250);
+    t = setTimeout(function() {
+      var page = form.querySelector('input[name="page"]');
+      if (page) page.remove();
+      form.submit();
+    }, 250);
   });
 })();
 </script>
