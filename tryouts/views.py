@@ -922,10 +922,13 @@ def reassign_player(request, pk, assignment_id):
             ip_address=request.META.get("REMOTE_ADDR"),
         )
 
+        # Capture player name before deleting the assignment; accessing it after
+        # delete is fragile (relies on in-memory cache; any refetch raises DoesNotExist).
+        player_name = assignment.player_season.player.full_name
+
         # Delete old assignment
         assignment.delete()
 
-        player_name = assignment.player_season.player.full_name
         messages.success(
             request,
             f"{player_name} reassigned from {source_session.name} to {target_session.name}.",
