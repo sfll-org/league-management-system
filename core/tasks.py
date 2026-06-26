@@ -27,13 +27,13 @@ def sync_sportsconnect(self, league_id=None):
 
     If league_id is None, syncs all leagues with a configured report URL.
     """
-    from players.models import League, Season
     from core.importers import SportsConnectImporter
+    from players.models import League, Season
 
     if league_id:
         leagues = League.objects.filter(pk=league_id)
     else:
-        leagues = League.objects.exclude(sportsconnect_report_url='')
+        leagues = League.objects.exclude(sportsconnect_report_url="")
 
     for league in leagues:
         if not league.sportsconnect_report_url:
@@ -84,8 +84,9 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
       - Send via Django email backend
       - Create EmailLog record
     """
+    from django.conf import settings
     from django.core.mail import send_mail
-    from django.template import Template, Context
+    from django.template import Context, Template
     from django.urls import reverse
 
     from accounts.models import User
@@ -95,7 +96,10 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
     email_template = EmailTemplate.objects.get(pk=template_id)
     sent_by = User.objects.filter(pk=sent_by_id).first()
     player_seasons = PlayerSeason.objects.select_related(
-        'player', 'season', 'season__league', 'division',
+        "player",
+        "season",
+        "season__league",
+        "division",
     ).filter(pk__in=player_season_ids)
 
     success_count = 0
@@ -107,7 +111,8 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
         if not to_email:
             logger.warning(
                 "Skipping %s — no account_email on PlayerSeason %d",
-                ps.player.full_name, ps.pk,
+                ps.player.full_name,
+                ps.pk,
             )
             continue
 
@@ -115,28 +120,36 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
         player = ps.player
         division = ps.division
         session = None
-        assignment = ps.session_assignments.select_related('session').order_by(
-            'session__date',
-        ).first()
+        assignment = (
+            ps.session_assignments.select_related("session")
+            .order_by(
+                "session__date",
+            )
+            .first()
+        )
         if assignment:
             session = assignment.session
 
-        rsvp_url = ''
+        rsvp_url = ""
         try:
-            rsvp_url = reverse('public_rsvp', kwargs={'token': ps.rsvp_token})
+            rsvp_url = settings.SITE_URL + reverse(
+                "public_rsvp", kwargs={"token": ps.rsvp_token}
+            )
         except Exception:
             pass
 
-        context = Context({
-            'player': player,
-            'player_season': ps,
-            'season': ps.season,
-            'division': division,
-            'session': session,
-            'rsvp_url': rsvp_url,
-            'account_name': ps.account_name,
-            'league_name': ps.season.league.name if ps.season else 'SFLL',
-        })
+        context = Context(
+            {
+                "player": player,
+                "player_season": ps,
+                "season": ps.season,
+                "division": division,
+                "session": session,
+                "rsvp_url": rsvp_url,
+                "account_name": ps.account_name,
+                "league_name": ps.season.league.name if ps.season else "SFLL",
+            }
+        )
 
         try:
             rendered_subject = Template(email_template.subject_template).render(context)
@@ -176,7 +189,9 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
             error_count += 1
             logger.error(
                 "Failed to send email to %s (PlayerSeason %d): %s",
-                to_email, ps.pk, e,
+                to_email,
+                ps.pk,
+                e,
             )
 
             # Still log the attempt with bounce info
@@ -193,5 +208,7 @@ def send_bulk_email(self, template_id, player_season_ids, sent_by_id):
 
     logger.info(
         "Bulk email complete for template '%s': %d sent, %d errors",
-        email_template.name, success_count, error_count,
+        email_template.name,
+        success_count,
+        error_count,
     )
