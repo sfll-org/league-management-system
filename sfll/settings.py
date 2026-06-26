@@ -25,8 +25,8 @@ SECRET_KEY = env(
 )
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = [host.strip() for host in env("ALLOWED_HOSTS").split(",")]
-if DEBUG:
-    ALLOWED_HOSTS.append("*")
+# No wildcard fallback for DEBUG mode. The default (localhost,127.0.0.1)
+# covers local dev. Set ALLOWED_HOSTS explicitly in every environment.
 
 # Production-shape security headers. All env-tunable so the same settings
 # module covers dev (defaults off), production deploys (operator turns them
@@ -45,6 +45,17 @@ SECURE_PROXY_SSL_HEADER = (
     if env.bool("SECURE_PROXY_SSL_HEADER", default=False)
     else None
 )
+
+# Fail-fast if DEBUG is accidentally on in a production-shaped env.
+# SECURE_SSL_REDIRECT is only set in deployed envs; DEBUG=True alongside it
+# would serve full tracebacks over TLS — the worst-case combination.
+if DEBUG and SECURE_SSL_REDIRECT:
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "DEBUG must be False when SECURE_SSL_REDIRECT is enabled. "
+        "Set DEBUG=False in the deployed environment."
+    )
 
 # Application definition
 INSTALLED_APPS = [
