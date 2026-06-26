@@ -7,6 +7,7 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template import Template, Context
 
+from core.ratelimit import is_rate_limited
 from players.models import Division, PlayerSeason, Season, TeamSeason
 from tryouts.models import Session
 from .forms import EmailTemplateForm
@@ -389,6 +390,15 @@ def public_rsvp(request, token):
     ).first()
 
     if request.method == 'POST':
+        # Rate-limit per IP and per token to prevent rapid state-flipping
+        ip = request.META.get('REMOTE_ADDR', 'unknown')
+        if (is_rate_limited(f'rsvp_post_ip:{ip}', limit=20, window=3600) or
+                is_rate_limited(f'rsvp_post_token:{token}', limit=10, window=3600)):
+            return render(request, 'communications/public_rsvp.html', {
+                'player': player_season.player,
+                'rate_limited': True,
+            }, status=429)
+
         status = request.POST.get('status')
         if status not in ('attending', 'not_attending', 'maybe'):
             messages.error(request, "Invalid RSVP response.")

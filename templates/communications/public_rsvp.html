@@ -17,7 +17,17 @@
             <p class="text-gray-500 text-sm mt-1">San Francisco Little League</p>
         </div>
 
-        {% if error %}
+        {% if rate_limited %}
+            {# -- Rate Limited -- #}
+            <div class="bg-amber-900/40 border border-amber-700 rounded-2xl p-8 space-y-4">
+                <svg class="mx-auto h-16 w-16 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <h2 class="text-2xl font-bold text-white">Too Many Requests</h2>
+                <p class="text-amber-300 text-lg">Please wait a moment and try again.</p>
+            </div>
+
+        {% elif error %}
             {# -- Error State -- #}
             <div class="bg-red-900/40 border border-red-700 rounded-2xl p-8 space-y-4">
                 <svg class="mx-auto h-16 w-16 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">

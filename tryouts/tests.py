@@ -311,23 +311,32 @@ class CheckInViewTests(TestCase):
             CheckIn.objects.filter(session_assignment=self.assignment).count(), 1
         )
 
-    def test_public_checkin_by_token(self):
-        """Public QR code check-in should work without authentication."""
+    def test_public_checkin_by_token_get_shows_confirm(self):
+        """GET should show confirmation page without creating a CheckIn."""
         resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(
+            CheckIn.objects.filter(session_assignment=self.assignment).exists()
+        )
+        self.assertTrue(resp.context["confirm_checkin"])
+
+    def test_public_checkin_by_token_post_creates_checkin(self):
+        """POST should create a CheckIn and show the success state."""
+        resp = self.client.post(reverse("public_checkin", args=[self.ps.checkin_token]))
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(
             CheckIn.objects.filter(session_assignment=self.assignment).exists()
         )
 
     def test_public_checkin_already_checked_in(self):
-        """If already checked in, public check-in should show already_checked_in."""
+        """If already checked in, both GET and POST should show already_checked_in."""
         CheckIn.objects.create(session_assignment=self.assignment)
         resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
         self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["already_checked_in"])
 
     def test_public_checkin_no_session_today(self):
         """If no session today, public check-in shows an error."""
-        # Move the session to yesterday
         self.session.date = date.today() - timedelta(days=1)
         self.session.save()
         resp = self.client.get(reverse("public_checkin", args=[self.ps.checkin_token]))
