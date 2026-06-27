@@ -223,7 +223,7 @@ class CoachModelTests(TestCase):
 
 
 class LoginViewTests(TestCase):
-    """Tests for the login, register, and logout views."""
+    """Tests for the login and logout views."""
 
     def setUp(self):
         self.client = Client()
@@ -254,20 +254,16 @@ class LoginViewTests(TestCase):
         resp = self.client.get(reverse('accounts:login'))
         self.assertEqual(resp.status_code, 302)
 
-    def test_register_page_renders(self):
-        resp = self.client.get(reverse('accounts:register'))
-        self.assertEqual(resp.status_code, 200)
+    def test_login_page_has_no_register_link(self):
+        # SFLL-143: public registration removed; login page must not link to /accounts/register/
+        resp = self.client.get(reverse('accounts:login'))
+        self.assertNotContains(resp, 'accounts:register')
+        self.assertNotContains(resp, '/accounts/register/')
 
-    def test_register_success(self):
-        resp = self.client.post(reverse('accounts:register'), {
-            'email': 'newuser@sfll.org',
-            'first_name': 'New',
-            'last_name': 'User',
-            'password1': 'Str0ngP@ss!',
-            'password2': 'Str0ngP@ss!',
-        })
-        self.assertEqual(resp.status_code, 302)
-        self.assertTrue(User.objects.filter(email='newuser@sfll.org').exists())
+    def test_register_route_does_not_exist(self):
+        # SFLL-143: /accounts/register/ must return 404
+        resp = self.client.get('/accounts/register/')
+        self.assertEqual(resp.status_code, 404)
 
     def test_logout_redirects(self):
         self.client.login(username='login@sfll.org', password='testpass123')

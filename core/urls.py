@@ -15,8 +15,9 @@ urlpatterns = [
     path('admin/imports/<int:run_id>/resolve/<int:flag_id>/', import_views.resolve_flag, name='resolve_flag'),
     path('admin/imports/trigger/', import_views.import_trigger, name='import_trigger'),
 
-    # User Management (SFLL-82)
+    # User Management (SFLL-82, SFLL-143)
     path('admin/users/', admin_views.user_list, name='user_list'),
+    path('admin/users/create/', admin_views.user_create, name='user_create'),
     path('admin/users/<int:pk>/', admin_views.user_detail, name='user_detail'),
     path('admin/users/<int:pk>/roles/', admin_views.manage_roles, name='manage_roles'),
     path('admin/users/<int:pk>/roles/add/', admin_views.add_role, name='add_role'),

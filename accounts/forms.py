@@ -34,8 +34,8 @@ class LoginForm(forms.Form):
         return cleaned_data
 
 
-class RegisterForm(UserCreationForm):
-    """Registration form — email, name, password."""
+class CreateUserForm(UserCreationForm):
+    """CTO-only form for creating new user accounts."""
     class Meta:
         model = User
         fields = ('email', 'first_name', 'last_name')
