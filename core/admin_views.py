@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from accounts.forms import CreateUserForm
 from accounts.models import User, UserRole
 from core.models import AuditLog
 from players.models import Division, League, Station, Team, TeamSeason
@@ -70,6 +71,21 @@ def user_list(request):
         'search_query': q,
     })
 
+
+@cto_required
+def user_create(request):
+    """Create a new user account (CTO only)."""
+    if request.method == 'POST':
+        form = CreateUserForm(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.username = user.email
+            user.save()
+            messages.success(request, f'Account created for {user.email}.')
+            return redirect('user_detail', pk=user.pk)
+    else:
+        form = CreateUserForm()
+    return render(request, 'accounts/user_create.html', {'form': form})
 
 @cto_required
 def user_detail(request, pk):
