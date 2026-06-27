@@ -1,9 +1,9 @@
-{# SFLL-115 — combined response after a successful kiosk check-in.
+{% comment %}SFLL-115 — combined response after a successful kiosk check-in.
    The kiosk page's JS parses this fragment and swaps four targets:
    1. The single tile (by id), 2. the live feed, 3. the checked-in counter,
    4. the expected counter. Keeping them in one response keeps the round
    trip minimal — important on a kiosk where two volunteers may be tapping
-   in parallel. #}
+   in parallel.{% endcomment %}
 
 {# 1. Tile #}
 <button

@@ -1,11 +1,11 @@
 {% load static %}<!DOCTYPE html>
-{# SFLL-92 — Pacific shell. SFLL-117 wires the Tweaks panel + ⌘K palette
+{% comment %}SFLL-92 — Pacific shell. SFLL-117 wires the Tweaks panel + ⌘K palette
    behind User.power_user_mode. CSS custom properties on <html>
    (data-palette / data-type / data-density / data-nav) drive the visual
    system; the preload script below applies any user-saved tweaks before
    first paint to avoid FOUC. Tailwind via CDN stays loaded for now
    because individual screens still reference Tailwind classes —
-   Phases 2+ rebuild each one against the new tokens. #}
+   Phases 2+ rebuild each one against the new tokens.{% endcomment %}
 <html
   lang="en"
   data-palette="pacific"
@@ -21,11 +21,11 @@
   <title>{% block title %}SFLL — League Management System{% endblock %}</title>
 
   {% if user.is_authenticated and user.power_user_mode %}
-  {# SFLL-117 — Tweaks preload. Reads the saved palette/type/density/nav
+  {% comment %}SFLL-117 — Tweaks preload. Reads the saved palette/type/density/nav
      from localStorage and applies them to <html> synchronously, so the
      first frame paints with the user's chosen variant rather than the
      default. Must stay tiny + blocking; do not move below the stylesheet
-     links or there will be a flash of default-themed content. #}
+     links or there will be a flash of default-themed content.{% endcomment %}
   <script>
     (function () {
       try {
@@ -42,10 +42,10 @@
   </script>
   {% endif %}
 
-  {# Pacific design tokens (from the Claude Design handoff bundle).
+  {% comment %}Pacific design tokens (from the Claude Design handoff bundle).
      Loaded BEFORE Tailwind so token-driven cards/buttons aren't overridden
      by Tailwind's utility classes on legacy screens; per-screen rebuilds
-     in Phases 2+ stop using the legacy chrome. #}
+     in Phases 2+ stop using the legacy chrome.{% endcomment %}
   <link rel="stylesheet" href="{% static 'css/lms-tokens.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-shell.css' %}" />
   <link rel="stylesheet" href="{% static 'css/lms-components.css' %}" />
@@ -55,21 +55,21 @@
   <link rel="stylesheet" href="{% static 'css/lms-tweaks-cmdk.css' %}" />
   {% endif %}
 
-  {# Google fonts — three families per the handoff:
+  {% comment %}Google fonts — three families per the handoff:
        Instrument Sans  — body / UI
        Bricolage Grotesque — display
        JetBrains Mono   — numbers + data
      Newsreader is loaded too so the editorial-type tweak (data-type="editorial")
      can switch in without re-fetching. Geist is added for the
-     SFLL-117 geometric type variant. #}
+     SFLL-117 geometric type variant.{% endcomment %}
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:wght@400;500;600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" />
 
-  {# Tailwind CDN stays — Phases 2+ rebuild each screen onto the new tokens
+  {% comment %}Tailwind CDN stays — Phases 2+ rebuild each screen onto the new tokens
      and tear out Tailwind references screen-by-screen. Keeping it loaded
      means existing pages stay readable on the new shell instead of
-     un-rendering entirely. #}
+     un-rendering entirely.{% endcomment %}
   <script src="https://cdn.tailwindcss.com"></script>
 
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>

@@ -1,5 +1,5 @@
 {% load static %}
-{# SFLL-92 — Pacific sidebar nav.
+{% comment %}SFLL-92 — Pacific sidebar nav.
    Persistent 232px rail on >=md; off-canvas drawer on mobile (Alpine-driven
    via the `lmsNav` x-data on <body> in base.html).
 
@@ -8,7 +8,7 @@
      Season      · SES, Evals, Draft
      Phone/iPad  · field-side surfaces (placeholder routes until Phase 7/8)
      Admin       · imports, audit, config — visible to admins only
-#}
+{% endcomment %}
 <aside
   class="lms-sidebar"
   :class="navOpen ? 'is-open' : ''"

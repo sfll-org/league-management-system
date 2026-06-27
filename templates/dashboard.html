@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-137 — Dashboard (Pacific palette migration).
+{% comment %}SFLL-137 — Dashboard (Pacific palette migration).
    Rebuilds templates/dashboard.html onto Pacific tokens from the
    Claude Design handoff bundle (2026-06-16, screens-dashboard.jsx).
    Tailwind dark-chrome scaffold is gone; every primitive here comes
@@ -12,15 +12,15 @@
      · "Needs attention" inbox with Alpine.js segmented filter
      · "Top of the draft board" preview (from DraftPick model)
    Both match the layout in screens-dashboard.jsx.
-#}
+{% endcomment %}
 
 {% block title %}SFLL — Dashboard{% endblock %}
 
 {% block content %}
 
-{# ══════════════════════════════════════════════════════════════
+{% comment %}══════════════════════════════════════════════════════════════
    ADMIN DASHBOARD  (primary operations view)
-   ══════════════════════════════════════════════════════════════ #}
+   ══════════════════════════════════════════════════════════════{% endcomment %}
 {% if is_admin %}
 <div class="page">
 
@@ -328,9 +328,9 @@
 {% endif %}{# is_admin #}
 
 
-{# ══════════════════════════════════════════════════════════════
+{% comment %}══════════════════════════════════════════════════════════════
    COACH DASHBOARD
-   ══════════════════════════════════════════════════════════════ #}
+   ══════════════════════════════════════════════════════════════{% endcomment %}
 {% if is_coach and season %}
 <div class="page">
 
@@ -451,9 +451,9 @@
 {% endif %}{# is_coach #}
 
 
-{# ══════════════════════════════════════════════════════════════
+{% comment %}══════════════════════════════════════════════════════════════
    FRONT DESK DASHBOARD
-   ══════════════════════════════════════════════════════════════ #}
+   ══════════════════════════════════════════════════════════════{% endcomment %}
 {% if is_front_desk and season %}
 <div class="page">
 
@@ -490,9 +490,9 @@
 {% endif %}{# is_front_desk #}
 
 
-{# ══════════════════════════════════════════════════════════════
+{% comment %}══════════════════════════════════════════════════════════════
    QUICK ACTIONS  (all authenticated users)
-   ══════════════════════════════════════════════════════════════ #}
+   ══════════════════════════════════════════════════════════════{% endcomment %}
 <div class="page" {% if is_admin or is_coach or is_front_desk %}style="padding-top:0"{% endif %}>
   {% if not is_admin and not is_coach and not is_front_desk %}
   <div class="page-header">

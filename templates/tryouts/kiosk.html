@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-115 — iPad-landscape SES Check-In Kiosk.
+{% comment %}SFLL-115 — iPad-landscape SES Check-In Kiosk.
    Pacific tokens; lms-components.css from Phase 2 carries .kiosk-* primitives.
    This is the front-desk surface at Big Rec — one tablet sees every player
    assigned to any session running today, no per-session navigation. Tap a
    tile, confirm, kid is checked in. The live feed on the right rail is the
-   "I just did that" reassurance for the volunteer at the desk. #}
+   "I just did that" reassurance for the volunteer at the desk.{% endcomment %}
 
 {% block title %}Check-In Kiosk — SFLL{% endblock %}
 {% block body_class %}tablet-mode{% endblock %}

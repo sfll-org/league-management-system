@@ -1,79 +1,72 @@
-{% extends "base.html" %}
+{% extends "base_auth.html" %}
 
 {% block title %}SFLL — Register{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-center min-h-[60vh]">
-    <div class="w-full max-w-md">
-        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-emerald-400">SFLL</h1>
-                <p class="mt-2 text-gray-400">Create your account</p>
-            </div>
-
-            {% if form.non_field_errors %}
-                {% for error in form.non_field_errors %}
-                <div class="mb-4 rounded-lg p-3 bg-red-900/50 text-red-300 border border-red-700 text-sm">
-                    {{ error }}
-                </div>
-                {% endfor %}
-            {% endif %}
-
-            <form method="post" class="space-y-5">
-                {% csrf_token %}
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label for="id_first_name" class="block text-sm font-medium text-gray-300 mb-1">First Name</label>
-                        {{ form.first_name }}
-                        {% if form.first_name.errors %}
-                            <p class="mt-1 text-sm text-red-400">{{ form.first_name.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                    <div>
-                        <label for="id_last_name" class="block text-sm font-medium text-gray-300 mb-1">Last Name</label>
-                        {{ form.last_name }}
-                        {% if form.last_name.errors %}
-                            <p class="mt-1 text-sm text-red-400">{{ form.last_name.errors.0 }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div>
-                    <label for="id_email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                    {{ form.email }}
-                    {% if form.email.errors %}
-                        <p class="mt-1 text-sm text-red-400">{{ form.email.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <div>
-                    <label for="id_password1" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
-                    {{ form.password1 }}
-                    {% if form.password1.errors %}
-                        <p class="mt-1 text-sm text-red-400">{{ form.password1.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <div>
-                    <label for="id_password2" class="block text-sm font-medium text-gray-300 mb-1">Confirm Password</label>
-                    {{ form.password2 }}
-                    {% if form.password2.errors %}
-                        <p class="mt-1 text-sm text-red-400">{{ form.password2.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <button type="submit"
-                        class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
-                    Create Account
-                </button>
-            </form>
-
-            <p class="mt-6 text-center text-sm text-gray-500">
-                Already have an account?
-                <a href="{% url 'accounts:login' %}" class="text-emerald-400 hover:text-emerald-300">Sign In</a>
-            </p>
-        </div>
+<div class="card" style="padding: 2rem;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; color: var(--primary); margin: 0 0 0.5rem;">SFLL</h1>
+        <p style="color: var(--ink-3); margin: 0; font-size: 0.9rem;">Create your account</p>
     </div>
+
+    {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+        <div class="alert alert--danger" style="margin-bottom: 1rem;">{{ error }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% csrf_token %}
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <label for="id_first_name" class="label">First Name</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.first_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <label for="id_last_name" class="label">Last Name</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}
+                    <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.last_name.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <label for="id_email" class="label">Email</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.email.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <label for="id_password1" class="label">Password</label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.password1.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <label for="id_password2" class="label">Confirm Password</label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.password2.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="btn btn--primary" style="width: 100%; justify-content: center; padding: 0.75rem 1rem;">
+            Create Account
+        </button>
+    </form>
+
+    <p style="margin: 1.5rem 0 0; text-align: center; font-size: 0.85rem; color: var(--ink-3);">
+        Already have an account?
+        <a href="{% url 'accounts:login' %}" style="color: var(--primary);">Sign In</a>
+    </p>
 </div>
 {% endblock %}

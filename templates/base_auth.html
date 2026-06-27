@@ -1,0 +1,36 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en" data-palette="pacific" data-type="humanist-display" data-density="balanced">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="San Francisco Little League — League Management System" />
+  <title>{% block title %}SFLL — League Management System{% endblock %}</title>
+
+  <link rel="stylesheet" href="{% static 'css/lms-tokens.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/lms-shell.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/lms-components.css' %}" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="lms-auth-body" style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--surface-1);">
+  {% if messages %}
+  <div style="position: fixed; top: 1rem; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; flex-direction: column; gap: 0.5rem; min-width: 20rem;">
+    {% for message in messages %}
+    <div class="lms-flash__item lms-flash__item--{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <main style="width: 100%; max-width: 28rem; padding: 1.5rem;">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

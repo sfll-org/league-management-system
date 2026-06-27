@@ -1,54 +1,47 @@
-{% extends "base.html" %}
+{% extends "base_auth.html" %}
 
 {% block title %}SFLL — Sign In{% endblock %}
 
 {% block content %}
-<div class="flex items-center justify-center min-h-[60vh]">
-    <div class="w-full max-w-md">
-        <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
-            <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-emerald-400">SFLL</h1>
-                <p class="mt-2 text-gray-400">Sign in to the League Management System</p>
-            </div>
-
-            {% if form.non_field_errors %}
-                {% for error in form.non_field_errors %}
-                <div class="mb-4 rounded-lg p-3 bg-red-900/50 text-red-300 border border-red-700 text-sm">
-                    {{ error }}
-                </div>
-                {% endfor %}
-            {% endif %}
-
-            <form method="post" class="space-y-5">
-                {% csrf_token %}
-
-                <div>
-                    <label for="id_email" class="block text-sm font-medium text-gray-300 mb-1">Email</label>
-                    {{ form.email }}
-                    {% if form.email.errors %}
-                        <p class="mt-1 text-sm text-red-400">{{ form.email.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <div>
-                    <label for="id_password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
-                    {{ form.password }}
-                    {% if form.password.errors %}
-                        <p class="mt-1 text-sm text-red-400">{{ form.password.errors.0 }}</p>
-                    {% endif %}
-                </div>
-
-                <button type="submit"
-                        class="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition">
-                    Sign In
-                </button>
-            </form>
-
-            <p class="mt-6 text-center text-sm text-gray-500">
-                Don't have an account?
-                <a href="{% url 'accounts:register' %}" class="text-emerald-400 hover:text-emerald-300">Register</a>
-            </p>
-        </div>
+<div class="card" style="padding: 2rem;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 700; color: var(--primary); margin: 0 0 0.5rem;">SFLL</h1>
+        <p style="color: var(--ink-3); margin: 0; font-size: 0.9rem;">Sign in to the League Management System</p>
     </div>
+
+    {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+        <div class="alert alert--danger" style="margin-bottom: 1rem;">{{ error }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        {% csrf_token %}
+
+        <div>
+            <label for="id_email" class="label">Email</label>
+            {{ form.email }}
+            {% if form.email.errors %}
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.email.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <label for="id_password" class="label">Password</label>
+            {{ form.password }}
+            {% if form.password.errors %}
+                <p style="margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--danger);">{{ form.password.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <button type="submit" class="btn btn--primary" style="width: 100%; justify-content: center; padding: 0.75rem 1rem;">
+            Sign In
+        </button>
+    </form>
+
+    <p style="margin: 1.5rem 0 0; text-align: center; font-size: 0.85rem; color: var(--ink-3);">
+        Don't have an account?
+        <a href="{% url 'accounts:register' %}" style="color: var(--primary);">Register</a>
+    </p>
 </div>
 {% endblock %}

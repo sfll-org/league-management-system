@@ -1,5 +1,5 @@
-{# Response body for ses_quick_reschedule: the refreshed no-show queue body
-   plus an out-of-band stat row update. #}
+{% comment %}Response body for ses_quick_reschedule: the refreshed no-show queue body
+   plus an out-of-band stat row update.{% endcomment %}
 {% include "tryouts/partials/ses_noshow.html" %}
 
 <div id="ses-stats" hx-swap-oob="innerHTML">

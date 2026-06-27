@@ -1,6 +1,6 @@
-{# SES Session — searchable check-in roster.
+{% comment %}SES Session — searchable check-in roster.
    Rendered initially in session_detail.html and as the response body of
-   `tryouts:ses_roster_search` for HTMX swaps. #}
+   `tryouts:ses_roster_search` for HTMX swaps.{% endcomment %}
 {% if roster %}
   {% for row in roster %}
     {% include "tryouts/partials/ses_roster_row.html" with row=row %}

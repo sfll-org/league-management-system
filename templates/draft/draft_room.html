@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-115 — iPad-landscape Draft Room.
+{% comment %}SFLL-115 — iPad-landscape Draft Room.
    Sister surface to draft_board.html: same WebSocket, same data, reshaped
    for a tablet propped between 2-3 coaches at the table. Left pane is the
    available pool (bigger rows so two coaches can scan at once); right pane
    stacks the pick log on top of a permanent on-deck queue. The on-the-clock
-   banner sits center-stage in the header. #}
+   banner sits center-stage in the header.{% endcomment %}
 
 {% block title %}Draft Room — {{ division.name }} — SFLL{% endblock %}
 {% block body_class %}tablet-mode{% endblock %}

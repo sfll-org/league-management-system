@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-112 — Draft Board (Phase 7).
+{% comment %}SFLL-112 — Draft Board (Phase 7).
    Rebuilds the live draft surface onto Pacific tokens from the Claude
    Design handoff bundle (38nnfJ8G8l3n16PzuNoDQg, screens-draft.jsx).
    Three-pane layout: available queue (left) · snake grid (center) ·
    team rosters (right). Top-4 row sits above round 1; coach's-child
    cells carry a CC marker; on-the-clock cell glows green.
    WebSocket plumbing is unchanged from the legacy template — the
-   real-time state machine is mature, only the chrome is new. #}
+   real-time state machine is mature, only the chrome is new.{% endcomment %}
 
 {% block title %}SFLL — Live Draft — {{ division.name }}{% endblock %}
 
@@ -151,9 +151,9 @@
     {# CENTER: Snake draft grid #}
     <div>
       <div class="draft-grid" :style="`--team-count: ${teams.length}`">
-        {# Corner + team column headers. Alpine x-for needs a single root per
+        {% comment %}Corner + team column headers. Alpine x-for needs a single root per
            iteration, so each x-for body uses `display: contents` to let
-           children flow as direct grid items. #}
+           children flow as direct grid items.{% endcomment %}
         <div class="draft-grid__corner"></div>
         <template x-for="team in teams" :key="'h-' + team.id">
           <div class="draft-grid__col-head"
@@ -187,8 +187,8 @@
           </div>
         </template>
 
-        {# Snake rounds. Per-round wrapper uses `display: contents` so the
-           row-head + cells become direct grid children in source order. #}
+        {% comment %}Snake rounds. Per-round wrapper uses `display: contents` so the
+           row-head + cells become direct grid children in source order.{% endcomment %}
         <template x-for="row in cellRows" :key="'crow-' + row.round">
           <div style="display: contents;">
             <div class="draft-grid__row-head">R<span x-text="row.round"></span></div>

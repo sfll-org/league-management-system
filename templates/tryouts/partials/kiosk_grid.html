@@ -1,7 +1,7 @@
-{# SFLL-115 — kiosk grid partial. Rendered standalone for HTMX search swaps
+{% comment %}SFLL-115 — kiosk grid partial. Rendered standalone for HTMX search swaps
    and inline by kiosk.html on first paint. The Alpine controller in
    kiosk.html owns the modal; each tile dispatches the click event with the
-   player payload needed to render the confirmation. #}
+   player payload needed to render the confirmation.{% endcomment %}
 
 <div class="kiosk-grid">
   {% for tile in tiles %}

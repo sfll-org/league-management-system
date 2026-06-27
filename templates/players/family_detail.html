@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{# SFLL-95 — Family Detail (Phase 4).
+{% comment %}SFLL-95 — Family Detail (Phase 4).
    Five sections per the design handoff: players, contacts, balance,
    volunteer obligations, comms history. Sections without backing models
    (balance, volunteer) render as structured empty shells so the surface is
    stable when those models land. Treasurer role flips the page into
-   read-only mode — same surface, no edit affordances. #}
+   read-only mode — same surface, no edit affordances.{% endcomment %}
 
 {% block title %}{{ account_name }} — Family{% endblock %}
 
@@ -66,9 +66,9 @@
         {% for ps in player_seasons %}
         <tr>
           <td>
-            {# Resolves to the player detail page when that route exists
+            {% comment %}Resolves to the player detail page when that route exists
                (SFLL-94). On main that URL isn't registered yet, so {% url
-               %} returns empty and we render plain text instead. #}
+               %} returns empty and we render plain text instead.{% endcomment %}
             {% url 'players:detail' ps.pk as player_url %}
             {% if player_url %}
             <a href="{{ player_url }}">{{ ps.player.full_name }}</a>

@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-111 — Phase 6: SES Session detail on Pacific tokens.
+{% comment %}SFLL-111 — Phase 6: SES Session detail on Pacific tokens.
    Rebuilt from screens-ses.jsx (handoff 2026-06-16).
    Tailwind chrome removed; all primitives from lms-components.css / lms-tokens.css.
    New sections: stat row, per-station progress bars, check-in roster tab,
    no-show tab with one-click reschedule, evals empty state.
-   Tab state managed with Alpine.js x-data. #}
+   Tab state managed with Alpine.js x-data.{% endcomment %}
 
-{# SFLL-96 — Phase 5: SES Session screen.
+{% comment %}SFLL-96 — Phase 5: SES Session screen.
    Pacific tokens, light theme. Replaces the legacy dark-Tailwind
    `session_detail.html`. Four regions:
      1. Stat row     — registered / checked-in / no-show / on-station
      2. Per-station progress — small multiples, one card per station
      3. Check-in roster — searchable, quick-check-in CTA per row
      4. No-show queue — one-click reschedule to next available session
-   HTMX endpoints in tryouts.urls drive the live updates. #}
+   HTMX endpoints in tryouts.urls drive the live updates.{% endcomment %}
 
 {% block title %}SFLL — {{ session.name }}{% endblock %}
 {% block page_title %}SES Session{% endblock %}
