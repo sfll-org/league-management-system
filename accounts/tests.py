@@ -271,13 +271,13 @@ class LoginViewTests(TestCase):
 
     def test_login_page_has_no_register_link(self):
         # SFLL-143: public registration removed; login page must not link to /accounts/register/
-        resp = self.client.get(reverse('accounts:login'))
-        self.assertNotContains(resp, 'accounts:register')
-        self.assertNotContains(resp, '/accounts/register/')
+        resp = self.client.get(reverse("accounts:login"))
+        self.assertNotContains(resp, "accounts:register")
+        self.assertNotContains(resp, "/accounts/register/")
 
     def test_register_route_does_not_exist(self):
         # SFLL-143: /accounts/register/ must return 404
-        resp = self.client.get('/accounts/register/')
+        resp = self.client.get("/accounts/register/")
         self.assertEqual(resp.status_code, 404)
 
     def test_logout_redirects(self):
