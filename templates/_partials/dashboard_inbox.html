@@ -1,6 +1,6 @@
-{# SFLL-93 — Needs attention inbox partial.
+{% comment %} SFLL-93 — Needs attention inbox partial.
    Rendered on initial page load and swapped via HTMX when filter chips change.
-   Caller sets: attention_items (list of {type, label, url}), attention_filter. #}
+   Caller sets: attention_items (list of {type, label, url}), attention_filter. {% endcomment %}
 
 {% if attention_items %}
 <ul style="margin: 0; padding: 0; list-style: none;">

@@ -235,6 +235,18 @@ class LoginViewTests(TestCase):
         resp = self.client.get(reverse('accounts:login'))
         self.assertEqual(resp.status_code, 200)
 
+    def test_login_page_uses_standalone_chrome(self):
+        resp = self.client.get(reverse('accounts:login'))
+        self.assertNotContains(resp, 'lms-sidebar')
+        self.assertNotContains(resp, 'lms-topbar')
+        self.assertNotContains(resp, 'lms-main')
+
+    def test_login_page_does_not_leak_template_comments(self):
+        resp = self.client.get(reverse('accounts:login'))
+        self.assertNotContains(resp, '{#')
+        self.assertNotContains(resp, '#}')
+        self.assertNotContains(resp, 'SFLL-92')
+
     def test_login_success_redirects(self):
         resp = self.client.post(reverse('accounts:login'), {
             'email': 'login@sfll.org',

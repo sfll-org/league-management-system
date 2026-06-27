@@ -1,5 +1,5 @@
-{# Response body for ses_quick_checkin: the updated row + out-of-band
-   swaps that keep the stat row and no-show queue in sync. #}
+{% comment %} Response body for ses_quick_checkin: the updated row + out-of-band
+   swaps that keep the stat row and no-show queue in sync. {% endcomment %}
 {% include "tryouts/partials/ses_roster_row.html" with row=row %}
 
 <div id="ses-stats" hx-swap-oob="innerHTML">

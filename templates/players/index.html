@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{# SFLL-108 — Roster (Phase 3).
+{% comment %} SFLL-108 — Roster (Phase 3).
    Rebuilds templates/players/index.html onto Pacific tokens from the
    Claude Design handoff bundle (38nnfJ8G8l3n16PzuNoDQg, screens-roster.jsx).
    Tailwind chrome from the pre-design scaffold is gone — every primitive
@@ -13,7 +13,7 @@
    Filters are server-side via GET querystring (q, division, league, view)
    so the screen is deep-linkable and works without JS — chips submit by
    posting back to the same URL with updated params.
-#}
+{% endcomment %}
 
 {% block title %}SFLL — Roster{% endblock %}
 
@@ -21,8 +21,8 @@
 <div class="page">
 
   <form method="get" action="{% url 'players:index' %}" id="roster-filters">
-    {# Posting the form keeps current params; chip/seg buttons submit it
-       with a fresh value via the hidden inputs they overwrite. #}
+    {% comment %} Posting the form keeps current params; chip/seg buttons submit it
+       with a fresh value via the hidden inputs they overwrite. {% endcomment %}
 
     <div class="page-header">
       <div>
@@ -51,8 +51,8 @@
         <input type="search" name="q" value="{{ q }}" placeholder="Search players…"
                autocomplete="off" />
       </label>
-      {# Hidden inputs preserve active chip/seg state when the search form submits.
-         Without these, typing a query from a filtered view drops division/league/view. #}
+      {% comment %} Hidden inputs preserve active chip/seg state when the search form submits.
+         Without these, typing a query from a filtered view drops division/league/view. {% endcomment %}
       {% if selected_division %}<input type="hidden" name="division" value="{{ selected_division.id }}">{% endif %}
       {% if selected_league %}<input type="hidden" name="league" value="{{ selected_league }}">{% endif %}
       {% if view != 'all' %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
@@ -75,8 +75,8 @@
       </div>
     </div>
 
-    {# Sub-league chips appear only when the active division splits into
-       leagues (e.g. Majors → American / National). #}
+    {% comment %} Sub-league chips appear only when the active division splits into
+       leagues (e.g. Majors → American / National). {% endcomment %}
     {% if sub_leagues %}
     <div class="toolbar" style="margin-top: -4px;">
       <a href="?{% if q %}q={{ q }}&amp;{% endif %}division={{ selected_division.id }}{% if view != 'all' %}&amp;view={{ view }}{% endif %}"
@@ -88,8 +88,8 @@
     </div>
     {% endif %}
 
-    {# The submit input lets the search field commit on Enter without a
-       visible button — the chip/seg links above submit by URL params. #}
+    {% comment %} The submit input lets the search field commit on Enter without a
+       visible button — the chip/seg links above submit by URL params. {% endcomment %}
     <noscript><button type="submit" class="btn">Apply</button></noscript>
   </form>
 
