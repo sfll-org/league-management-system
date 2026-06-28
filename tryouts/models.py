@@ -6,22 +6,29 @@ from core.models import TimeStampedModel
 
 class Session(TimeStampedModel):
     """An SES (Skills Evaluation Session) event."""
-    season = models.ForeignKey('players.Season', on_delete=models.CASCADE, related_name='sessions')
+
+    season = models.ForeignKey(
+        "players.Season", on_delete=models.CASCADE, related_name="sessions"
+    )
     name = models.CharField(max_length=200)
     date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField(null=True, blank=True)
     division = models.ForeignKey(
-        'players.Division', on_delete=models.CASCADE, related_name='sessions'
+        "players.Division", on_delete=models.CASCADE, related_name="sessions"
     )
     location = models.CharField(max_length=200, blank=True)
     is_makeup = models.BooleanField(default=False)
     makeup_for = models.ForeignKey(
-        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='makeup_sessions'
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="makeup_sessions",
     )
 
     class Meta:
-        ordering = ['-date', 'start_time']
+        ordering = ["-date", "start_time"]
 
     def __str__(self):
         return f"{self.name} — {self.date}"
@@ -29,16 +36,21 @@ class Session(TimeStampedModel):
 
 class SessionAssignment(TimeStampedModel):
     """Assigns a player to an SES session."""
-    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='assignments')
+
+    session = models.ForeignKey(
+        Session, on_delete=models.CASCADE, related_name="assignments"
+    )
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='session_assignments'
+        "players.PlayerSeason",
+        on_delete=models.CASCADE,
+        related_name="session_assignments",
     )
     assigned_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
     )
 
     class Meta:
-        unique_together = ['session', 'player_season']
+        unique_together = ["session", "player_season"]
 
     def __str__(self):
         return f"{self.player_season} -> {self.session}"
@@ -46,8 +58,9 @@ class SessionAssignment(TimeStampedModel):
 
 class CheckIn(TimeStampedModel):
     """Records a player's check-in at an SES session."""
+
     session_assignment = models.OneToOneField(
-        SessionAssignment, on_delete=models.CASCADE, related_name='checkin'
+        SessionAssignment, on_delete=models.CASCADE, related_name="checkin"
     )
     checked_in_at = models.DateTimeField(auto_now_add=True)
     checked_in_by = models.ForeignKey(
@@ -61,27 +74,38 @@ class CheckIn(TimeStampedModel):
 
 class WalkIn(TimeStampedModel):
     """Walk-in player without a PlayerSeason record; logged for office reconciliation."""
+
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     season = models.ForeignKey(
-        'players.Season', on_delete=models.CASCADE, related_name='walk_ins',
+        "players.Season",
+        on_delete=models.CASCADE,
+        related_name="walk_ins",
     )
     division = models.ForeignKey(
-        'players.Division', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='walk_ins',
+        "players.Division",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="walk_ins",
     )
     session = models.ForeignKey(
-        Session, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='walk_ins',
+        Session,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="walk_ins",
     )
     logged_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
     )
     logged_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
 
     class Meta:
-        ordering = ['-logged_at']
+        ordering = ["-logged_at"]
 
     def __str__(self):
         return f"Walk-in: {self.first_name} {self.last_name}"

@@ -23,30 +23,30 @@ logger = logging.getLogger(__name__)
 # SportsConnect CSVs have inconsistent casing and spacing; we normalize
 # by lowercasing and stripping whitespace before lookup.
 COLUMN_MAP = {
-    'order_id': 'order_id',
-    'order detail id': 'order_detail_id',
-    'player first name': 'player_first_name',
-    'player last name': 'player_last_name',
-    'player id': 'sportsconnect_player_id',
-    'player age': 'player_age',
-    'division name': 'division_name',
-    'account first name': 'account_first_name',
-    'account last name': 'account_last_name',
-    'user email': 'user_email',
-    'additional email': 'additional_email',
-    'program name': 'program_name',
-    'team name': 'team_name',
-    'session_id': 'session_id',
-    'status': 'status',
-    'player date of birth': 'player_dob',
-    'player dob': 'player_dob',
-    'date of birth': 'player_dob',
+    "order_id": "order_id",
+    "order detail id": "order_detail_id",
+    "player first name": "player_first_name",
+    "player last name": "player_last_name",
+    "player id": "sportsconnect_player_id",
+    "player age": "player_age",
+    "division name": "division_name",
+    "account first name": "account_first_name",
+    "account last name": "account_last_name",
+    "user email": "user_email",
+    "additional email": "additional_email",
+    "program name": "program_name",
+    "team name": "team_name",
+    "session_id": "session_id",
+    "status": "status",
+    "player date of birth": "player_dob",
+    "player dob": "player_dob",
+    "date of birth": "player_dob",
 }
 
 
 def _normalize_key(key):
     """Lowercase, strip whitespace, collapse internal whitespace."""
-    return ' '.join(key.lower().strip().split())
+    return " ".join(key.lower().strip().split())
 
 
 def _parse_date(value):
@@ -54,7 +54,7 @@ def _parse_date(value):
     if not value or not value.strip():
         return None
     value = value.strip()
-    for fmt in ('%m/%d/%Y', '%Y-%m-%d', '%m-%d-%Y', '%m/%d/%y'):
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m-%d-%Y", "%m/%d/%y"):
         try:
             return datetime.strptime(value, fmt).date()
         except ValueError:
@@ -71,12 +71,12 @@ class SportsConnectImporter:
         self.user = user
         self.import_run = None
         self.stats = {
-            'total_rows': 0,
-            'new_players': 0,
-            'new_player_seasons': 0,
-            'updated_records': 0,
-            'flagged_for_review': 0,
-            'errors': 0,
+            "total_rows": 0,
+            "new_players": 0,
+            "new_player_seasons": 0,
+            "updated_records": 0,
+            "flagged_for_review": 0,
+            "errors": 0,
         }
         self._division_cache = {}
         self._error_details = []
@@ -89,26 +89,26 @@ class SportsConnectImporter:
         """Process a CSV file object. Returns the ImportRun record."""
         self.import_run = ImportRun.objects.create(
             league=self.league,
-            status='running',
-            triggered_by='manual' if self.user else 'scheduled',
+            status="running",
+            triggered_by="manual" if self.user else "scheduled",
         )
 
         try:
             self._load_division_cache()
             self._process_csv(csv_file)
-            self.import_run.status = 'completed'
+            self.import_run.status = "completed"
         except Exception as exc:
-            logger.exception('Import failed: %s', exc)
-            self.import_run.status = 'failed'
-            self._error_details.append(f'Fatal error: {exc}')
+            logger.exception("Import failed: %s", exc)
+            self.import_run.status = "failed"
+            self._error_details.append(f"Fatal error: {exc}")
 
         self.import_run.completed_at = timezone.now()
-        self.import_run.total_rows = self.stats['total_rows']
-        self.import_run.new_players = self.stats['new_players']
-        self.import_run.new_player_seasons = self.stats['new_player_seasons']
-        self.import_run.updated_records = self.stats['updated_records']
-        self.import_run.flagged_for_review = self.stats['flagged_for_review']
-        self.import_run.errors = self.stats['errors']
+        self.import_run.total_rows = self.stats["total_rows"]
+        self.import_run.new_players = self.stats["new_players"]
+        self.import_run.new_player_seasons = self.stats["new_player_seasons"]
+        self.import_run.updated_records = self.stats["updated_records"]
+        self.import_run.flagged_for_review = self.stats["flagged_for_review"]
+        self.import_run.errors = self.stats["errors"]
         self.import_run.error_details = self._error_details
         self.import_run.save()
 
@@ -126,13 +126,13 @@ class SportsConnectImporter:
     def _process_csv(self, csv_file):
         """Read CSV content and process each row."""
         # Accept file-like objects or raw bytes/strings
-        if hasattr(csv_file, 'read'):
+        if hasattr(csv_file, "read"):
             raw = csv_file.read()
         else:
             raw = csv_file
 
         if isinstance(raw, bytes):
-            raw = raw.decode('utf-8-sig')  # handle BOM
+            raw = raw.decode("utf-8-sig")  # handle BOM
 
         reader = csv.DictReader(io.StringIO(raw))
 
@@ -149,61 +149,63 @@ class SportsConnectImporter:
             if not any(v.strip() for v in row.values() if v):
                 continue
 
-            self.stats['total_rows'] += 1
+            self.stats["total_rows"] += 1
 
             try:
-                mapped = {col_map.get(k, k): (v.strip() if v else '') for k, v in row.items()}
+                mapped = {
+                    col_map.get(k, k): (v.strip() if v else "") for k, v in row.items()
+                }
                 self._process_row(mapped, row_num)
             except Exception as exc:
-                logger.warning('Row %d error: %s', row_num, exc)
-                self.stats['errors'] += 1
-                self._error_details.append(f'Row {row_num}: {exc}')
+                logger.warning("Row %d error: %s", row_num, exc)
+                self.stats["errors"] += 1
+                self._error_details.append(f"Row {row_num}: {exc}")
 
     @transaction.atomic
     def _process_row(self, row, row_num):
         """Process a single mapped CSV row."""
-        sc_player_id = row.get('sportsconnect_player_id', '')
+        sc_player_id = row.get("sportsconnect_player_id", "")
         if not sc_player_id:
-            self.stats['errors'] += 1
-            self._error_details.append(f'Row {row_num}: Missing Player Id')
+            self.stats["errors"] += 1
+            self._error_details.append(f"Row {row_num}: Missing Player Id")
             return
 
-        first_name = row.get('player_first_name', '')
-        last_name = row.get('player_last_name', '')
+        first_name = row.get("player_first_name", "")
+        last_name = row.get("player_last_name", "")
         if not first_name or not last_name:
-            self.stats['errors'] += 1
-            self._error_details.append(f'Row {row_num}: Missing player name')
+            self.stats["errors"] += 1
+            self._error_details.append(f"Row {row_num}: Missing player name")
             return
 
         # ----- Division -----
-        division_name = row.get('division_name', '')
+        division_name = row.get("division_name", "")
         division = self._resolve_division(division_name, row_num)
 
         # ----- Player (find or create) -----
         player, player_created = Player.objects.get_or_create(
             sportsconnect_player_id=sc_player_id,
             defaults={
-                'league': self.league,
-                'first_name': first_name,
-                'last_name': last_name,
-                'date_of_birth': _parse_date(row.get('player_dob', '')),
+                "league": self.league,
+                "first_name": first_name,
+                "last_name": last_name,
+                "date_of_birth": _parse_date(row.get("player_dob", "")),
             },
         )
 
         if player_created:
-            self.stats['new_players'] += 1
+            self.stats["new_players"] += 1
         else:
             # Detect name changes
             updated = False
             if player.first_name != first_name or player.last_name != last_name:
                 self._create_flag(
-                    'data_mismatch',
+                    "data_mismatch",
                     details={
-                        'row': row_num,
-                        'field': 'player_name',
-                        'existing': f'{player.first_name} {player.last_name}',
-                        'incoming': f'{first_name} {last_name}',
-                        'sportsconnect_player_id': sc_player_id,
+                        "row": row_num,
+                        "field": "player_name",
+                        "existing": f"{player.first_name} {player.last_name}",
+                        "incoming": f"{first_name} {last_name}",
+                        "sportsconnect_player_id": sc_player_id,
                     },
                 )
                 # Update to the latest name from SportsConnect
@@ -211,16 +213,16 @@ class SportsConnectImporter:
                 player.last_name = last_name
                 updated = True
 
-            dob = _parse_date(row.get('player_dob', ''))
+            dob = _parse_date(row.get("player_dob", ""))
             if dob and player.date_of_birth and dob != player.date_of_birth:
                 self._create_flag(
-                    'data_mismatch',
+                    "data_mismatch",
                     details={
-                        'row': row_num,
-                        'field': 'date_of_birth',
-                        'existing': str(player.date_of_birth),
-                        'incoming': str(dob),
-                        'sportsconnect_player_id': sc_player_id,
+                        "row": row_num,
+                        "field": "date_of_birth",
+                        "existing": str(player.date_of_birth),
+                        "incoming": str(dob),
+                        "sportsconnect_player_id": sc_player_id,
                     },
                 )
             elif dob and not player.date_of_birth:
@@ -229,84 +231,84 @@ class SportsConnectImporter:
 
             if updated:
                 player.save()
-                self.stats['updated_records'] += 1
+                self.stats["updated_records"] += 1
 
         # ----- Duplicate detection -----
         self._check_duplicates(player, first_name, last_name)
 
         # ----- PlayerSeason (find or create) -----
-        order_detail_id = row.get('order_detail_id', '')
-        order_id = row.get('order_id', '')
+        order_detail_id = row.get("order_detail_id", "")
+        order_id = row.get("order_id", "")
         account_name = f"{row.get('account_first_name', '')} {row.get('account_last_name', '')}".strip()
-        account_email = row.get('user_email', '')
-        additional_email = row.get('additional_email', '')
+        account_email = row.get("user_email", "")
+        additional_email = row.get("additional_email", "")
 
         ps, ps_created = PlayerSeason.objects.get_or_create(
             player=player,
             season=self.season,
             defaults={
-                'division': division,
-                'status': 'registered',
-                'order_id': order_id,
-                'sportsconnect_order_detail_id': order_detail_id,
-                'account_name': account_name,
-                'account_email': account_email,
-                'additional_email': additional_email,
+                "division": division,
+                "status": "registered",
+                "order_id": order_id,
+                "sportsconnect_order_detail_id": order_detail_id,
+                "account_name": account_name,
+                "account_email": account_email,
+                "additional_email": additional_email,
             },
         )
 
         if ps_created:
-            self.stats['new_player_seasons'] += 1
+            self.stats["new_player_seasons"] += 1
         else:
             # Update contact info and detect division changes
             changes = {}
 
             if division and ps.division and division != ps.division:
                 self._create_flag(
-                    'division_change',
+                    "division_change",
                     player_season=ps,
                     details={
-                        'row': row_num,
-                        'player': player.full_name,
-                        'sportsconnect_player_id': sc_player_id,
-                        'previous_division': ps.division.name,
-                        'new_division': division.name,
+                        "row": row_num,
+                        "player": player.full_name,
+                        "sportsconnect_player_id": sc_player_id,
+                        "previous_division": ps.division.name,
+                        "new_division": division.name,
                     },
                 )
                 ps.division = division
-                changes['division'] = True
+                changes["division"] = True
 
             if account_email and account_email != ps.account_email:
                 if ps.account_email:
                     self._create_flag(
-                        'data_mismatch',
+                        "data_mismatch",
                         player_season=ps,
                         details={
-                            'row': row_num,
-                            'field': 'account_email',
-                            'existing': ps.account_email,
-                            'incoming': account_email,
-                            'player': player.full_name,
+                            "row": row_num,
+                            "field": "account_email",
+                            "existing": ps.account_email,
+                            "incoming": account_email,
+                            "player": player.full_name,
                         },
                     )
                 ps.account_email = account_email
-                changes['account_email'] = True
+                changes["account_email"] = True
 
             if account_name and account_name != ps.account_name:
                 ps.account_name = account_name
-                changes['account_name'] = True
+                changes["account_name"] = True
 
             if additional_email and additional_email != ps.additional_email:
                 ps.additional_email = additional_email
-                changes['additional_email'] = True
+                changes["additional_email"] = True
 
             if order_detail_id and order_detail_id != ps.sportsconnect_order_detail_id:
                 ps.sportsconnect_order_detail_id = order_detail_id
-                changes['order_detail_id'] = True
+                changes["order_detail_id"] = True
 
             if changes:
                 ps.save()
-                self.stats['updated_records'] += 1
+                self.stats["updated_records"] += 1
 
         # ----- Cancellation detection -----
         self._check_cancellation(row, ps, row_num)
@@ -321,11 +323,11 @@ class SportsConnectImporter:
 
         if division is None:
             self._create_flag(
-                'data_mismatch',
+                "data_mismatch",
                 details={
-                    'row': row_num,
-                    'field': 'division_name',
-                    'message': f'Unknown division: "{division_name}"',
+                    "row": row_num,
+                    "field": "division_name",
+                    "message": f'Unknown division: "{division_name}"',
                 },
             )
         return division
@@ -343,34 +345,35 @@ class SportsConnectImporter:
 
         for dupe in dupes:
             self._create_flag(
-                'potential_duplicate',
+                "potential_duplicate",
                 details={
-                    'player_name': f'{first_name} {last_name}',
-                    'existing_sc_id': dupe.sportsconnect_player_id,
-                    'incoming_sc_id': player.sportsconnect_player_id,
-                    'existing_player_id': dupe.pk,
-                    'incoming_player_id': player.pk,
+                    "player_name": f"{first_name} {last_name}",
+                    "existing_sc_id": dupe.sportsconnect_player_id,
+                    "incoming_sc_id": player.sportsconnect_player_id,
+                    "existing_player_id": dupe.pk,
+                    "incoming_player_id": player.pk,
                 },
             )
 
     def _check_cancellation(self, row, player_season, row_num):
         """Detect rows that indicate a cancellation or withdrawal."""
-        status = row.get('status', '').lower()
-        program = row.get('program_name', '').lower()
+        status = row.get("status", "").lower()
+        program = row.get("program_name", "").lower()
 
-        cancel_keywords = ['cancel', 'refund', 'withdraw', 'dropped', 'void']
-        is_cancelled = any(kw in status for kw in cancel_keywords) or \
-                       any(kw in program for kw in cancel_keywords)
+        cancel_keywords = ["cancel", "refund", "withdraw", "dropped", "void"]
+        is_cancelled = any(kw in status for kw in cancel_keywords) or any(
+            kw in program for kw in cancel_keywords
+        )
 
         if is_cancelled:
             self._create_flag(
-                'cancellation',
+                "cancellation",
                 player_season=player_season,
                 details={
-                    'row': row_num,
-                    'player': player_season.player.full_name,
-                    'status': row.get('status', ''),
-                    'program': row.get('program_name', ''),
+                    "row": row_num,
+                    "player": player_season.player.full_name,
+                    "status": row.get("status", ""),
+                    "program": row.get("program_name", ""),
                 },
             )
 
@@ -382,4 +385,4 @@ class SportsConnectImporter:
             player_season=player_season,
             details=details or {},
         )
-        self.stats['flagged_for_review'] += 1
+        self.stats["flagged_for_review"] += 1

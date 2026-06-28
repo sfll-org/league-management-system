@@ -10,58 +10,140 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('players', '0001_initial'),
+        ("players", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Session',
+            name="Session",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('name', models.CharField(max_length=200)),
-                ('date', models.DateField()),
-                ('start_time', models.TimeField()),
-                ('end_time', models.TimeField(blank=True, null=True)),
-                ('location', models.CharField(blank=True, max_length=200)),
-                ('is_makeup', models.BooleanField(default=False)),
-                ('division', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sessions', to='players.division')),
-                ('makeup_for', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='makeup_sessions', to='tryouts.session')),
-                ('season', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sessions', to='players.season')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("name", models.CharField(max_length=200)),
+                ("date", models.DateField()),
+                ("start_time", models.TimeField()),
+                ("end_time", models.TimeField(blank=True, null=True)),
+                ("location", models.CharField(blank=True, max_length=200)),
+                ("is_makeup", models.BooleanField(default=False)),
+                (
+                    "division",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="sessions",
+                        to="players.division",
+                    ),
+                ),
+                (
+                    "makeup_for",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="makeup_sessions",
+                        to="tryouts.session",
+                    ),
+                ),
+                (
+                    "season",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="sessions",
+                        to="players.season",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-date', 'start_time'],
+                "ordering": ["-date", "start_time"],
             },
         ),
         migrations.CreateModel(
-            name='SessionAssignment',
+            name="SessionAssignment",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('assigned_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('player_season', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='session_assignments', to='players.playerseason')),
-                ('session', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='assignments', to='tryouts.session')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "assigned_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "player_season",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="session_assignments",
+                        to="players.playerseason",
+                    ),
+                ),
+                (
+                    "session",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="assignments",
+                        to="tryouts.session",
+                    ),
+                ),
             ],
             options={
-                'unique_together': {('session', 'player_season')},
+                "unique_together": {("session", "player_season")},
             },
         ),
         migrations.CreateModel(
-            name='CheckIn',
+            name="CheckIn",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('checked_in_at', models.DateTimeField(auto_now_add=True)),
-                ('notes', models.TextField(blank=True)),
-                ('checked_in_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('session_assignment', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='checkin', to='tryouts.sessionassignment')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("checked_in_at", models.DateTimeField(auto_now_add=True)),
+                ("notes", models.TextField(blank=True)),
+                (
+                    "checked_in_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "session_assignment",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="checkin",
+                        to="tryouts.sessionassignment",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

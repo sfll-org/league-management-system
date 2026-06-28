@@ -13,8 +13,7 @@ from communications.models import RSVP
 from core.models import AuditLog, ImportRun
 from draft.models import DraftPick, DraftSession
 from evaluations.models import Evaluation
-from players.models import (Division, PlayerSeason, Season, Station, Team,
-                            TeamSeason)
+from players.models import Division, PlayerSeason, Season, Station, Team, TeamSeason
 from tryouts.models import CheckIn, Session, SessionAssignment
 
 
@@ -246,14 +245,16 @@ def _build_attention_items(active_season):
     items = []
 
     # Flagged SportsConnect records
-    last_import = ImportRun.objects.order_by('-started_at').first()
+    last_import = ImportRun.objects.order_by("-started_at").first()
     if last_import and last_import.flagged_for_review:
         n = last_import.flagged_for_review
-        items.append({
-            'type': 'blocker' if n > 5 else 'warning',
-            'label': f'{n} flagged SportsConnect record{"s" if n != 1 else ""} — review before next import',
-            'url': reverse('import_history'),
-        })
+        items.append(
+            {
+                "type": "blocker" if n > 5 else "warning",
+                "label": f'{n} flagged SportsConnect record{"s" if n != 1 else ""} — review before next import',
+                "url": reverse("import_history"),
+            }
+        )
 
     # RSVP participation rate
     total_assignments = SessionAssignment.objects.filter(
@@ -263,22 +264,26 @@ def _build_attention_items(active_season):
         total_rsvps = RSVP.objects.filter(session__season=active_season).count()
         rsvp_rate = round(total_rsvps / total_assignments * 100)
         if rsvp_rate < 75:
-            items.append({
-                'type': 'warning',
-                'label': f'RSVP rate at {rsvp_rate}% — send reminders to lift participation',
-                'url': None,
-            })
+            items.append(
+                {
+                    "type": "warning",
+                    "label": f"RSVP rate at {rsvp_rate}% — send reminders to lift participation",
+                    "url": None,
+                }
+            )
 
     # Active draft sessions
     draft_sessions = DraftSession.objects.filter(
-        season=active_season, status='drafting'
-    ).select_related('division')
+        season=active_season, status="drafting"
+    ).select_related("division")
     for ds in draft_sessions:
-        items.append({
-            'type': 'today',
-            'label': f'{ds.division.name} draft in progress — round {ds.current_round}, pick {ds.current_pick}',
-            'url': reverse('draft:index'),
-        })
+        items.append(
+            {
+                "type": "today",
+                "label": f"{ds.division.name} draft in progress — round {ds.current_round}, pick {ds.current_pick}",
+                "url": reverse("draft:index"),
+            }
+        )
 
     return items
 
@@ -287,33 +292,42 @@ def _build_attention_items(active_season):
 def dashboard_inbox(request):
     """HTMX partial: filtered 'Needs attention' inbox for admins."""
     from django.http import HttpResponseForbidden
+
     roles = _get_user_roles(request.user)
     if not _is_admin(roles):
         return HttpResponseForbidden()
 
     active_season = Season.objects.filter(is_active=True).first()
     if not active_season:
-        return render(request, '_partials/dashboard_inbox.html', {
-            'attention_items': [],
-            'attention_filter': 'all',
-        })
+        return render(
+            request,
+            "_partials/dashboard_inbox.html",
+            {
+                "attention_items": [],
+                "attention_filter": "all",
+            },
+        )
 
     all_items = _build_attention_items(active_season)
-    active_filter = request.GET.get('filter', 'all')
+    active_filter = request.GET.get("filter", "all")
 
-    if active_filter == 'blockers':
-        items = [i for i in all_items if i['type'] == 'blocker']
-    elif active_filter == 'warnings':
-        items = [i for i in all_items if i['type'] == 'warning']
-    elif active_filter == 'today':
-        items = [i for i in all_items if i['type'] == 'today']
+    if active_filter == "blockers":
+        items = [i for i in all_items if i["type"] == "blocker"]
+    elif active_filter == "warnings":
+        items = [i for i in all_items if i["type"] == "warning"]
+    elif active_filter == "today":
+        items = [i for i in all_items if i["type"] == "today"]
     else:
         items = all_items
 
-    return render(request, '_partials/dashboard_inbox.html', {
-        'attention_items': items,
-        'attention_filter': active_filter,
-    })
+    return render(
+        request,
+        "_partials/dashboard_inbox.html",
+        {
+            "attention_items": items,
+            "attention_filter": active_filter,
+        },
+    )
 
 
 def health_check(request):
@@ -323,13 +337,16 @@ def health_check(request):
 
 # --- SFLL-117: ⌘K command palette search endpoint -------------------------
 
+
 def _can_manage_comms(user):
     from communications.views import _can_manage_comms as _comm_check
+
     return _comm_check(user)
 
 
 def _is_eval_authorized(user):
     from evaluations.views import _is_eval_authorized as _eval_check
+
     return _eval_check(user)
 
 
@@ -337,28 +354,30 @@ def _is_eval_authorized(user):
 # predicate is None (any logged-in user), 'admin', or a callable(user)->bool.
 _CMDK_PAGES = (
     # (title, url_name, kind, predicate)
-    ('Dashboard',       'dashboard',                'page',  None),
-    ('Roster',          'players:index',            'page',  None),
-    ('Teams',           'players:teams',            'page',  None),
-    ('Communications',  'communications:index',     'page',  _can_manage_comms),
-    ('SES Sessions',    'tryouts:index',            'page',  None),
-    ('Evaluations',     'evaluations:index',        'page',  _is_eval_authorized),
-    ('Draft',           'draft:index',              'page',  None),
-    ('Imports',         'import_history',           'admin', 'admin'),
-    ('Configuration',   'config_home',              'admin', 'admin'),
-    ('Audit log',       'audit_log',                'admin', 'admin'),
-    ('User management', 'user_list',                'admin', 'admin'),
+    ("Dashboard", "dashboard", "page", None),
+    ("Roster", "players:index", "page", None),
+    ("Teams", "players:teams", "page", None),
+    ("Communications", "communications:index", "page", _can_manage_comms),
+    ("SES Sessions", "tryouts:index", "page", None),
+    ("Evaluations", "evaluations:index", "page", _is_eval_authorized),
+    ("Draft", "draft:index", "page", None),
+    ("Imports", "import_history", "admin", "admin"),
+    ("Configuration", "config_home", "admin", "admin"),
+    ("Audit log", "audit_log", "admin", "admin"),
+    ("User management", "user_list", "admin", "admin"),
 )
 
 
 def _cmdk_pages(user):
     from django.urls import NoReverseMatch, reverse
-    is_admin = getattr(user, 'is_superuser', False) or user.roles.filter(
-        is_active=True, role='cto'
-    ).exists()
+
+    is_admin = (
+        getattr(user, "is_superuser", False)
+        or user.roles.filter(is_active=True, role="cto").exists()
+    )
     out = []
     for title, name, kind, predicate in _CMDK_PAGES:
-        if predicate == 'admin' and not is_admin:
+        if predicate == "admin" and not is_admin:
             continue
         if callable(predicate) and not predicate(user):
             continue
@@ -366,7 +385,7 @@ def _cmdk_pages(user):
             url = reverse(name)
         except NoReverseMatch:
             continue
-        out.append({'title': title, 'url': url, 'kind': kind})
+        out.append({"title": title, "url": url, "kind": kind})
     return out
 
 
@@ -379,57 +398,67 @@ def _cmdk_players(query, limit=20):
       - single token   → first_name OR last_name
     """
     from django.urls import NoReverseMatch, reverse
+
     season = Season.objects.filter(is_active=True).first()
     qs = PlayerSeason.objects.select_related(
-        'player', 'division', 'assigned_team__team'
+        "player", "division", "assigned_team__team"
     )
     if season:
         qs = qs.filter(season=season)
     if query:
-        if ',' in query:
+        if "," in query:
             # "Last, First" format
-            last_part, _, first_part = query.partition(',')
+            last_part, _, first_part = query.partition(",")
             qs = qs.filter(
                 Q(player__last_name__icontains=last_part.strip())
                 & Q(player__first_name__icontains=first_part.strip())
             )
-        elif ' ' in query.strip():
+        elif " " in query.strip():
             # "First Last" or "Last First" — accept either ordering
             parts = query.split()
             first_token, last_token = parts[0], parts[-1]
             qs = qs.filter(
-                (Q(player__first_name__icontains=first_token)
-                 & Q(player__last_name__icontains=last_token))
-                | (Q(player__last_name__icontains=first_token)
-                   & Q(player__first_name__icontains=last_token))
+                (
+                    Q(player__first_name__icontains=first_token)
+                    & Q(player__last_name__icontains=last_token)
+                )
+                | (
+                    Q(player__last_name__icontains=first_token)
+                    & Q(player__first_name__icontains=last_token)
+                )
             )
         else:
             qs = qs.filter(
                 Q(player__first_name__icontains=query)
                 | Q(player__last_name__icontains=query)
             )
-    qs = qs.order_by('player__last_name', 'player__first_name')[:limit]
+    qs = qs.order_by("player__last_name", "player__first_name")[:limit]
 
     try:
-        roster_url = reverse('players:index')
+        roster_url = reverse("players:index")
     except NoReverseMatch:
-        roster_url = '/players/'
+        roster_url = "/players/"
 
     items = []
     for ps in qs:
         player = ps.player
-        name = f'{player.last_name}, {player.first_name}'.strip(', ')
+        name = f"{player.last_name}, {player.first_name}".strip(", ")
         sub_bits = []
         if ps.division_id and ps.division:
             sub_bits.append(ps.division.name)
         if ps.assigned_team_id and ps.assigned_team and ps.assigned_team.team:
             sub_bits.append(ps.assigned_team.team.name)
-        items.append({
-            'title': name or player.first_name or player.last_name or 'Unnamed player',
-            'subtitle': ' · '.join(sub_bits),
-            'url': f'{roster_url}?{urlencode({"q": name}, quote_via=quote)}',
-            'kind': 'player',
-        })
+        items.append(
+            {
+                "title": name
+                or player.first_name
+                or player.last_name
+                or "Unnamed player",
+                "subtitle": " · ".join(sub_bits),
+                "url": f'{roster_url}?{urlencode({"q": name}, quote_via=quote)}',
+                "kind": "player",
+            }
+        )
     return items
 
 
@@ -441,35 +470,38 @@ def _cmdk_families(query, limit=15):
     today. Update the URL when family-detail lands.
     """
     from django.urls import NoReverseMatch, reverse
+
     season = Season.objects.filter(is_active=True).first()
-    qs = PlayerSeason.objects.exclude(account_name='')
+    qs = PlayerSeason.objects.exclude(account_name="")
     if season:
         qs = qs.filter(season=season)
     if query:
         qs = qs.filter(account_name__icontains=query)
 
     rows = (
-        qs.values('account_name')
-        .annotate(player_count=Count('id'))
-        .order_by('account_name')[:limit]
+        qs.values("account_name")
+        .annotate(player_count=Count("id"))
+        .order_by("account_name")[:limit]
     )
 
     try:
-        roster_url = reverse('players:index')
+        roster_url = reverse("players:index")
     except NoReverseMatch:
-        roster_url = '/players/'
+        roster_url = "/players/"
 
     items = []
     for row in rows:
-        name = row['account_name']
-        count = row['player_count']
-        suffix = 'player' if count == 1 else 'players'
-        items.append({
-            'title': name,
-            'subtitle': f'{count} {suffix}',
-            'url': f'{roster_url}?{urlencode({"account": name}, quote_via=quote)}',
-            'kind': 'family',
-        })
+        name = row["account_name"]
+        count = row["player_count"]
+        suffix = "player" if count == 1 else "players"
+        items.append(
+            {
+                "title": name,
+                "subtitle": f"{count} {suffix}",
+                "url": f'{roster_url}?{urlencode({"account": name}, quote_via=quote)}',
+                "kind": "family",
+            }
+        )
     return items
 
 
@@ -481,14 +513,16 @@ def cmdk_search(request):
     queried per session against the active season. Empty `q` returns a small
     starter slice so the palette is useful on first open.
     """
-    if not getattr(request.user, 'power_user_mode', False):
+    if not getattr(request.user, "power_user_mode", False):
         # Feature flag is per-user; non-power-users shouldn't be able to
         # probe roster names via this endpoint.
-        return JsonResponse({'detail': 'Not enabled.'}, status=403)
+        return JsonResponse({"detail": "Not enabled."}, status=403)
 
-    query = (request.GET.get('q') or '').strip()
-    return JsonResponse({
-        'pages': _cmdk_pages(request.user),
-        'players': _cmdk_players(query),
-        'families': _cmdk_families(query),
-    })
+    query = (request.GET.get("q") or "").strip()
+    return JsonResponse(
+        {
+            "pages": _cmdk_pages(request.user),
+            "players": _cmdk_players(query),
+            "families": _cmdk_families(query),
+        }
+    )

@@ -6,24 +6,25 @@ from core.models import TimeStampedModel
 
 class Evaluation(TimeStampedModel):
     """A coach's evaluation of a player at a specific station during an SES session."""
+
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='evaluations'
+        "players.PlayerSeason", on_delete=models.CASCADE, related_name="evaluations"
     )
     session = models.ForeignKey(
-        'tryouts.Session', on_delete=models.CASCADE, related_name='evaluations'
+        "tryouts.Session", on_delete=models.CASCADE, related_name="evaluations"
     )
     coach_season = models.ForeignKey(
-        'accounts.CoachSeason', on_delete=models.CASCADE, related_name='evaluations'
+        "accounts.CoachSeason", on_delete=models.CASCADE, related_name="evaluations"
     )
     station = models.ForeignKey(
-        'players.Station', on_delete=models.CASCADE, related_name='evaluations'
+        "players.Station", on_delete=models.CASCADE, related_name="evaluations"
     )
     scores = models.JSONField(default=dict)
     notes = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ['player_season', 'session', 'coach_season', 'station']
-        ordering = ['-created_at']
+        unique_together = ["player_season", "session", "coach_season", "station"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return f"Eval: {self.player_season} @ {self.station.name}"
@@ -31,11 +32,14 @@ class Evaluation(TimeStampedModel):
 
 class ObjectiveMetric(TimeStampedModel):
     """An objective measurement (e.g., sprint time, throw velocity)."""
+
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='objective_metrics'
+        "players.PlayerSeason",
+        on_delete=models.CASCADE,
+        related_name="objective_metrics",
     )
     session = models.ForeignKey(
-        'tryouts.Session', on_delete=models.CASCADE, related_name='objective_metrics'
+        "tryouts.Session", on_delete=models.CASCADE, related_name="objective_metrics"
     )
     metric_type = models.CharField(max_length=50)
     value = models.DecimalField(max_digits=8, decimal_places=2)
@@ -50,18 +54,19 @@ class ObjectiveMetric(TimeStampedModel):
 
 class CoachRanking(TimeStampedModel):
     """A coach's personal ranking of a player (pre-draft)."""
+
     coach_season = models.ForeignKey(
-        'accounts.CoachSeason', on_delete=models.CASCADE, related_name='rankings'
+        "accounts.CoachSeason", on_delete=models.CASCADE, related_name="rankings"
     )
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='ranked_by'
+        "players.PlayerSeason", on_delete=models.CASCADE, related_name="ranked_by"
     )
     rank_order = models.PositiveIntegerField()
     notes = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ['coach_season', 'player_season']
-        ordering = ['rank_order']
+        unique_together = ["coach_season", "player_season"]
+        ordering = ["rank_order"]
 
     def __str__(self):
         return f"#{self.rank_order} {self.player_season} by {self.coach_season}"

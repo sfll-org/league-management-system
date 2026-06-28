@@ -6,8 +6,9 @@ from core.models import TimeStampedModel
 
 class EmailTemplate(TimeStampedModel):
     """Reusable email template for league communications."""
+
     league = models.ForeignKey(
-        'players.League', on_delete=models.CASCADE, related_name='email_templates'
+        "players.League", on_delete=models.CASCADE, related_name="email_templates"
     )
     name = models.CharField(max_length=100)
     subject_template = models.CharField(max_length=500)
@@ -22,12 +23,11 @@ class EmailTemplate(TimeStampedModel):
 
 class EmailLog(TimeStampedModel):
     """Record of an individual email sent to a player/family."""
+
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='emails'
+        "players.PlayerSeason", on_delete=models.CASCADE, related_name="emails"
     )
-    template = models.ForeignKey(
-        EmailTemplate, on_delete=models.SET_NULL, null=True
-    )
+    template = models.ForeignKey(EmailTemplate, on_delete=models.SET_NULL, null=True)
     to_address = models.EmailField()
     cc_addresses = models.JSONField(default=list, blank=True)
     subject = models.CharField(max_length=500)
@@ -42,7 +42,7 @@ class EmailLog(TimeStampedModel):
     bounce_reason = models.TextField(blank=True)
 
     class Meta:
-        ordering = ['-sent_at']
+        ordering = ["-sent_at"]
 
     def __str__(self):
         return f"Email to {self.to_address} — {self.subject[:50]}"
@@ -50,18 +50,22 @@ class EmailLog(TimeStampedModel):
 
 class RSVP(TimeStampedModel):
     """An RSVP response for an SES session."""
+
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.CASCADE, related_name='rsvps'
+        "players.PlayerSeason", on_delete=models.CASCADE, related_name="rsvps"
     )
     session = models.ForeignKey(
-        'tryouts.Session', on_delete=models.CASCADE, related_name='rsvps'
+        "tryouts.Session", on_delete=models.CASCADE, related_name="rsvps"
     )
-    status = models.CharField(max_length=20, choices=[
-        ('attending', 'Attending'),
-        ('not_attending', 'Not Attending'),
-        ('maybe', 'Maybe'),
-    ])
-    response_method = models.CharField(max_length=20, default='web')
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("attending", "Attending"),
+            ("not_attending", "Not Attending"),
+            ("maybe", "Maybe"),
+        ],
+    )
+    response_method = models.CharField(max_length=20, default="web")
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     def __str__(self):

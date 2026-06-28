@@ -7,7 +7,7 @@ from django import template
 register = template.Library()
 
 
-@register.filter(name='json_pretty')
+@register.filter(name="json_pretty")
 def json_pretty(value):
     """Pretty-print a dict/list as indented JSON."""
     if isinstance(value, (dict, list)):

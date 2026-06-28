@@ -10,69 +10,165 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('players', '0001_initial'),
+        ("players", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ImportRun',
+            name="ImportRun",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('started_at', models.DateTimeField(auto_now_add=True)),
-                ('completed_at', models.DateTimeField(blank=True, null=True)),
-                ('status', models.CharField(choices=[('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')], max_length=20)),
-                ('source_url', models.URLField(blank=True)),
-                ('total_rows', models.PositiveIntegerField(default=0)),
-                ('new_players', models.PositiveIntegerField(default=0)),
-                ('new_player_seasons', models.PositiveIntegerField(default=0)),
-                ('updated_records', models.PositiveIntegerField(default=0)),
-                ('flagged_for_review', models.PositiveIntegerField(default=0)),
-                ('errors', models.PositiveIntegerField(default=0)),
-                ('error_details', models.JSONField(blank=True, default=list)),
-                ('triggered_by', models.CharField(choices=[('scheduled', 'Scheduled'), ('manual', 'Manual')], max_length=20)),
-                ('league', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='import_runs', to='players.league')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("started_at", models.DateTimeField(auto_now_add=True)),
+                ("completed_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("running", "Running"),
+                            ("completed", "Completed"),
+                            ("failed", "Failed"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("source_url", models.URLField(blank=True)),
+                ("total_rows", models.PositiveIntegerField(default=0)),
+                ("new_players", models.PositiveIntegerField(default=0)),
+                ("new_player_seasons", models.PositiveIntegerField(default=0)),
+                ("updated_records", models.PositiveIntegerField(default=0)),
+                ("flagged_for_review", models.PositiveIntegerField(default=0)),
+                ("errors", models.PositiveIntegerField(default=0)),
+                ("error_details", models.JSONField(blank=True, default=list)),
+                (
+                    "triggered_by",
+                    models.CharField(
+                        choices=[("scheduled", "Scheduled"), ("manual", "Manual")],
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "league",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="import_runs",
+                        to="players.league",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ImportFlag',
+            name="ImportFlag",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('flag_type', models.CharField(choices=[('potential_duplicate', 'Potential Duplicate'), ('division_change', 'Division Change'), ('cancellation', 'Possible Cancellation'), ('data_mismatch', 'Data Mismatch')], max_length=30)),
-                ('details', models.JSONField(default=dict)),
-                ('resolved', models.BooleanField(default=False)),
-                ('resolved_at', models.DateTimeField(blank=True, null=True)),
-                ('resolution_notes', models.TextField(blank=True)),
-                ('player_season', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='players.playerseason')),
-                ('resolved_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('import_run', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='flags', to='core.importrun')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "flag_type",
+                    models.CharField(
+                        choices=[
+                            ("potential_duplicate", "Potential Duplicate"),
+                            ("division_change", "Division Change"),
+                            ("cancellation", "Possible Cancellation"),
+                            ("data_mismatch", "Data Mismatch"),
+                        ],
+                        max_length=30,
+                    ),
+                ),
+                ("details", models.JSONField(default=dict)),
+                ("resolved", models.BooleanField(default=False)),
+                ("resolved_at", models.DateTimeField(blank=True, null=True)),
+                ("resolution_notes", models.TextField(blank=True)),
+                (
+                    "player_season",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to="players.playerseason",
+                    ),
+                ),
+                (
+                    "resolved_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "import_run",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="flags",
+                        to="core.importrun",
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='AuditLog',
+            name="AuditLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('timestamp', models.DateTimeField(auto_now_add=True)),
-                ('action', models.CharField(max_length=50)),
-                ('entity_type', models.CharField(max_length=50)),
-                ('entity_id', models.PositiveIntegerField()),
-                ('details', models.JSONField(default=dict)),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True)),
-                ('user', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("timestamp", models.DateTimeField(auto_now_add=True)),
+                ("action", models.CharField(max_length=50)),
+                ("entity_type", models.CharField(max_length=50)),
+                ("entity_id", models.PositiveIntegerField()),
+                ("details", models.JSONField(default=dict)),
+                ("ip_address", models.GenericIPAddressField(blank=True, null=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-timestamp'],
-                'indexes': [models.Index(fields=['-timestamp'], name='core_auditl_timesta_189a84_idx'), models.Index(fields=['entity_type', 'entity_id'], name='core_auditl_entity__244637_idx')],
+                "ordering": ["-timestamp"],
+                "indexes": [
+                    models.Index(
+                        fields=["-timestamp"], name="core_auditl_timesta_189a84_idx"
+                    ),
+                    models.Index(
+                        fields=["entity_type", "entity_id"],
+                        name="core_auditl_entity__244637_idx",
+                    ),
+                ],
             },
         ),
     ]
