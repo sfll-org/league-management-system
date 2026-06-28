@@ -387,6 +387,72 @@ class SessionCreatePostTests(TestCase):
         # Should re-render form (200), not redirect
         self.assertEqual(resp.status_code, 200)
 
+    def test_create_session_invalid_date_format(self):
+        """Malformed date must re-render with error, not 500."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Bad Date",
+                "date": "2026-13-40",
+                "start_time": "09:00",
+                "division": self.base["division"].pk,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Session.objects.filter(name="Bad Date").exists())
+
+    def test_create_session_invalid_start_time_format(self):
+        """'9am' or bare digits must re-render with error, not 500."""
+        for bad_time in ("9am", "0900", "09:00+00:00"):
+            resp = self.client.post(
+                reverse("tryouts:session_create"),
+                {
+                    "name": "Bad Time",
+                    "date": "2026-03-28",
+                    "start_time": bad_time,
+                    "division": self.base["division"].pk,
+                },
+            )
+            self.assertEqual(
+                resp.status_code,
+                200,
+                msg=f"Expected 200 for start_time={bad_time!r}",
+            )
+            self.assertFalse(Session.objects.filter(name="Bad Time").exists())
+
+    def test_create_session_invalid_end_time_format(self):
+        """Invalid end_time must re-render with error, not 500."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Bad End",
+                "date": "2026-03-28",
+                "start_time": "09:00",
+                "end_time": "bad",
+                "division": self.base["division"].pk,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Session.objects.filter(name="Bad End").exists())
+
+    def test_create_session_action_label_on_create(self):
+        """Success message must say 'created', not 'updated'."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Action Test",
+                "date": "2026-03-28",
+                "start_time": "09:00",
+                "division": self.base["division"].pk,
+            },
+            follow=True,
+        )
+        messages = [str(m) for m in resp.context["messages"]]
+        self.assertTrue(
+            any("created" in m for m in messages),
+            msg=f"Expected 'created' in messages, got: {messages}",
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SES Session screen (SFLL-96 / Phase 5)

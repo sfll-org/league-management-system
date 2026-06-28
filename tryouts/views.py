@@ -394,14 +394,14 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
         errors.append("Start time is required.")
     else:
         try:
-            parsed_start_time = datetime.time.fromisoformat(start_time)
+            parsed_start_time = datetime.datetime.strptime(start_time, "%H:%M").time()
         except ValueError:
             errors.append("Start time must be in HH:MM format.")
 
     parsed_end_time = None
     if end_time:
         try:
-            parsed_end_time = datetime.time.fromisoformat(end_time)
+            parsed_end_time = datetime.datetime.strptime(end_time, "%H:%M").time()
         except ValueError:
             errors.append("End time must be in HH:MM format.")
 
