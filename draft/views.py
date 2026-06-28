@@ -460,12 +460,14 @@ def save_seeding(request, division_id):
             division=division,
         ).values_list('pk', flat=True)
     )
-    valid_player_ids = set(
-        PlayerSeason.objects.filter(
+    player_seasons_map = {
+        ps.pk: ps
+        for ps in PlayerSeason.objects.filter(
             season=active_season,
             division=division,
-        ).values_list('pk', flat=True)
-    )
+        )
+    }
+    valid_player_ids = set(player_seasons_map)
 
     with transaction.atomic():
         # Clear existing top-4 picks for this draft session
@@ -490,9 +492,8 @@ def save_seeding(request, division_id):
                 if ps_id not in valid_player_ids:
                     continue
 
-                # Check if this is a coach's child
-                ps = PlayerSeason.objects.get(pk=ps_id)
-                is_coaches_child = ps.coaches_child_of is not None
+                ps = player_seasons_map[ps_id]
+                is_coaches_child = ps.coaches_child_of_id is not None
 
                 DraftPick.objects.create(
                     draft_session=draft_session,
