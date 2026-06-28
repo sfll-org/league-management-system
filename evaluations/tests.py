@@ -516,136 +516,195 @@ class EvalIDORTests(TestCase):
         self.d = _setup_eval_base()
         # Create a second division and a coach scoped only to that division
         self.other_div = Division.objects.create(
-            league=self.d['league'], name='AAA', display_order=1,
+            league=self.d["league"],
+            name="AAA",
+            display_order=1,
         )
-        other_team = Team.objects.create(league=self.d['league'], name='Cubs')
+        other_team = Team.objects.create(league=self.d["league"], name="Cubs")
         other_ts = TeamSeason.objects.create(
-            team=other_team, season=self.d['season'], division=self.other_div,
+            team=other_team,
+            season=self.d["season"],
+            division=self.other_div,
         )
         self.other_coach_user = User.objects.create_user(
-            username='othercoach@sfll.org', email='othercoach@sfll.org',
-            first_name='Other', last_name='Coach', password='testpass123',
+            username="othercoach@sfll.org",
+            email="othercoach@sfll.org",
+            first_name="Other",
+            last_name="Coach",
+            password="testpass123",
         )
-        other_coach = Coach.objects.create(user=self.other_coach_user, league=self.d['league'])
+        other_coach = Coach.objects.create(
+            user=self.other_coach_user, league=self.d["league"]
+        )
         UserRole.objects.create(
-            user=self.other_coach_user, league=self.d['league'],
-            role='head_coach', division=self.other_div, is_active=True,
+            user=self.other_coach_user,
+            league=self.d["league"],
+            role="head_coach",
+            division=self.other_div,
+            is_active=True,
         )
         self.other_coach_season = CoachSeason.objects.create(
-            coach=other_coach, team_season=other_ts,
-            season=self.d['season'], role='head_coach',
+            coach=other_coach,
+            team_season=other_ts,
+            season=self.d["season"],
+            role="head_coach",
         )
         # Session scoped to the other division
         self.other_session = Session.objects.create(
-            season=self.d['season'], name='AAA SES 1',
-            date=date(2026, 3, 29), start_time=time(9, 0),
+            season=self.d["season"],
+            name="AAA SES 1",
+            date=date(2026, 3, 29),
+            start_time=time(9, 0),
             division=self.other_div,
         )
         self.client = Client()
 
     def test_cross_division_eval_player_forbidden(self):
         """A Majors player_season should be inaccessible to an AAA coach."""
-        self.client.login(username='othercoach@sfll.org', password='testpass123')
+        self.client.login(username="othercoach@sfll.org", password="testpass123")
         # AAA coach tries to view eval form for a Majors player in a Majors session
-        resp = self.client.get(reverse(
-            'evaluations:eval_player',
-            args=[self.d['station'].pk, self.d['session'].pk, self.d['ps'].pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:eval_player",
+                args=[self.d["station"].pk, self.d["session"].pk, self.d["ps"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_cross_division_save_eval_forbidden(self):
         """An AAA coach cannot POST evaluations for a Majors player."""
-        self.client.login(username='othercoach@sfll.org', password='testpass123')
-        resp = self.client.post(reverse(
-            'evaluations:save_eval',
-            args=[self.d['station'].pk, self.d['session'].pk, self.d['ps'].pk],
-        ), {'score_power': '10', 'score_contact': '10', 'action': 'save'})
+        self.client.login(username="othercoach@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse(
+                "evaluations:save_eval",
+                args=[self.d["station"].pk, self.d["session"].pk, self.d["ps"].pk],
+            ),
+            {"score_power": "10", "score_contact": "10", "action": "save"},
+        )
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(Evaluation.objects.filter(player_season=self.d['ps']).count(), 0)
+        self.assertEqual(
+            Evaluation.objects.filter(player_season=self.d["ps"]).count(), 0
+        )
 
     def test_cross_division_station_session_eval_forbidden(self):
         """An AAA coach cannot access a Majors session."""
-        self.client.login(username='othercoach@sfll.org', password='testpass123')
-        resp = self.client.get(reverse(
-            'evaluations:station_session_eval',
-            args=[self.d['station'].pk, self.d['session'].pk],
-        ))
+        self.client.login(username="othercoach@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse(
+                "evaluations:station_session_eval",
+                args=[self.d["station"].pk, self.d["session"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_own_division_station_session_eval_allowed(self):
         """An AAA coach CAN access an AAA session."""
-        self.client.login(username='othercoach@sfll.org', password='testpass123')
-        resp = self.client.get(reverse(
-            'evaluations:station_session_eval',
-            args=[self.d['station'].pk, self.other_session.pk],
-        ))
+        self.client.login(username="othercoach@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse(
+                "evaluations:station_session_eval",
+                args=[self.d["station"].pk, self.other_session.pk],
+            )
+        )
         self.assertEqual(resp.status_code, 200)
 
     def test_cross_division_player_eval_view_forbidden(self):
         """An AAA coach cannot view the player eval page for a Majors player."""
-        self.client.login(username='othercoach@sfll.org', password='testpass123')
-        resp = self.client.get(reverse(
-            'evaluations:player_eval', args=[self.d['ps'].pk],
-        ))
+        self.client.login(username="othercoach@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse(
+                "evaluations:player_eval",
+                args=[self.d["ps"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_cross_season_player_season_blocked(self):
         """A player_season_id from a different season is rejected even if division matches."""
         old_season = Season.objects.create(
-            league=self.d['league'], name='Spring 2025', year=2025,
-            season_type='spring', is_active=False,
+            league=self.d["league"],
+            name="Spring 2025",
+            year=2025,
+            season_type="spring",
+            is_active=False,
         )
         old_ps = PlayerSeason.objects.create(
-            player=self.d['player'], season=old_season, division=self.d['division'],
+            player=self.d["player"],
+            season=old_season,
+            division=self.d["division"],
         )
-        self.client.login(username='coach@sfll.org', password='testpass123')
-        resp = self.client.get(reverse(
-            'evaluations:eval_player',
-            args=[self.d['station'].pk, self.d['session'].pk, old_ps.pk],
-        ))
+        self.client.login(username="coach@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse(
+                "evaluations:eval_player",
+                args=[self.d["station"].pk, self.d["session"].pk, old_ps.pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_division_report_cross_league_blocked(self):
         """A division belonging to a different league cannot be accessed via division_report."""
-        other_league = League.objects.create(name='OtherLeague', short_name='OL')
+        other_league = League.objects.create(name="OtherLeague", short_name="OL")
         Season.objects.create(
-            league=other_league, name='Spring 2026', year=2026,
-            season_type='spring', is_active=False,
+            league=other_league,
+            name="Spring 2026",
+            year=2026,
+            season_type="spring",
+            is_active=False,
         )
         other_div = Division.objects.create(
-            league=other_league, name='Majors', display_order=0,
+            league=other_league,
+            name="Majors",
+            display_order=0,
         )
         User.objects.create_user(
-            username='super@sfll.org', email='super@sfll.org',
-            first_name='Super', last_name='User', password='testpass123',
+            username="super@sfll.org",
+            email="super@sfll.org",
+            first_name="Super",
+            last_name="User",
+            password="testpass123",
             is_superuser=True,
         )
-        self.client.login(username='super@sfll.org', password='testpass123')
+        self.client.login(username="super@sfll.org", password="testpass123")
         # Even a superuser requesting a division from another league gets 404
         # because division is filtered to active_season.league
-        resp = self.client.get(reverse(
-            'evaluations:division_report', args=[other_div.pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:division_report",
+                args=[other_div.pk],
+            )
+        )
         self.assertEqual(resp.status_code, 404)
 
     def test_player_report_cross_season_blocked(self):
         """A player_season_id from a non-active season is rejected by player_report."""
         old_season = Season.objects.create(
-            league=self.d['league'], name='Spring 2025', year=2025,
-            season_type='spring', is_active=False,
+            league=self.d["league"],
+            name="Spring 2025",
+            year=2025,
+            season_type="spring",
+            is_active=False,
         )
         old_ps = PlayerSeason.objects.create(
-            player=self.d['player'], season=old_season, division=self.d['division'],
+            player=self.d["player"],
+            season=old_season,
+            division=self.d["division"],
         )
         User.objects.create_user(
-            username='super2@sfll.org', email='super2@sfll.org',
-            first_name='Super', last_name='User2', password='testpass123',
+            username="super2@sfll.org",
+            email="super2@sfll.org",
+            first_name="Super",
+            last_name="User2",
+            password="testpass123",
             is_superuser=True,
         )
-        self.client.login(username='super2@sfll.org', password='testpass123')
-        resp = self.client.get(reverse(
-            'evaluations:player_report', args=[old_ps.pk],
-        ))
+        self.client.login(username="super2@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse(
+                "evaluations:player_report",
+                args=[old_ps.pk],
+            )
+        )
         self.assertEqual(resp.status_code, 404)
 
     def test_in_division_player_cross_division_session_forbidden(self):
@@ -656,45 +715,63 @@ class EvalIDORTests(TestCase):
         """
         # Build a non-staff Majors coach so division scope checks are enforced
         majors2_user = User.objects.create_user(
-            username='majors2@sfll.org', email='majors2@sfll.org',
-            first_name='Majors', last_name='Coach2', password='testpass123',
+            username="majors2@sfll.org",
+            email="majors2@sfll.org",
+            first_name="Majors",
+            last_name="Coach2",
+            password="testpass123",
         )
         UserRole.objects.create(
-            user=majors2_user, league=self.d['league'],
-            role='head_coach', division=self.d['division'], is_active=True,
+            user=majors2_user,
+            league=self.d["league"],
+            role="head_coach",
+            division=self.d["division"],
+            is_active=True,
         )
-        majors2_coach = Coach.objects.create(user=majors2_user, league=self.d['league'])
+        majors2_coach = Coach.objects.create(user=majors2_user, league=self.d["league"])
         majors2_ts = TeamSeason.objects.create(
-            team=Team.objects.create(league=self.d['league'], name='Giants'),
-            season=self.d['season'], division=self.d['division'],
+            team=Team.objects.create(league=self.d["league"], name="Giants"),
+            season=self.d["season"],
+            division=self.d["division"],
         )
         CoachSeason.objects.create(
-            coach=majors2_coach, team_season=majors2_ts,
-            season=self.d['season'], role='head_coach',
+            coach=majors2_coach,
+            team_season=majors2_ts,
+            season=self.d["season"],
+            role="head_coach",
         )
 
-        self.client.login(username='majors2@sfll.org', password='testpass123')
+        self.client.login(username="majors2@sfll.org", password="testpass123")
 
         # eval_player: Majors player + AAA session → 403
-        resp = self.client.get(reverse(
-            'evaluations:eval_player',
-            args=[self.d['station'].pk, self.other_session.pk, self.d['ps'].pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:eval_player",
+                args=[self.d["station"].pk, self.other_session.pk, self.d["ps"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
         # save_eval: same → 403, no eval written
-        resp = self.client.post(reverse(
-            'evaluations:save_eval',
-            args=[self.d['station'].pk, self.other_session.pk, self.d['ps'].pk],
-        ), {'score_power': '10', 'score_contact': '10', 'action': 'save'})
+        resp = self.client.post(
+            reverse(
+                "evaluations:save_eval",
+                args=[self.d["station"].pk, self.other_session.pk, self.d["ps"].pk],
+            ),
+            {"score_power": "10", "score_contact": "10", "action": "save"},
+        )
         self.assertEqual(resp.status_code, 403)
-        self.assertEqual(Evaluation.objects.filter(player_season=self.d['ps']).count(), 0)
+        self.assertEqual(
+            Evaluation.objects.filter(player_season=self.d["ps"]).count(), 0
+        )
 
         # player_eval_edit: same → 403
-        resp = self.client.get(reverse(
-            'evaluations:player_eval_edit',
-            args=[self.d['ps'].pk, self.d['station'].pk, self.other_session.pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:player_eval_edit",
+                args=[self.d["ps"].pk, self.d["station"].pk, self.other_session.pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_cross_league_station_forbidden(self):
@@ -703,37 +780,52 @@ class EvalIDORTests(TestCase):
         This is the cross-league station enumeration path: an attacker substitutes a
         station_id that belongs to a different league's Station object.
         """
-        other_league = League.objects.create(name='OtherLeague2', short_name='OL2')
+        other_league = League.objects.create(name="OtherLeague2", short_name="OL2")
         other_station = Station.objects.create(
-            league=other_league, name='Pitching', display_order=0,
+            league=other_league,
+            name="Pitching",
+            display_order=0,
             is_active=True,
             eval_fields=[
-                {'key': 'velocity', 'label': 'Velocity', 'type': 'int', 'min': 1, 'max': 10},
+                {
+                    "key": "velocity",
+                    "label": "Velocity",
+                    "type": "int",
+                    "min": 1,
+                    "max": 10,
+                },
             ],
         )
 
         # coach_user from setUp is staff → passes _is_eval_authorized;
         # cross-league station guard fires before the global-role bypass, so staff still gets 403.
-        self.client.login(username='coach@sfll.org', password='testpass123')
+        self.client.login(username="coach@sfll.org", password="testpass123")
 
         # eval_player: cross-league station + valid session/player → 403
-        resp = self.client.get(reverse(
-            'evaluations:eval_player',
-            args=[other_station.pk, self.d['session'].pk, self.d['ps'].pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:eval_player",
+                args=[other_station.pk, self.d["session"].pk, self.d["ps"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
 
         # save_eval: same → 403, no eval written
-        resp = self.client.post(reverse(
-            'evaluations:save_eval',
-            args=[other_station.pk, self.d['session'].pk, self.d['ps'].pk],
-        ), {'score_velocity': '10', 'action': 'save'})
+        resp = self.client.post(
+            reverse(
+                "evaluations:save_eval",
+                args=[other_station.pk, self.d["session"].pk, self.d["ps"].pk],
+            ),
+            {"score_velocity": "10", "action": "save"},
+        )
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(Evaluation.objects.filter(station=other_station).count(), 0)
 
         # player_eval_edit: same → 403
-        resp = self.client.get(reverse(
-            'evaluations:player_eval_edit',
-            args=[self.d['ps'].pk, other_station.pk, self.d['session'].pk],
-        ))
+        resp = self.client.get(
+            reverse(
+                "evaluations:player_eval_edit",
+                args=[self.d["ps"].pk, other_station.pk, self.d["session"].pk],
+            )
+        )
         self.assertEqual(resp.status_code, 403)
