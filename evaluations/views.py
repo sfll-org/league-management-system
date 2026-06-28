@@ -20,14 +20,14 @@ from .models import Evaluation, ObjectiveMetric
 def _get_coach_season(user, session):
     """Get the CoachSeason for this user in the session's season."""
     try:
-        return CoachSeason.objects.get(
+        return CoachSeason.objects.select_related('team_season').get(
             coach__user=user,
             season=session.season,
         )
     except CoachSeason.DoesNotExist:
         return None
     except CoachSeason.MultipleObjectsReturned:
-        return CoachSeason.objects.filter(
+        return CoachSeason.objects.select_related('team_season').filter(
             coach__user=user,
             season=session.season,
         ).first()
@@ -44,14 +44,33 @@ def _is_eval_authorized(user):
     ).exists()
 
 
+def _is_global_eval_role(user):
+    """Return True if user has a league-wide role that bypasses division scope checks.
+
+    CTO and SES manager can evaluate/view any division. Regular coaches (head/assistant)
+    are scoped to their own division and must pass the division ownership check.
+    """
+    if user.is_superuser or user.is_staff:
+        return True
+    return UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        role__in=['cto', 'ses_manager'],
+    ).exists()
+
+
 def _get_coach_season_for_season(user, season):
     """Get the CoachSeason for this user in the given season (no session required)."""
     try:
-        return CoachSeason.objects.get(coach__user=user, season=season)
+        return CoachSeason.objects.select_related('team_season').get(
+            coach__user=user, season=season
+        )
     except CoachSeason.DoesNotExist:
         return None
     except CoachSeason.MultipleObjectsReturned:
-        return CoachSeason.objects.filter(coach__user=user, season=season).first()
+        return CoachSeason.objects.select_related('team_season').filter(
+            coach__user=user, season=season
+        ).first()
 
 
 def _can_view_aggregated(user, division=None):
@@ -164,8 +183,20 @@ def station_session_eval(request, station_id, session_id):
         return HttpResponseForbidden("You do not have permission to enter evaluations.")
 
     station = get_object_or_404(Station, pk=station_id, is_active=True)
-    session = get_object_or_404(Session, pk=session_id)
+    session = get_object_or_404(Session.objects.select_related('season', 'division'), pk=session_id)
+
+    # Prevent cross-league station/session enumeration
+    if station.league_id != session.season.league_id:
+        return HttpResponseForbidden("Station does not belong to this session's league.")
+
     coach_season = _get_coach_season(request.user, session)
+
+    # Non-global coaches are scoped to their own division
+    if not _is_global_eval_role(request.user):
+        if not coach_season or session.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden(
+                "You do not have permission to view evaluations for this session."
+            )
 
     players = _get_checked_in_players(session)
 
@@ -226,7 +257,7 @@ def eval_player(request, station_id, session_id, player_season_id):
         return HttpResponseForbidden("You do not have permission to enter evaluations.")
 
     station = get_object_or_404(Station, pk=station_id, is_active=True)
-    session = get_object_or_404(Session, pk=session_id)
+    session = get_object_or_404(Session.objects.select_related('season'), pk=session_id)
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player"), pk=player_season_id
     )
@@ -234,6 +265,15 @@ def eval_player(request, station_id, session_id, player_season_id):
 
     if not coach_season:
         return HttpResponseForbidden("You are not assigned as a coach for this season.")
+
+    # Ensure player belongs to the same season as the session
+    if player_season.season_id != session.season_id:
+        return HttpResponseForbidden("Player is not registered for this session's season.")
+
+    # Non-global coaches may only evaluate players in their own division
+    if not _is_global_eval_role(request.user):
+        if player_season.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden("You may only evaluate players in your own division.")
 
     # Load existing evaluation if any (for pre-populating)
     existing_eval = Evaluation.objects.filter(
@@ -299,12 +339,21 @@ def save_eval(request, station_id, session_id, player_season_id):
         return HttpResponseForbidden("You do not have permission to enter evaluations.")
 
     station = get_object_or_404(Station, pk=station_id, is_active=True)
-    session = get_object_or_404(Session, pk=session_id)
+    session = get_object_or_404(Session.objects.select_related('season'), pk=session_id)
     player_season = get_object_or_404(PlayerSeason, pk=player_season_id)
     coach_season = _get_coach_season(request.user, session)
 
     if not coach_season:
         return HttpResponseForbidden("You are not assigned as a coach for this season.")
+
+    # Ensure player belongs to the same season as the session
+    if player_season.season_id != session.season_id:
+        return HttpResponseForbidden("Player is not registered for this session's season.")
+
+    # Non-global coaches may only evaluate players in their own division
+    if not _is_global_eval_role(request.user):
+        if player_season.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden("You may only evaluate players in your own division.")
 
     # Build scores dict from POST data
     scores = {}
@@ -399,6 +448,11 @@ def player_eval_view(request, player_season_id):
     if not coach_season:
         return HttpResponseForbidden("You are not assigned as a coach for this season.")
 
+    # Non-global coaches may only view players in their own division
+    if not _is_global_eval_role(request.user):
+        if player_season.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden("You may only view players in your own division.")
+
     # PRIVACY: Only this coach's evaluations — never another coach's
     evals = (
         Evaluation.objects.filter(
@@ -469,7 +523,7 @@ def player_eval_edit(request, player_season_id, station_id, session_id):
         return HttpResponseForbidden("You do not have permission to enter evaluations.")
 
     station = get_object_or_404(Station, pk=station_id, is_active=True)
-    session = get_object_or_404(Session, pk=session_id)
+    session = get_object_or_404(Session.objects.select_related('season'), pk=session_id)
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player"), pk=player_season_id
     )
@@ -477,6 +531,15 @@ def player_eval_edit(request, player_season_id, station_id, session_id):
 
     if not coach_season:
         return HttpResponseForbidden("You are not assigned as a coach for this season.")
+
+    # Ensure player belongs to the same season as the session
+    if player_season.season_id != session.season_id:
+        return HttpResponseForbidden("Player is not registered for this session's season.")
+
+    # Non-global coaches may only edit evaluations for players in their own division
+    if not _is_global_eval_role(request.user):
+        if player_season.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden("You may only evaluate players in your own division.")
 
     # PRIVACY: Only load this coach's evaluation
     existing_eval = Evaluation.objects.filter(
@@ -623,24 +686,21 @@ def my_evaluations(request):
 @login_required
 def division_report(request, division_id):
     """Aggregated evaluation report for a division. Shows averages only — never individual coach scores."""
-    division = get_object_or_404(Division, pk=division_id)
+    active_season = Season.objects.filter(is_active=True).first()
+    if not active_season:
+        return render(request, 'evaluations/division_report.html', {
+            'division': None,
+            'season': None,
+            'player_rows': [],
+            'stations': [],
+        })
+
+    # Scope division lookup to the active season's league to prevent cross-league enumeration
+    division = get_object_or_404(Division, pk=division_id, league=active_season.league)
 
     if not _can_view_aggregated(request.user, division=division):
         return HttpResponseForbidden(
             "You do not have permission to view aggregated reports for this division."
-        )
-
-    active_season = Season.objects.filter(is_active=True).first()
-    if not active_season:
-        return render(
-            request,
-            "evaluations/division_report.html",
-            {
-                "division": division,
-                "season": None,
-                "player_rows": [],
-                "stations": [],
-            },
         )
 
     # All players in this division for the active season
@@ -744,9 +804,15 @@ def division_report(request, division_id):
 @login_required
 def player_report(request, player_season_id):
     """Aggregated evaluation report for a single player. Shows averages — never individual coach scores."""
+    active_season = Season.objects.filter(is_active=True).first()
+    if not active_season:
+        raise Http404("No active season.")
+
+    # Scope player_season to the active season to prevent cross-season/cross-league enumeration
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player", "division", "season"),
         pk=player_season_id,
+        season=active_season,
     )
 
     if not _can_view_aggregated(request.user, division=player_season.division):
