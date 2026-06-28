@@ -586,6 +586,7 @@ class PrintSurfaceTests(TestCase):
 
     def test_print_css_no_forced_page_break_on_dugout_card(self):
         import os
+        import re
 
         css_path = os.path.normpath(
             os.path.join(
@@ -598,19 +599,22 @@ class PrintSurfaceTests(TestCase):
         )
         with open(css_path) as f:
             css = f.read()
-        # Both half-sheet cards must stay on one letter page. A forced
-        # break-after on .dugout-card would push them onto separate pages.
-        self.assertNotIn(
-            "break-after: page",
-            css,
-            "lms-print.css must not force break-after: page on .dugout-card "
-            "(splits the two half-sheet cards onto separate pages)",
-        )
-        self.assertNotIn(
-            "page-break-after: always",
-            css,
-            "lms-print.css must not use page-break-after: always on .dugout-card",
-        )
+        # The page break must live on .dugout-card-pair (after the pair), never
+        # on individual .dugout-card elements (SFLL-129). Check only
+        # .dugout-card blocks — .dugout-card-pair is intentionally excluded.
+        for block in re.findall(r"\.dugout-card\s*\{([^}]+)\}", css):
+            self.assertNotIn(
+                "break-after: page",
+                block,
+                "lms-print.css: individual .dugout-card block must not force "
+                "break-after: page (splits the two half-sheet cards onto separate pages)",
+            )
+            self.assertNotIn(
+                "page-break-after: always",
+                block,
+                "lms-print.css: individual .dugout-card block must not use "
+                "page-break-after: always",
+            )
 
     def test_print_dugout_card_empty_roster(self):
         empty_team = Team.objects.create(league=self.league, name="Cubs")
@@ -653,6 +657,59 @@ class PrintSurfaceTests(TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, "Fall Session")
+
+    def test_dugout_card_shows_two_copies(self):
+        """SFLL-129: two identical half-sheet cards per letter sheet."""
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:dugout_card", args=[self.team_season.pk]),
+        )
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertEqual(
+            html.count('class="dugout-card"'),
+            2,
+            "Expected exactly two .dugout-card articles",
+        )
+        self.assertEqual(
+            html.count("Babe Ruth"), 2, "Roster player should appear in both cards"
+        )
+        self.assertEqual(
+            html.count("George Ruth Sr"), 2, "Guardian should appear in both cards"
+        )
+        self.assertIn("dugout-card-pair", html)
+        self.assertIn("dugout-card__cut", html)
+
+    def test_print_css_break_after_pair_not_card(self):
+        """SFLL-129 regression: page break must target .dugout-card-pair.
+
+        Forcing break-after on each .dugout-card was the SFLL-114 PR #10 bug
+        that put one card per page. The break must live on .dugout-card-pair.
+        """
+        import os
+        import re
+
+        css_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "static",
+            "css",
+            "lms-print.css",
+        )
+        with open(css_path) as f:
+            css = f.read()
+
+        self.assertIn(".dugout-card-pair", css)
+        self.assertIn("break-after: page", css)
+
+        for block in re.findall(r"\.dugout-card\s*\{([^}]+)\}", css):
+            self.assertNotIn(
+                "page-break-after",
+                block,
+                ".dugout-card block must not set page-break-after",
+            )
+            self.assertNotIn(
+                "break-after", block, ".dugout-card block must not set break-after"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1069,16 +1126,21 @@ class PrintCSSRegressionTest(SimpleTestCase):
             return f.read()
 
     def _assert_no_forced_break(self, css, filename):
-        self.assertNotIn(
-            "page-break-after: always",
-            css,
-            f"{filename} must not force a page break after each .dugout-card",
-        )
-        self.assertNotIn(
-            "break-after: page",
-            css,
-            f"{filename} must not force a page break after each .dugout-card",
-        )
+        import re
+
+        # Check only .dugout-card blocks — .dugout-card-pair intentionally
+        # carries break-after: page in lms-print.css (SFLL-129 fix).
+        for block in re.findall(r"\.dugout-card\s*\{([^}]+)\}", css):
+            self.assertNotIn(
+                "page-break-after: always",
+                block,
+                f"{filename} must not force a page break after each .dugout-card",
+            )
+            self.assertNotIn(
+                "break-after: page",
+                block,
+                f"{filename} must not force a page break after each .dugout-card",
+            )
 
     def test_lms_print_css_no_forced_page_break_on_dugout_card(self):
         self._assert_no_forced_break(self._read_css("lms-print.css"), "lms-print.css")
