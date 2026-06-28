@@ -261,6 +261,11 @@ def eval_player(request, station_id, session_id, player_season_id):
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player"), pk=player_season_id
     )
+
+    # Prevent cross-league station/session enumeration
+    if station.league_id != session.season.league_id:
+        return HttpResponseForbidden("Station does not belong to this session's league.")
+
     coach_season = _get_coach_season(request.user, session)
 
     if not coach_season:
@@ -270,8 +275,12 @@ def eval_player(request, station_id, session_id, player_season_id):
     if player_season.season_id != session.season_id:
         return HttpResponseForbidden("Player is not registered for this session's season.")
 
-    # Non-global coaches may only evaluate players in their own division
+    # Non-global coaches are scoped to their own division — session and player must both match
     if not _is_global_eval_role(request.user):
+        if session.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden(
+                "You do not have permission to view evaluations for this session."
+            )
         if player_season.division_id != coach_season.team_season.division_id:
             return HttpResponseForbidden("You may only evaluate players in your own division.")
 
@@ -341,6 +350,11 @@ def save_eval(request, station_id, session_id, player_season_id):
     station = get_object_or_404(Station, pk=station_id, is_active=True)
     session = get_object_or_404(Session.objects.select_related('season'), pk=session_id)
     player_season = get_object_or_404(PlayerSeason, pk=player_season_id)
+
+    # Prevent cross-league station/session enumeration
+    if station.league_id != session.season.league_id:
+        return HttpResponseForbidden("Station does not belong to this session's league.")
+
     coach_season = _get_coach_season(request.user, session)
 
     if not coach_season:
@@ -350,8 +364,12 @@ def save_eval(request, station_id, session_id, player_season_id):
     if player_season.season_id != session.season_id:
         return HttpResponseForbidden("Player is not registered for this session's season.")
 
-    # Non-global coaches may only evaluate players in their own division
+    # Non-global coaches are scoped to their own division — session and player must both match
     if not _is_global_eval_role(request.user):
+        if session.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden(
+                "You do not have permission to view evaluations for this session."
+            )
         if player_season.division_id != coach_season.team_season.division_id:
             return HttpResponseForbidden("You may only evaluate players in your own division.")
 
@@ -527,6 +545,11 @@ def player_eval_edit(request, player_season_id, station_id, session_id):
     player_season = get_object_or_404(
         PlayerSeason.objects.select_related("player"), pk=player_season_id
     )
+
+    # Prevent cross-league station/session enumeration
+    if station.league_id != session.season.league_id:
+        return HttpResponseForbidden("Station does not belong to this session's league.")
+
     coach_season = _get_coach_season(request.user, session)
 
     if not coach_season:
@@ -536,8 +559,12 @@ def player_eval_edit(request, player_season_id, station_id, session_id):
     if player_season.season_id != session.season_id:
         return HttpResponseForbidden("Player is not registered for this session's season.")
 
-    # Non-global coaches may only edit evaluations for players in their own division
+    # Non-global coaches are scoped to their own division — session and player must both match
     if not _is_global_eval_role(request.user):
+        if session.division_id != coach_season.team_season.division_id:
+            return HttpResponseForbidden(
+                "You do not have permission to view evaluations for this session."
+            )
         if player_season.division_id != coach_season.team_season.division_id:
             return HttpResponseForbidden("You may only evaluate players in your own division.")
 
