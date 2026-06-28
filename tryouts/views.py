@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
@@ -377,14 +379,36 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
     errors = []
     if not name:
         errors.append("Name is required.")
+
+    parsed_date = None
     if not date_str:
         errors.append("Date is required.")
+    else:
+        try:
+            parsed_date = datetime.date.fromisoformat(date_str)
+        except ValueError:
+            errors.append("Date must be in YYYY-MM-DD format.")
+
+    parsed_start_time = None
     if not start_time:
         errors.append("Start time is required.")
+    else:
+        try:
+            parsed_start_time = datetime.time.fromisoformat(start_time)
+        except ValueError:
+            errors.append("Start time must be in HH:MM format.")
+
+    parsed_end_time = None
+    if end_time:
+        try:
+            parsed_end_time = datetime.time.fromisoformat(end_time)
+        except ValueError:
+            errors.append("End time must be in HH:MM format.")
+
     if not division_id:
         errors.append("Division is required.")
 
-    if errors:
+    def _re_render():
         for e in errors:
             messages.error(request, e)
         return render(
@@ -400,6 +424,9 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
             },
         )
 
+    if errors:
+        return _re_render()
+
     # Resolve FKs
     try:
         division = Division.objects.get(pk=division_id)
@@ -414,22 +441,23 @@ def _save_session(request, season, divisions, existing_sessions, session=None):
         except Session.DoesNotExist:
             pass
 
-    if session is None:
+    is_create = session is None
+    if is_create:
         session = Session()
         session.season = season
 
     session.name = name
-    session.date = date_str
-    session.start_time = start_time
-    session.end_time = end_time
+    session.date = parsed_date
+    session.start_time = parsed_start_time
+    session.end_time = parsed_end_time
     session.location = location
     session.division = division
     session.is_makeup = is_makeup
     session.makeup_for = makeup_for
     session.save()
 
-    action = "updated" if session.pk else "created"
-    messages.success(request, f'Session "{session.name}" saved successfully.')
+    action = "created" if is_create else "updated"
+    messages.success(request, f'Session "{session.name}" {action} successfully.')
     return redirect("tryouts:session_detail", pk=session.pk)
 
 
@@ -1070,32 +1098,39 @@ def _kiosk_assignments_for_today(season):
     today = timezone.localdate()
     qs = (
         SessionAssignment.objects.select_related(
-            'session', 'session__division',
-            'player_season__player', 'player_season__division',
+            "session",
+            "session__division",
+            "player_season__player",
+            "player_season__division",
         )
         .filter(session__season=season, session__date=today)
-        .prefetch_related('checkin')
-        .order_by('player_season__player__last_name', 'player_season__player__first_name')
+        .prefetch_related("checkin")
+        .order_by(
+            "player_season__player__last_name", "player_season__player__first_name"
+        )
     )
     return qs, today
 
 
-def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
+def _kiosk_build_tiles(assignments, session_filter_id=None, search=""):
     """Materialize the tile dataset the kiosk grid renders."""
     tiles = []
     sessions_seen = {}
     total = 0
     checked_in = 0
-    search_lower = (search or '').strip().lower()
+    search_lower = (search or "").strip().lower()
 
     for a in assignments:
         sess = a.session
-        sessions_seen.setdefault(sess.pk, {
-            'session': sess,
-            'count': 0,
-            'checked_in': 0,
-        })
-        sessions_seen[sess.pk]['count'] += 1
+        sessions_seen.setdefault(
+            sess.pk,
+            {
+                "session": sess,
+                "count": 0,
+                "checked_in": 0,
+            },
+        )
+        sessions_seen[sess.pk]["count"] += 1
         total += 1
 
         try:
@@ -1106,7 +1141,7 @@ def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
             has_checkin = False
 
         if has_checkin:
-            sessions_seen[sess.pk]['checked_in'] += 1
+            sessions_seen[sess.pk]["checked_in"] += 1
             checked_in += 1
 
         if session_filter_id and sess.pk != session_filter_id:
@@ -1118,19 +1153,21 @@ def _kiosk_build_tiles(assignments, session_filter_id=None, search=''):
                 continue
 
         ps = a.player_season
-        tiles.append({
-            'assignment': a,
-            'player': ps.player,
-            'player_season': ps,
-            'session': sess,
-            'division': sess.division,
-            'checked_in': has_checkin,
-            'checkin': checkin,
-        })
+        tiles.append(
+            {
+                "assignment": a,
+                "player": ps.player,
+                "player_season": ps,
+                "session": sess,
+                "division": sess.division,
+                "checked_in": has_checkin,
+                "checkin": checkin,
+            }
+        )
 
     session_filters = sorted(
         sessions_seen.values(),
-        key=lambda s: (s['session'].start_time, s['session'].name),
+        key=lambda s: (s["session"].start_time, s["session"].name),
     )
     return tiles, session_filters, total, checked_in
 
@@ -1140,12 +1177,14 @@ def _kiosk_recent_feed(season):
     today = timezone.localdate()
     checkins = list(
         CheckIn.objects.select_related(
-            'session_assignment__player_season__player',
-            'session_assignment__session__division',
+            "session_assignment__player_season__player",
+            "session_assignment__session__division",
         )
-        .filter(session_assignment__session__season=season,
-                session_assignment__session__date=today)
-        .order_by('-checked_in_at')[:KIOSK_FEED_LIMIT]
+        .filter(
+            session_assignment__session__season=season,
+            session_assignment__session__date=today,
+        )
+        .order_by("-checked_in_at")[:KIOSK_FEED_LIMIT]
     )
     return checkins
 
@@ -1154,9 +1193,9 @@ def _kiosk_today_walk_ins(season):
     """Walk-ins logged today for this season (regardless of session linkage)."""
     today = timezone.localdate()
     return list(
-        WalkIn.objects.select_related('division', 'session')
+        WalkIn.objects.select_related("division", "session")
         .filter(logged_at__date=today, season=season)
-        .order_by('-logged_at')[:KIOSK_FEED_LIMIT]
+        .order_by("-logged_at")[:KIOSK_FEED_LIMIT]
     )
 
 
@@ -1174,46 +1213,55 @@ def kiosk(request):
 
     active_season = _get_active_season()
     if not active_season:
-        return render(request, 'tryouts/kiosk.html', {
-            'season': None,
-            'today': timezone.localdate(),
-            'tiles': [],
-            'session_filters': [],
-            'today_sessions': [],
-            'total_count': 0,
-            'checked_in_count': 0,
-            'selected_session_id': None,
-            'feed': [],
-            'walk_ins': [],
-        })
+        return render(
+            request,
+            "tryouts/kiosk.html",
+            {
+                "season": None,
+                "today": timezone.localdate(),
+                "tiles": [],
+                "session_filters": [],
+                "today_sessions": [],
+                "total_count": 0,
+                "checked_in_count": 0,
+                "selected_session_id": None,
+                "feed": [],
+                "walk_ins": [],
+            },
+        )
 
     try:
-        session_filter_id = int(request.GET.get('session') or 0) or None
+        session_filter_id = int(request.GET.get("session") or 0) or None
     except ValueError:
         session_filter_id = None
 
     assignments, today = _kiosk_assignments_for_today(active_season)
     tiles, session_filters, total, checked_in = _kiosk_build_tiles(
-        assignments, session_filter_id=session_filter_id,
+        assignments,
+        session_filter_id=session_filter_id,
     )
     feed = _kiosk_recent_feed(active_season)
     walk_ins = _kiosk_today_walk_ins(active_season)
 
     # today_sessions feeds the walk-in form division/session pickers
-    today_sessions = [sf['session'] for sf in session_filters]
+    today_sessions = [sf["session"] for sf in session_filters]
 
-    return render(request, 'tryouts/kiosk.html', {
-        'season': active_season,
-        'today': today,
-        'tiles': tiles,
-        'session_filters': session_filters,
-        'today_sessions': today_sessions,
-        'total_count': total,
-        'checked_in_count': checked_in,
-        'selected_session_id': session_filter_id,
-        'feed': feed,
-        'walk_ins': walk_ins,
-    })
+    return render(
+        request,
+        "tryouts/kiosk.html",
+        {
+            "season": active_season,
+            "today": today,
+            "tiles": tiles,
+            "session_filters": session_filters,
+            "today_sessions": today_sessions,
+            "total_count": total,
+            "checked_in_count": checked_in,
+            "selected_session_id": session_filter_id,
+            "feed": feed,
+            "walk_ins": walk_ins,
+        },
+    )
 
 
 @login_required
@@ -1224,23 +1272,29 @@ def kiosk_search(request):
 
     active_season = _get_active_season()
     if not active_season:
-        return render(request, 'tryouts/partials/kiosk_grid.html', {'tiles': []})
+        return render(request, "tryouts/partials/kiosk_grid.html", {"tiles": []})
 
     try:
-        session_filter_id = int(request.GET.get('session') or 0) or None
+        session_filter_id = int(request.GET.get("session") or 0) or None
     except ValueError:
         session_filter_id = None
-    search = request.GET.get('q', '')
+    search = request.GET.get("q", "")
 
     assignments, _ = _kiosk_assignments_for_today(active_season)
     tiles, _filters, _total, _checked = _kiosk_build_tiles(
-        assignments, session_filter_id=session_filter_id, search=search,
+        assignments,
+        session_filter_id=session_filter_id,
+        search=search,
     )
 
-    return render(request, 'tryouts/partials/kiosk_grid.html', {
-        'tiles': tiles,
-        'selected_session_id': session_filter_id,
-    })
+    return render(
+        request,
+        "tryouts/partials/kiosk_grid.html",
+        {
+            "tiles": tiles,
+            "selected_session_id": session_filter_id,
+        },
+    )
 
 
 @login_required
@@ -1256,7 +1310,8 @@ def kiosk_checkin(request, assignment_id):
 
     assignment = get_object_or_404(
         SessionAssignment.objects.select_related(
-            'session__division', 'player_season__player',
+            "session__division",
+            "player_season__player",
         ),
         pk=assignment_id,
         session__season=active_season,
@@ -1265,7 +1320,7 @@ def kiosk_checkin(request, assignment_id):
 
     checkin, _created = CheckIn.objects.get_or_create(
         session_assignment=assignment,
-        defaults={'checked_in_by': request.user, 'notes': 'kiosk'},
+        defaults={"checked_in_by": request.user, "notes": "kiosk"},
     )
 
     assignments, _ = _kiosk_assignments_for_today(active_season)
@@ -1275,22 +1330,26 @@ def kiosk_checkin(request, assignment_id):
     walk_ins = _kiosk_today_walk_ins(active_season)
 
     tile = {
-        'assignment': assignment,
-        'player': assignment.player_season.player,
-        'player_season': assignment.player_season,
-        'session': assignment.session,
-        'division': assignment.session.division,
-        'checked_in': True,
-        'checkin': checkin,
+        "assignment": assignment,
+        "player": assignment.player_season.player,
+        "player_season": assignment.player_season,
+        "session": assignment.session,
+        "division": assignment.session.division,
+        "checked_in": True,
+        "checkin": checkin,
     }
 
-    return render(request, 'tryouts/partials/kiosk_tile_after_checkin.html', {
-        'tile': tile,
-        'feed': feed,
-        'walk_ins': walk_ins,
-        'total_count': total,
-        'checked_in_count': checked_in,
-    })
+    return render(
+        request,
+        "tryouts/partials/kiosk_tile_after_checkin.html",
+        {
+            "tile": tile,
+            "feed": feed,
+            "walk_ins": walk_ins,
+            "total_count": total,
+            "checked_in_count": checked_in,
+        },
+    )
 
 
 @login_required
@@ -1304,24 +1363,30 @@ def kiosk_walkin(request):
     if not active_season:
         return HttpResponseForbidden()
 
-    first_name = (request.POST.get('first_name') or '').strip()
-    last_name = (request.POST.get('last_name') or '').strip()
+    first_name = (request.POST.get("first_name") or "").strip()
+    last_name = (request.POST.get("last_name") or "").strip()
     if not first_name or not last_name:
-        return HttpResponse('Name is required.', status=400)
+        return HttpResponse("Name is required.", status=400)
 
-    division_id = request.POST.get('division') or None
-    session_id = request.POST.get('session') or None
+    division_id = request.POST.get("division") or None
+    session_id = request.POST.get("session") or None
 
     division = None
     if division_id:
         from players.models import Division as Div
+
         division = Div.objects.filter(pk=division_id).first()
 
     session = None
     if session_id:
-        session = Session.objects.filter(
-            pk=session_id, season=active_season,
-        ).select_related('division').first()
+        session = (
+            Session.objects.filter(
+                pk=session_id,
+                season=active_season,
+            )
+            .select_related("division")
+            .first()
+        )
         if session and division is None:
             division = session.division
 
@@ -1332,20 +1397,23 @@ def kiosk_walkin(request):
         division=division,
         session=session,
         logged_by=request.user,
-        notes=request.POST.get('notes', '').strip(),
+        notes=request.POST.get("notes", "").strip(),
     )
 
     feed = _kiosk_recent_feed(active_season)
     walk_ins = _kiosk_today_walk_ins(active_season)
-    return render(request, 'tryouts/partials/kiosk_walkin_response.html', {
-        'feed': feed,
-        'walk_ins': walk_ins,
-        'walk_in_name': f"{last_name}, {first_name}",
-    })
+    return render(
+        request,
+        "tryouts/partials/kiosk_walkin_response.html",
+        {
+            "feed": feed,
+            "walk_ins": walk_ins,
+            "walk_in_name": f"{last_name}, {first_name}",
+        },
+    )
 
 
 @login_required
-
 def player_qr_code(request, player_season_id):
     """Generate and return a QR code PNG for a player's check-in token."""
     ps = get_object_or_404(PlayerSeason, pk=player_season_id)
