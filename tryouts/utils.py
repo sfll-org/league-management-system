@@ -10,7 +10,7 @@ def generate_checkin_qr(checkin_token, base_url=None):
     Returns bytes (PNG image data).
     """
     if base_url is None:
-        base_url = getattr(settings, 'SITE_URL', 'http://localhost:8001')
+        base_url = getattr(settings, "SITE_URL", "http://localhost:8001")
 
     url = f"{base_url}/checkin/{checkin_token}/"
 
@@ -20,5 +20,5 @@ def generate_checkin_qr(checkin_token, base_url=None):
 
     img = qr.make_image(fill_color="black", back_color="white")
     buffer = io.BytesIO()
-    img.save(buffer, format='PNG')
+    img.save(buffer, format="PNG")
     return buffer.getvalue()

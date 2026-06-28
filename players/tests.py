@@ -13,8 +13,16 @@ from django.utils import timezone
 
 from accounts.models import Coach, CoachSeason, User, UserRole
 from communications.models import EmailLog
-from players.models import (Division, League, Player, PlayerSeason, Season,
-                            Station, Team, TeamSeason)
+from players.models import (
+    Division,
+    League,
+    Player,
+    PlayerSeason,
+    Season,
+    Station,
+    Team,
+    TeamSeason,
+)
 from players.views import encode_family_key
 from tryouts.models import Session
 
@@ -43,7 +51,7 @@ class LeagueModelTests(TestCase):
 
     def test_defaults(self):
         league = _create_league()
-        self.assertEqual(league.timezone, 'America/Los_Angeles')
+        self.assertEqual(league.timezone, "America/Los_Angeles")
         self.assertEqual(league.sportsconnect_sync_interval_minutes, 60)
 
 
@@ -717,7 +725,7 @@ class FamilyDetailTests(TestCase):
         self.family_key = encode_family_key(FAMILY_EMAIL)
 
     def _give_player_agent_role(self):
-        UserRole.objects.create(user=self.user, league=self.league, role='player_agent')
+        UserRole.objects.create(user=self.user, league=self.league, role="player_agent")
 
     # ----- index -----
 
@@ -728,23 +736,25 @@ class FamilyDetailTests(TestCase):
 
     def test_family_index_requires_staff_role(self):
         # Logged-in user without a staff role must be denied.
-        self.client.login(username='test@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('players:family_index'))
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:family_index"))
         self.assertEqual(resp.status_code, 403)
 
     def test_family_index_rejects_role_in_other_league(self):
         # SFLL-146: a role in a different league must NOT grant access to
         # this season's family list (cross-league IDOR regression test).
-        other_league = League.objects.create(name='Other League', short_name='OL')
-        UserRole.objects.create(user=self.user, league=other_league, role='player_agent')
-        self.client.login(username='test@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('players:family_index'))
+        other_league = League.objects.create(name="Other League", short_name="OL")
+        UserRole.objects.create(
+            user=self.user, league=other_league, role="player_agent"
+        )
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:family_index"))
         self.assertEqual(resp.status_code, 403)
 
     def test_family_index_lists_families(self):
         self._give_player_agent_role()
-        self.client.login(username='test@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('players:family_index'))
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:family_index"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Maria Rodriguez")
         self.assertContains(resp, FAMILY_EMAIL)
@@ -754,8 +764,8 @@ class FamilyDetailTests(TestCase):
         self.season.is_active = False
         self.season.save()
         self._give_player_agent_role()
-        self.client.login(username='test@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('players:family_index'))
+        self.client.login(username="test@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("players:family_index"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "No active season")
 
@@ -770,15 +780,15 @@ class FamilyDetailTests(TestCase):
 
     def test_family_detail_requires_staff_role(self):
         # Logged-in user without a staff role must be denied.
-        self.client.login(username='test@sfll.org', password='testpass123')
+        self.client.login(username="test@sfll.org", password="testpass123")
         resp = self.client.get(
-            reverse('players:family_detail', args=[self.family_key]),
+            reverse("players:family_detail", args=[self.family_key]),
         )
         self.assertEqual(resp.status_code, 403)
 
     def test_family_detail_renders(self):
         self._give_player_agent_role()
-        self.client.login(username='test@sfll.org', password='testpass123')
+        self.client.login(username="test@sfll.org", password="testpass123")
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
@@ -804,8 +814,8 @@ class FamilyDetailTests(TestCase):
 
     def test_family_detail_404_for_unknown_family(self):
         self._give_player_agent_role()
-        self.client.login(username='test@sfll.org', password='testpass123')
-        bogus = encode_family_key('nobody@example.com')
+        self.client.login(username="test@sfll.org", password="testpass123")
+        bogus = encode_family_key("nobody@example.com")
         resp = self.client.get(
             reverse("players:family_detail", args=[bogus]),
         )
@@ -841,7 +851,7 @@ class FamilyDetailTests(TestCase):
             body_snapshot="You have an SES session tomorrow.",
         )
         self._give_player_agent_role()
-        self.client.login(username='test@sfll.org', password='testpass123')
+        self.client.login(username="test@sfll.org", password="testpass123")
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
@@ -853,7 +863,7 @@ class FamilyDetailTests(TestCase):
 
     def test_balance_section_hidden_for_regular_user(self):
         # Plain logged-in user (no staff role) is denied access entirely.
-        self.client.login(username='test@sfll.org', password='testpass123')
+        self.client.login(username="test@sfll.org", password="testpass123")
         resp = self.client.get(
             reverse("players:family_detail", args=[self.family_key]),
         )
@@ -1054,27 +1064,29 @@ class PrintCSSRegressionTest(SimpleTestCase):
     @staticmethod
     def _read_css(filename):
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = os.path.join(base, 'static', 'css', filename)
+        path = os.path.join(base, "static", "css", filename)
         with open(path) as f:
             return f.read()
 
     def _assert_no_forced_break(self, css, filename):
         self.assertNotIn(
-            'page-break-after: always',
+            "page-break-after: always",
             css,
-            f'{filename} must not force a page break after each .dugout-card',
+            f"{filename} must not force a page break after each .dugout-card",
         )
         self.assertNotIn(
-            'break-after: page',
+            "break-after: page",
             css,
-            f'{filename} must not force a page break after each .dugout-card',
+            f"{filename} must not force a page break after each .dugout-card",
         )
 
     def test_lms_print_css_no_forced_page_break_on_dugout_card(self):
-        self._assert_no_forced_break(self._read_css('lms-print.css'), 'lms-print.css')
+        self._assert_no_forced_break(self._read_css("lms-print.css"), "lms-print.css")
 
     def test_lms_components_css_no_forced_page_break_on_dugout_card(self):
-        self._assert_no_forced_break(self._read_css('lms-components.css'), 'lms-components.css')
+        self._assert_no_forced_break(
+            self._read_css("lms-components.css"), "lms-components.css"
+        )
 
 
 class PlayerDetailViewTests(TestCase):

@@ -4,6 +4,7 @@ from django.db import models
 
 class TimeStampedModel(models.Model):
     """Abstract base with created/updated timestamps."""
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -13,8 +14,11 @@ class TimeStampedModel(models.Model):
 
 class AuditLog(models.Model):
     """Immutable audit trail for entity changes."""
+
     timestamp = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True
+    )
     action = models.CharField(max_length=50)
     entity_type = models.CharField(max_length=50)
     entity_id = models.PositiveIntegerField()
@@ -22,10 +26,10 @@ class AuditLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
 
     class Meta:
-        ordering = ['-timestamp']
+        ordering = ["-timestamp"]
         indexes = [
-            models.Index(fields=['-timestamp']),
-            models.Index(fields=['entity_type', 'entity_id']),
+            models.Index(fields=["-timestamp"]),
+            models.Index(fields=["entity_type", "entity_id"]),
         ]
 
     def __str__(self):
@@ -34,14 +38,20 @@ class AuditLog(models.Model):
 
 class ImportRun(TimeStampedModel):
     """Tracks a SportsConnect import batch."""
-    league = models.ForeignKey('players.League', on_delete=models.CASCADE, related_name='import_runs')
+
+    league = models.ForeignKey(
+        "players.League", on_delete=models.CASCADE, related_name="import_runs"
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('running', 'Running'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
-    ])
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("running", "Running"),
+            ("completed", "Completed"),
+            ("failed", "Failed"),
+        ],
+    )
     source_url = models.URLField(blank=True)
     total_rows = models.PositiveIntegerField(default=0)
     new_players = models.PositiveIntegerField(default=0)
@@ -50,10 +60,13 @@ class ImportRun(TimeStampedModel):
     flagged_for_review = models.PositiveIntegerField(default=0)
     errors = models.PositiveIntegerField(default=0)
     error_details = models.JSONField(default=list, blank=True)
-    triggered_by = models.CharField(max_length=20, choices=[
-        ('scheduled', 'Scheduled'),
-        ('manual', 'Manual'),
-    ])
+    triggered_by = models.CharField(
+        max_length=20,
+        choices=[
+            ("scheduled", "Scheduled"),
+            ("manual", "Manual"),
+        ],
+    )
 
     def __str__(self):
         return f"Import #{self.pk} ({self.status}) — {self.total_rows} rows"
@@ -61,15 +74,21 @@ class ImportRun(TimeStampedModel):
 
 class ImportFlag(TimeStampedModel):
     """A flagged record from an import run that needs human review."""
-    import_run = models.ForeignKey(ImportRun, on_delete=models.CASCADE, related_name='flags')
-    flag_type = models.CharField(max_length=30, choices=[
-        ('potential_duplicate', 'Potential Duplicate'),
-        ('division_change', 'Division Change'),
-        ('cancellation', 'Possible Cancellation'),
-        ('data_mismatch', 'Data Mismatch'),
-    ])
+
+    import_run = models.ForeignKey(
+        ImportRun, on_delete=models.CASCADE, related_name="flags"
+    )
+    flag_type = models.CharField(
+        max_length=30,
+        choices=[
+            ("potential_duplicate", "Potential Duplicate"),
+            ("division_change", "Division Change"),
+            ("cancellation", "Possible Cancellation"),
+            ("data_mismatch", "Data Mismatch"),
+        ],
+    )
     player_season = models.ForeignKey(
-        'players.PlayerSeason', on_delete=models.SET_NULL, null=True, blank=True
+        "players.PlayerSeason", on_delete=models.SET_NULL, null=True, blank=True
     )
     details = models.JSONField(default=dict)
     resolved = models.BooleanField(default=False)

@@ -9,8 +9,16 @@ from django.utils import timezone
 from accounts.models import Coach, CoachSeason, User, UserRole
 from core.models import AuditLog
 from evaluations.models import Evaluation
-from players.models import (Division, League, Player, PlayerSeason, Season,
-                            Station, Team, TeamSeason)
+from players.models import (
+    Division,
+    League,
+    Player,
+    PlayerSeason,
+    Season,
+    Station,
+    Team,
+    TeamSeason,
+)
 from tryouts.models import CheckIn, Session, SessionAssignment, WalkIn
 
 
@@ -378,6 +386,72 @@ class SessionCreatePostTests(TestCase):
         )
         # Should re-render form (200), not redirect
         self.assertEqual(resp.status_code, 200)
+
+    def test_create_session_invalid_date_format(self):
+        """Malformed date must re-render with error, not 500."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Bad Date",
+                "date": "2026-13-40",
+                "start_time": "09:00",
+                "division": self.base["division"].pk,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Session.objects.filter(name="Bad Date").exists())
+
+    def test_create_session_invalid_start_time_format(self):
+        """'9am' or bare digits must re-render with error, not 500."""
+        for bad_time in ("9am", "0900", "09:00+00:00"):
+            resp = self.client.post(
+                reverse("tryouts:session_create"),
+                {
+                    "name": "Bad Time",
+                    "date": "2026-03-28",
+                    "start_time": bad_time,
+                    "division": self.base["division"].pk,
+                },
+            )
+            self.assertEqual(
+                resp.status_code,
+                200,
+                msg=f"Expected 200 for start_time={bad_time!r}",
+            )
+            self.assertFalse(Session.objects.filter(name="Bad Time").exists())
+
+    def test_create_session_invalid_end_time_format(self):
+        """Invalid end_time must re-render with error, not 500."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Bad End",
+                "date": "2026-03-28",
+                "start_time": "09:00",
+                "end_time": "bad",
+                "division": self.base["division"].pk,
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Session.objects.filter(name="Bad End").exists())
+
+    def test_create_session_action_label_on_create(self):
+        """Success message must say 'created', not 'updated'."""
+        resp = self.client.post(
+            reverse("tryouts:session_create"),
+            {
+                "name": "Action Test",
+                "date": "2026-03-28",
+                "start_time": "09:00",
+                "division": self.base["division"].pk,
+            },
+            follow=True,
+        )
+        messages = [str(m) for m in resp.context["messages"]]
+        self.assertTrue(
+            any("created" in m for m in messages),
+            msg=f"Expected 'created' in messages, got: {messages}",
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -775,199 +849,257 @@ class KioskViewTests(TestCase):
     def setUp(self):
         self.base = _setup_base()
         self.user = _create_user(is_superuser=True)
-        self.player = _create_player(self.base['league'])
+        self.player = _create_player(self.base["league"])
         self.ps = PlayerSeason.objects.create(
-            player=self.player, season=self.base['season'],
-            division=self.base['division'],
+            player=self.player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         self.session = Session.objects.create(
-            season=self.base['season'], name='SES Today',
-            date=date.today(), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES Today",
+            date=date.today(),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
         self.assignment = SessionAssignment.objects.create(
-            session=self.session, player_season=self.ps,
+            session=self.session,
+            player_season=self.ps,
             assigned_by=self.user,
         )
         self.client = Client()
 
     def test_kiosk_requires_login(self):
-        resp = self.client.get(reverse('tryouts:kiosk'))
+        resp = self.client.get(reverse("tryouts:kiosk"))
         self.assertEqual(resp.status_code, 302)
 
     def test_kiosk_requires_checkin_permission(self):
-        _create_user(email='nobody@sfll.org')
-        self.client.login(username='nobody@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk'))
+        _create_user(email="nobody@sfll.org")
+        self.client.login(username="nobody@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk"))
         self.assertEqual(resp.status_code, 403)
 
     def test_kiosk_renders_for_superuser(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk'))
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk"))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'kiosk-grid')
+        self.assertContains(resp, "kiosk-grid")
         self.assertContains(resp, self.player.last_name)
-        self.assertContains(resp, 'Tap to check in')
+        self.assertContains(resp, "Tap to check in")
 
     def test_kiosk_renders_for_front_desk(self):
-        fd = _create_user(email='fd@sfll.org')
+        fd = _create_user(email="fd@sfll.org")
         UserRole.objects.create(
-            user=fd, league=self.base['league'], role='front_desk', is_active=True,
+            user=fd,
+            league=self.base["league"],
+            role="front_desk",
+            is_active=True,
         )
-        self.client.login(username='fd@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk'))
+        self.client.login(username="fd@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk"))
         self.assertEqual(resp.status_code, 200)
 
     def test_kiosk_excludes_other_days(self):
         future_session = Session.objects.create(
-            season=self.base['season'], name='SES Tomorrow',
-            date=date.today() + timedelta(days=1), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES Tomorrow",
+            date=date.today() + timedelta(days=1),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
-        other_player = _create_player(self.base['league'], sc_id='SC-002', first='Mira', last='Khan')
+        other_player = _create_player(
+            self.base["league"], sc_id="SC-002", first="Mira", last="Khan"
+        )
         other_ps = PlayerSeason.objects.create(
-            player=other_player, season=self.base['season'],
-            division=self.base['division'],
+            player=other_player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         SessionAssignment.objects.create(
-            session=future_session, player_season=other_ps, assigned_by=self.user,
+            session=future_session,
+            player_season=other_ps,
+            assigned_by=self.user,
         )
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk'))
-        self.assertContains(resp, 'Rodriguez')
-        self.assertNotContains(resp, 'Khan')
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk"))
+        self.assertContains(resp, "Rodriguez")
+        self.assertNotContains(resp, "Khan")
 
     def test_kiosk_search_partial_filters_by_name(self):
-        other_player = _create_player(self.base['league'], sc_id='SC-002', first='Mira', last='Khan')
+        other_player = _create_player(
+            self.base["league"], sc_id="SC-002", first="Mira", last="Khan"
+        )
         other_ps = PlayerSeason.objects.create(
-            player=other_player, season=self.base['season'],
-            division=self.base['division'],
+            player=other_player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         SessionAssignment.objects.create(
-            session=self.session, player_season=other_ps, assigned_by=self.user,
+            session=self.session,
+            player_season=other_ps,
+            assigned_by=self.user,
         )
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk_search'), {'q': 'mira'})
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk_search"), {"q": "mira"})
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Khan')
-        self.assertNotContains(resp, 'Rodriguez')
+        self.assertContains(resp, "Khan")
+        self.assertNotContains(resp, "Rodriguez")
 
     def test_kiosk_checkin_creates_record(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
         resp = self.client.post(
-            reverse('tryouts:kiosk_checkin', args=[self.assignment.pk])
+            reverse("tryouts:kiosk_checkin", args=[self.assignment.pk])
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(CheckIn.objects.filter(session_assignment=self.assignment).exists())
-        self.assertContains(resp, 'kiosk-feed')
-        self.assertContains(resp, 'kiosk-checked-in-count')
+        self.assertTrue(
+            CheckIn.objects.filter(session_assignment=self.assignment).exists()
+        )
+        self.assertContains(resp, "kiosk-feed")
+        self.assertContains(resp, "kiosk-checked-in-count")
 
     def test_kiosk_checkin_idempotent(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        self.client.post(reverse('tryouts:kiosk_checkin', args=[self.assignment.pk]))
-        self.client.post(reverse('tryouts:kiosk_checkin', args=[self.assignment.pk]))
+        self.client.login(username="user@sfll.org", password="testpass123")
+        self.client.post(reverse("tryouts:kiosk_checkin", args=[self.assignment.pk]))
+        self.client.post(reverse("tryouts:kiosk_checkin", args=[self.assignment.pk]))
         self.assertEqual(
             CheckIn.objects.filter(session_assignment=self.assignment).count(), 1
         )
 
     def test_kiosk_checkin_rejects_non_today_assignment(self):
         yesterday_session = Session.objects.create(
-            season=self.base['season'], name='SES Yesterday',
-            date=date.today() - timedelta(days=1), start_time=time(9, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES Yesterday",
+            date=date.today() - timedelta(days=1),
+            start_time=time(9, 0),
+            division=self.base["division"],
         )
-        other_player = _create_player(self.base['league'], sc_id='SC-004', first='Old', last='Day')
+        other_player = _create_player(
+            self.base["league"], sc_id="SC-004", first="Old", last="Day"
+        )
         other_ps = PlayerSeason.objects.create(
-            player=other_player, season=self.base['season'],
-            division=self.base['division'],
+            player=other_player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         past_assignment = SessionAssignment.objects.create(
-            session=yesterday_session, player_season=other_ps, assigned_by=self.user,
+            session=yesterday_session,
+            player_season=other_ps,
+            assigned_by=self.user,
         )
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
         resp = self.client.post(
-            reverse('tryouts:kiosk_checkin', args=[past_assignment.pk])
+            reverse("tryouts:kiosk_checkin", args=[past_assignment.pk])
         )
         self.assertEqual(resp.status_code, 404)
-        self.assertFalse(CheckIn.objects.filter(session_assignment=past_assignment).exists())
+        self.assertFalse(
+            CheckIn.objects.filter(session_assignment=past_assignment).exists()
+        )
 
     def test_kiosk_session_filter_narrows_grid(self):
         other_session = Session.objects.create(
-            season=self.base['season'], name='SES Afternoon',
-            date=date.today(), start_time=time(13, 0),
-            division=self.base['division'],
+            season=self.base["season"],
+            name="SES Afternoon",
+            date=date.today(),
+            start_time=time(13, 0),
+            division=self.base["division"],
         )
-        other_player = _create_player(self.base['league'], sc_id='SC-003', first='Sam', last='Park')
+        other_player = _create_player(
+            self.base["league"], sc_id="SC-003", first="Sam", last="Park"
+        )
         other_ps = PlayerSeason.objects.create(
-            player=other_player, season=self.base['season'],
-            division=self.base['division'],
+            player=other_player,
+            season=self.base["season"],
+            division=self.base["division"],
         )
         SessionAssignment.objects.create(
-            session=other_session, player_season=other_ps, assigned_by=self.user,
+            session=other_session,
+            player_season=other_ps,
+            assigned_by=self.user,
         )
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.get(reverse('tryouts:kiosk'), {'session': self.session.pk})
-        self.assertContains(resp, 'Rodriguez')
-        self.assertNotContains(resp, 'Park')
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.get(reverse("tryouts:kiosk"), {"session": self.session.pk})
+        self.assertContains(resp, "Rodriguez")
+        self.assertNotContains(resp, "Park")
 
     def test_kiosk_walkin_creates_record(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
-            'first_name': 'Marco',
-            'last_name': 'Reyes',
-        })
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("tryouts:kiosk_walkin"),
+            {
+                "first_name": "Marco",
+                "last_name": "Reyes",
+            },
+        )
         self.assertEqual(resp.status_code, 200)
-        self.assertTrue(WalkIn.objects.filter(first_name='Marco', last_name='Reyes').exists())
-        self.assertContains(resp, 'kiosk-feed')
-        self.assertContains(resp, 'kiosk-walkin-list')
+        self.assertTrue(
+            WalkIn.objects.filter(first_name="Marco", last_name="Reyes").exists()
+        )
+        self.assertContains(resp, "kiosk-feed")
+        self.assertContains(resp, "kiosk-walkin-list")
 
     def test_kiosk_walkin_requires_name(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {'first_name': '', 'last_name': ''})
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("tryouts:kiosk_walkin"), {"first_name": "", "last_name": ""}
+        )
         self.assertEqual(resp.status_code, 400)
         self.assertFalse(WalkIn.objects.exists())
 
     def test_kiosk_walkin_requires_login(self):
-        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
-            'first_name': 'Marco', 'last_name': 'Reyes',
-        })
+        resp = self.client.post(
+            reverse("tryouts:kiosk_walkin"),
+            {
+                "first_name": "Marco",
+                "last_name": "Reyes",
+            },
+        )
         self.assertEqual(resp.status_code, 302)
 
     def test_kiosk_walkin_requires_checkin_permission(self):
-        _create_user(email='noperm@sfll.org')
-        self.client.login(username='noperm@sfll.org', password='testpass123')
-        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
-            'first_name': 'Marco', 'last_name': 'Reyes',
-        })
+        _create_user(email="noperm@sfll.org")
+        self.client.login(username="noperm@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("tryouts:kiosk_walkin"),
+            {
+                "first_name": "Marco",
+                "last_name": "Reyes",
+            },
+        )
         self.assertEqual(resp.status_code, 403)
 
     def test_kiosk_walkin_with_session(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        self.client.post(reverse('tryouts:kiosk_walkin'), {
-            'first_name': 'Ana',
-            'last_name': 'Silva',
-            'session': self.session.pk,
-        })
-        wi = WalkIn.objects.get(first_name='Ana', last_name='Silva')
+        self.client.login(username="user@sfll.org", password="testpass123")
+        self.client.post(
+            reverse("tryouts:kiosk_walkin"),
+            {
+                "first_name": "Ana",
+                "last_name": "Silva",
+                "session": self.session.pk,
+            },
+        )
+        wi = WalkIn.objects.get(first_name="Ana", last_name="Silva")
         self.assertEqual(wi.session, self.session)
         self.assertEqual(wi.division, self.session.division)
 
     def test_kiosk_walkin_without_session_still_visible(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
-        resp = self.client.post(reverse('tryouts:kiosk_walkin'), {
-            'first_name': 'Joe',
-            'last_name': 'NoSession',
-        })
-        self.assertEqual(resp.status_code, 200)
-        wi = WalkIn.objects.get(first_name='Joe', last_name='NoSession')
-        self.assertIsNone(wi.session)
-        self.assertEqual(wi.season, self.base['season'])
-        self.assertContains(resp, 'NoSession')
-
-    def test_kiosk_checkin_includes_walkin_list(self):
-        self.client.login(username='user@sfll.org', password='testpass123')
+        self.client.login(username="user@sfll.org", password="testpass123")
         resp = self.client.post(
-            reverse('tryouts:kiosk_checkin', args=[self.assignment.pk])
+            reverse("tryouts:kiosk_walkin"),
+            {
+                "first_name": "Joe",
+                "last_name": "NoSession",
+            },
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'kiosk-walkin-list')
+        wi = WalkIn.objects.get(first_name="Joe", last_name="NoSession")
+        self.assertIsNone(wi.session)
+        self.assertEqual(wi.season, self.base["season"])
+        self.assertContains(resp, "NoSession")
+
+    def test_kiosk_checkin_includes_walkin_list(self):
+        self.client.login(username="user@sfll.org", password="testpass123")
+        resp = self.client.post(
+            reverse("tryouts:kiosk_checkin", args=[self.assignment.pk])
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "kiosk-walkin-list")
