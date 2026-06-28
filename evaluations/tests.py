@@ -647,3 +647,93 @@ class EvalIDORTests(TestCase):
             'evaluations:player_report', args=[old_ps.pk],
         ))
         self.assertEqual(resp.status_code, 404)
+
+    def test_in_division_player_cross_division_session_forbidden(self):
+        """Majors coach + Majors player + AAA session → 403 on all three direct endpoints.
+
+        This is the specific IDOR path: coach enumerates a session_id from another division
+        but supplies a player they legitimately own in their own division.
+        """
+        # Build a non-staff Majors coach so division scope checks are enforced
+        majors2_user = User.objects.create_user(
+            username='majors2@sfll.org', email='majors2@sfll.org',
+            first_name='Majors', last_name='Coach2', password='testpass123',
+        )
+        UserRole.objects.create(
+            user=majors2_user, league=self.d['league'],
+            role='head_coach', division=self.d['division'], is_active=True,
+        )
+        majors2_coach = Coach.objects.create(user=majors2_user, league=self.d['league'])
+        majors2_ts = TeamSeason.objects.create(
+            team=Team.objects.create(league=self.d['league'], name='Giants'),
+            season=self.d['season'], division=self.d['division'],
+        )
+        CoachSeason.objects.create(
+            coach=majors2_coach, team_season=majors2_ts,
+            season=self.d['season'], role='head_coach',
+        )
+
+        self.client.login(username='majors2@sfll.org', password='testpass123')
+
+        # eval_player: Majors player + AAA session → 403
+        resp = self.client.get(reverse(
+            'evaluations:eval_player',
+            args=[self.d['station'].pk, self.other_session.pk, self.d['ps'].pk],
+        ))
+        self.assertEqual(resp.status_code, 403)
+
+        # save_eval: same → 403, no eval written
+        resp = self.client.post(reverse(
+            'evaluations:save_eval',
+            args=[self.d['station'].pk, self.other_session.pk, self.d['ps'].pk],
+        ), {'score_power': '10', 'score_contact': '10', 'action': 'save'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(Evaluation.objects.filter(player_season=self.d['ps']).count(), 0)
+
+        # player_eval_edit: same → 403
+        resp = self.client.get(reverse(
+            'evaluations:player_eval_edit',
+            args=[self.d['ps'].pk, self.d['station'].pk, self.other_session.pk],
+        ))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_cross_league_station_forbidden(self):
+        """Valid player + session but a station_id from another league → 403 on all three endpoints.
+
+        This is the cross-league station enumeration path: an attacker substitutes a
+        station_id that belongs to a different league's Station object.
+        """
+        other_league = League.objects.create(name='OtherLeague2', short_name='OL2')
+        other_station = Station.objects.create(
+            league=other_league, name='Pitching', display_order=0,
+            is_active=True,
+            eval_fields=[
+                {'key': 'velocity', 'label': 'Velocity', 'type': 'int', 'min': 1, 'max': 10},
+            ],
+        )
+
+        # coach_user from setUp is staff → passes _is_eval_authorized;
+        # cross-league station guard fires before the global-role bypass, so staff still gets 403.
+        self.client.login(username='coach@sfll.org', password='testpass123')
+
+        # eval_player: cross-league station + valid session/player → 403
+        resp = self.client.get(reverse(
+            'evaluations:eval_player',
+            args=[other_station.pk, self.d['session'].pk, self.d['ps'].pk],
+        ))
+        self.assertEqual(resp.status_code, 403)
+
+        # save_eval: same → 403, no eval written
+        resp = self.client.post(reverse(
+            'evaluations:save_eval',
+            args=[other_station.pk, self.d['session'].pk, self.d['ps'].pk],
+        ), {'score_velocity': '10', 'action': 'save'})
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(Evaluation.objects.filter(station=other_station).count(), 0)
+
+        # player_eval_edit: same → 403
+        resp = self.client.get(reverse(
+            'evaluations:player_eval_edit',
+            args=[self.d['ps'].pk, other_station.pk, self.d['session'].pk],
+        ))
+        self.assertEqual(resp.status_code, 403)
