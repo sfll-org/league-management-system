@@ -1164,7 +1164,7 @@ html[data-palette="twilight"] .cmdk-backdrop { background: oklch(0.05 0 0 / 0.55
   color: var(--ink);
 }
 
-/* The player_head crumbs + pills come from the SFLL-94 detail page; replicate
+/* The player_head crumbs + pills come from the SFLL-109 detail page; replicate
    the small slice we need here so the family page renders standalone on main
    until that PR merges. */
 .player-head__crumbs {

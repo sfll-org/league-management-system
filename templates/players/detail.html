@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{# SFLL-94 — Player Detail (Phase 4).
+{# SFLL-109 — Player Detail (Phase 4).
    Three tabs (Overview / Season / Evals); inline-editable fields surface
    on the Overview tab via HTMX partials in players/_partials/. The
    composite-score grid on the Evals tab is aggregated across coaches —
@@ -57,17 +57,20 @@
 
   {# ───── Tabs ───── #}
   <div class="tabs" role="tablist">
-    <a href="?tab=overview" role="tab"
+    <a href="?tab=overview" role="tab" id="tab-overview" aria-controls="panel-overview"
+       aria-selected="{% if active_tab == 'overview' %}true{% else %}false{% endif %}"
        class="tab {% if active_tab == 'overview' %}tab--active{% endif %}">Overview</a>
-    <a href="?tab=season" role="tab"
+    <a href="?tab=season" role="tab" id="tab-season" aria-controls="panel-season"
+       aria-selected="{% if active_tab == 'season' %}true{% else %}false{% endif %}"
        class="tab {% if active_tab == 'season' %}tab--active{% endif %}">Season</a>
-    <a href="?tab=evals" role="tab"
+    <a href="?tab=evals" role="tab" id="tab-evals" aria-controls="panel-evals"
+       aria-selected="{% if active_tab == 'evals' %}true{% else %}false{% endif %}"
        class="tab {% if active_tab == 'evals' %}tab--active{% endif %}">Evals</a>
   </div>
 
   {# ───── Overview tab ───── #}
   {% if active_tab == 'overview' %}
-  <div class="detail-grid">
+  <div class="detail-grid" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
     <div class="card">
       <div class="card__head">
         <span class="card__title">Player
@@ -142,7 +145,7 @@
 
   {# ───── Season tab ───── #}
   {% if active_tab == 'season' %}
-  <div class="card">
+  <div class="card" id="panel-season" role="tabpanel" aria-labelledby="tab-season">
     <div class="card__head">
       <span class="card__title">SES attendance
         <span class="card__title-sub">{{ sessions_rows|length }} session{{ sessions_rows|length|pluralize }}</span>
@@ -190,6 +193,7 @@
 
   {# ───── Evals tab ───── #}
   {% if active_tab == 'evals' %}
+  <div id="panel-evals" role="tabpanel" aria-labelledby="tab-evals">
   {% if not can_see_evals %}
   <div class="card">
     <div class="empty">
@@ -244,6 +248,7 @@
     {% endfor %}
   </div>
   {% endif %}
+  </div>
   {% endif %}
 
 </div>

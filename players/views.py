@@ -249,7 +249,7 @@ def print_dugout_card(request, team_season_id):
 
 
 # ---------------------------------------------------------------------------
-# Player Detail (SFLL-94 — Phase 4)
+# Player Detail (SFLL-109 — Phase 4)
 # ---------------------------------------------------------------------------
 
 EDITABLE_FIELDS = {

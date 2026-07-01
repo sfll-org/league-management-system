@@ -1888,7 +1888,7 @@ select.kiosk-walkin-input { cursor: pointer; }
   margin-top: 2px;
 }
 
-/* ─── Player Detail (Phase 4 — SFLL-94) ─── */
+/* ─── Player Detail (Phase 4 — SFLL-109) ─── */
 
 /* Header arrangement: large avatar + crumbs + name + pill row. The
    .page-header still owns the right-side .page-header__actions block. */
