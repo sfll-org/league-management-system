@@ -1,7 +1,7 @@
 """Tests for the players app.
 
 Covers: League, Season, Division, Station, Player, PlayerSeason, Team, TeamSeason,
-Family Detail (SFLL-95), Print surfaces (SFLL-114/SFLL-129), Player Detail (SFLL-94).
+Family Detail (SFLL-95), Print surfaces (SFLL-114/SFLL-129), Player Detail (SFLL-109).
 """
 
 import os
@@ -1090,7 +1090,7 @@ class PrintCSSRegressionTest(SimpleTestCase):
 
 
 class PlayerDetailViewTests(TestCase):
-    """SFLL-94 Phase 4 — Player Detail page + HTMX inline-edit endpoints."""
+    """SFLL-109 Phase 4 — Player Detail page + HTMX inline-edit endpoints."""
 
     def setUp(self):
         self.client = Client()
@@ -1159,9 +1159,21 @@ class PlayerDetailViewTests(TestCase):
         self.client.login(username="admin@sfll.org", password="testpass123")
         resp = self.client.get(reverse("players:detail", args=[self.ps.pk]))
         self.assertContains(resp, 'id="field-first_name"')
+        self.assertContains(resp, 'id="field-last_name"')
         self.assertContains(resp, 'id="field-jersey_number"')
         self.assertContains(resp, 'id="field-assigned_team"')
+        self.assertContains(resp, 'id="field-sub_league"')
         self.assertContains(resp, "editable-trigger")
+
+    def test_detail_tabs_expose_accessible_state(self):
+        self.client.login(username="viewer@sfll.org", password="testpass123")
+        resp = self.client.get(
+            reverse("players:detail", args=[self.ps.pk]) + "?tab=season",
+        )
+        self.assertContains(resp, 'id="tab-season"')
+        self.assertContains(resp, 'aria-selected="true"')
+        self.assertContains(resp, 'id="panel-season"')
+        self.assertContains(resp, 'role="tabpanel"')
 
     def test_detail_non_editor_sees_static(self):
         self.client.login(username="viewer@sfll.org", password="testpass123")
