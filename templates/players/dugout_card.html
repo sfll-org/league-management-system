@@ -20,8 +20,8 @@
 
   <article class="dugout-card">
 
-    {# Team strip header — name + division + season + a fill-in for the
-       head coach's name (we don't reliably know it from the data yet). #}
+    {% comment %} Team strip header — name + division + season + a fill-in for the
+       head coach's name (we don't reliably know it from the data yet). {% endcomment %}
     <header class="dugout-card__strip"
             style="display: flex; justify-content: space-between; align-items: flex-end;
                    border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 8px;">
@@ -41,9 +41,9 @@
 
     <div class="dugout-card__body" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px;">
 
-      {# Roster + per-player emergency phone. SFLL doesn't store guardian
+      {% comment %} Roster + per-player emergency phone. SFLL doesn't store guardian
          phones on PlayerSeason yet, so the phone column is a fill-in. The
-         account holder name (guardian) is what we have, so we surface it. #}
+         account holder name (guardian) is what we have, so we surface it. {% endcomment %}
       <section>
         <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
                    text-transform: uppercase; letter-spacing: 0.04em;">Roster ({{ roster|length }})</h2>
@@ -69,9 +69,9 @@
         </table>
       </section>
 
-      {# 5-game schedule — blank-row layout. Game schedule isn't in the
+      {% comment %} 5-game schedule — blank-row layout. Game schedule isn't in the
          data model yet (no Game/Schedule); the card prints the slots and
-         coaches fill them in from the league calendar. #}
+         coaches fill them in from the league calendar. {% endcomment %}
       <section>
         <h2 style="font-family: var(--font-display); font-size: 11pt; margin: 0 0 4px;
                    text-transform: uppercase; letter-spacing: 0.04em;">Next 5 games</h2>
@@ -109,8 +109,8 @@
 {% endblock %}
 
 {% block extra_js %}
-{# Auto-open print dialog when ?auto=1 is set so the Print button can
-   open this URL in a new tab and trigger the dialog without an extra click. #}
+{% comment %} Auto-open print dialog when ?auto=1 is set so the Print button can
+   open this URL in a new tab and trigger the dialog without an extra click. {% endcomment %}
 <script>
   (function () {
     var params = new URLSearchParams(window.location.search);

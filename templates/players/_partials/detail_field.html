@@ -1,5 +1,5 @@
-{# Read-mode cell for a single inline-editable field. Wrapped in
-   #field-{name} so HTMX swaps replace the whole cell on edit/cancel/save. #}
+{% comment %} Read-mode cell for a single inline-editable field. Wrapped in
+   #field-{name} so HTMX swaps replace the whole cell on edit/cancel/save. {% endcomment %}
 {% load static %}
 <div id="field-{{ field }}" class="detail-row__value">
   {% if can_edit %}

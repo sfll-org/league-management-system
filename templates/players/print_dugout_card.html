@@ -1,11 +1,11 @@
 {% load static %}<!DOCTYPE html>
-{# SFLL-114 — Half-sheet dugout roster card (Phase 9, print preview).
+{% comment %} SFLL-114 — Half-sheet dugout roster card (Phase 9, print preview).
    Standalone print surface — does NOT extend base.html so the sidebar
    shell never appears on the printed sheet. Pacific tokens drive all
    colors via lms-tokens.css; component classes live in lms-print.css.
    Two identical cards render per letter sheet so a coach can keep one
    in the dugout and hand the other to a parent helper or umpire.
-   window.print() fires on load unless ?print=0 is passed. #}
+   window.print() fires on load unless ?print=0 is passed. {% endcomment %}
 <html
   lang="en"
   data-palette="pacific"
@@ -28,9 +28,9 @@
   />
 </head>
 <body class="print-body">
-  {# Screen-only toolbar — @media print hides it.
+  {% comment %} Screen-only toolbar — @media print hides it.
      Gives the user a reprint button after dismissing the auto-fired
-     dialog, plus a back link so the print surface isn't a dead-end. #}
+     dialog, plus a back link so the print surface isn't a dead-end. {% endcomment %}
   <div class="print-toolbar">
     <div class="print-toolbar__meta">
       <strong>{{ team_season.team.name }}</strong>
@@ -46,9 +46,9 @@
   </div>
 
   <main class="print-sheet">
-    {# Two identical cards — top and bottom of the letter sheet.
+    {% comment %} Two identical cards — top and bottom of the letter sheet.
        A coach folds or cuts along the midline and keeps one in the
-       dugout while handing the other to a parent helper. #}
+       dugout while handing the other to a parent helper. {% endcomment %}
     {% for half in "12" %}
     <article class="dugout-card" aria-label="Dugout roster card">
 

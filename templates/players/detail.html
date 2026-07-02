@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{# SFLL-109 — Player Detail (Phase 4).
+{% comment %} SFLL-109 — Player Detail (Phase 4).
    Three tabs (Overview / Season / Evals); inline-editable fields surface
    on the Overview tab via HTMX partials in players/_partials/. The
    composite-score grid on the Evals tab is aggregated across coaches —
-   per-coach scores never appear here (mirrors evaluations.player_report). #}
+   per-coach scores never appear here (mirrors evaluations.player_report). {% endcomment %}
 
 {% block title %}{{ ps.player.full_name }} — Player{% endblock %}
 
